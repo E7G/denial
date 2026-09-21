@@ -121,7 +121,7 @@ readonly GLIBC_BASELINE FLUTTER_ENGINE_ABI FLUTTER_ENGINE_SHA256
   || fail 'native candidate timestamp does not match its main commit'
 [[ "$GLIBC_BASELINE" == 2.39 ]] \
   || fail 'native candidate has an unexpected glibc baseline'
-[[ "$FLUTTER_ENGINE_ABI" == 3.44.7.denial1 ]] \
+[[ "$FLUTTER_ENGINE_ABI" == 3.47.5.denial1 ]] \
   || fail 'native candidate has an unexpected Flutter Engine ABI'
 [[ "$FLUTTER_ENGINE_SHA256" == "$(
   awk 'NR == 1 { print $1 }' \
@@ -156,8 +156,8 @@ mapfile -d '' candidate_arch_packages < <(
     -print0 \
     | sort -z
 )
-((${#candidate_arch_packages[@]} == 3)) \
-  || fail "expected three candidate Arch packages, found ${#candidate_arch_packages[@]}"
+((${#candidate_arch_packages[@]} == 2)) \
+  || fail "expected two candidate Arch packages, found ${#candidate_arch_packages[@]}"
 arch_denial_packages=0
 arch_engine_packages=0
 for package in "${candidate_arch_packages[@]}"; do
@@ -177,7 +177,6 @@ for package in "${candidate_arch_packages[@]}"; do
         arch "$package" "$CANDIDATE_STAGE/denial-flutter-engine"
       arch_engine_packages=$((arch_engine_packages + 1))
       ;;
-    denial-ui-development) ;;
     *) fail "unexpected candidate Arch package: ${package_name:-unset}" ;;
   esac
 done

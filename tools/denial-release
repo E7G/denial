@@ -579,7 +579,7 @@ source_audit() {
       and .package.version_source == "denial-release-tag"
       and .package.epoch == 1
       and .package.architecture == "x86_64"
-      and .compatibility.flutter_engine_abi == "3.44.7.denial1"
+      and .compatibility.flutter_engine_abi == "3.47.5.denial1"
       and .assurances.offline_source_closure == false
       and .assurances.reproducible_package == false
       and .assurances.signed_generation_tags == false
@@ -607,19 +607,19 @@ source_audit() {
       and .assurances.reproducible_package == false
       and .assurances.independently_reproduced == false
     ' "$ui_manifest" >/dev/null; then
-    pass 'UI-development manifest states its public-beta boundary accurately'
+    pass 'legacy UI-development manifest states its public-beta boundary accurately'
   else
-    fail 'UI-development manifest schema, runtime, or assurance state is invalid'
+    fail 'legacy UI-development manifest schema, runtime, or assurance state is invalid'
   fi
 
   if jq -e '
       .schema_version == 1
       and .flutter.repository == "https://github.com/denialwm/flutter.git"
-      and .flutter.branch == "denial/3.44.7-r1"
+      and .flutter.branch == "denial/3.47.5-r1"
       and (.flutter.revision | test("^[0-9a-f]{40}$"))
       and (.flutter.upstream_revision | test("^[0-9a-f]{40}$"))
       and .skia.repository == "https://github.com/denialwm/skia.git"
-      and .skia.branch == "denial/3.44.7-r1"
+      and .skia.branch == "denial/3.47.5-r1"
       and (.skia.revision | test("^[0-9a-f]{40}$"))
       and (.skia.upstream_revision | test("^[0-9a-f]{40}$"))
       and .depot_tools.repository ==
@@ -764,28 +764,12 @@ source_audit() {
     'prebuilt/flutter-engine/SOURCE_LOCK.json' \
     "$(jq -r '.source_lock.path' "$manifest")"
   check_equal \
-    'UI manifest uses the canonical source-lock path' \
-    'prebuilt/flutter-engine/SOURCE_LOCK.json' \
-    "$(jq -r '.source_lock.path' "$ui_manifest")"
-  check_equal \
-    'UI manifest identifies the source lock' \
-    "$(jq -r '.source_lock.sha256' "$ui_manifest")" \
-    "$(file_sha256 "$source_lock")"
-  check_equal \
     'engine manifest identifies the Flutter fork commit' \
     "$(jq -r '.sources.flutter_fork_revision' "$manifest")" \
     "$(jq -r '.flutter.revision' "$source_lock")"
   check_equal \
     'engine manifest identifies the Skia fork commit' \
     "$(jq -r '.sources.skia_fork_revision' "$manifest")" \
-    "$(jq -r '.skia.revision' "$source_lock")"
-  check_equal \
-    'UI manifest identifies the Flutter fork commit' \
-    "$(jq -r '.sources.flutter_fork_revision' "$ui_manifest")" \
-    "$(jq -r '.flutter.revision' "$source_lock")"
-  check_equal \
-    'UI manifest identifies the Skia fork commit' \
-    "$(jq -r '.sources.skia_fork_revision' "$ui_manifest")" \
     "$(jq -r '.skia.revision' "$source_lock")"
   check_equal \
     'engine manifest identifies the Flutter fork repository' \
@@ -803,10 +787,6 @@ source_audit() {
     'engine manifest identifies the upstream Skia compatibility revision' \
     "$(jq -r '.sources.skia_revision' "$manifest")" \
     "$(jq -r '.skia.upstream_revision' "$source_lock")"
-  check_equal \
-    'UI manifest identifies the upstream Flutter compatibility revision' \
-    "$(jq -r '.sources.flutter_revision' "$ui_manifest")" \
-    "$(jq -r '.flutter.upstream_revision' "$source_lock")"
   check_equal \
     'UI manifest identifies the debug-engine arguments' \
     "$(jq -r '.artifacts.debug_engine_args_sha256' "$ui_manifest")" \

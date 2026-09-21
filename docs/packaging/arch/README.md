@@ -26,11 +26,13 @@ sudo pacman -U \
 All public archives take their version directly from the verified signed
 Denial tag. The engine uses a one-time epoch so tag-derived versions upgrade
 from the former Flutter-numbered package. Its independent virtual capability,
-`denial-flutter-engine-abi=3.44.7.denial1`, still enforces runtime
+`denial-flutter-engine-abi=3.47.5.denial1`, still enforces runtime
 compatibility.
 
-Live Flutter UI editing is provided separately so normal installations do not
-carry a development toolchain. Build the optional package with:
+Live Flutter UI editing tooling remains separate so normal installations do
+not carry a development toolchain. It is paused for the release-only Flutter
+3.47.5 generation. A future explicitly requested development-engine refresh
+can build it with:
 
 ```sh
 cargo xtask ui-development-package
@@ -44,8 +46,7 @@ sudo pacman -U \
   /path/to/denial-ui-development-*.pkg.tar.zst
 ```
 
-The optional package requires the exact
-`denial-flutter-engine-abi=3.44.7.denial1` generation and contains the pinned
+The legacy package requires its exact Flutter generation and contains the pinned
 JIT and optimized AOT profile engines, Dart and Flutter tools, Denial's locked
 UI dependency sources, a version-matched editable source snapshot and revision
 metadata, native `denial-ui` client, browser DevTools for Inspector and

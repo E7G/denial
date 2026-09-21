@@ -13,7 +13,7 @@ let
   sourceLock = lib.importJSON ../prebuilt/flutter-engine/SOURCE_LOCK.json;
   nixLock = lib.importJSON ./flutter-engine-lock.json;
   sourceLockHash = builtins.hashFile "sha256" ../prebuilt/flutter-engine/SOURCE_LOCK.json;
-  flutterVersion = "3.44.7";
+  flutterVersion = "3.47.5";
   flutterRevision = sourceLock.flutter.revision;
   engineVersion = lib.removeSuffix "\n" (
     builtins.readFile ../prebuilt/flutter-engine/linux-x64-release/ENGINE_REVISION

@@ -103,11 +103,14 @@ The shell's UI is editable Flutter code. With the development tools installed,
 change a widget, save, and watch your desktop update while your Wayland apps
 keep running. Try to remember what you were supposed to be working on.
 
-The optional `denial-ui-development` package is available only through the
-Pacman repository:
+The Flutter 3.47.5 generation ships only the release engine. The optional
+`denial-ui-development` package is paused for this generation; its source
+tooling remains available for an explicitly requested future development
+engine refresh.
+
+When a compatible development package is published again, setup remains:
 
 ```sh
-sudo pacman -S denial-ui-development
 denialctl ui setup
 ```
 

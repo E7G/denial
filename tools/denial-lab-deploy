@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 TARGET="${1:-192.168.1.183}"
+SOURCE_LOCK="$ROOT/prebuilt/flutter-engine/SOURCE_LOCK.json"
+export FLUTTER_GIT_URL="$(jq -er '.flutter.repository' "$SOURCE_LOCK")"
 FLUTTER_ROOT="${DENIAL_FLUTTER_SOURCE_ROOT:-/mnt/exty/denial-flutter-fork-3.44.7}"
 ENGINE_OUT="${DENIAL_PC_ENGINE_TEST_NINJA_OUT:-$FLUTTER_ROOT/engine/src/out/denial_host_release}"
 FLUTTER="$FLUTTER_ROOT/bin/flutter"
@@ -239,14 +241,14 @@ else
 
         version_file="$FLUTTER_ROOT/bin/cache/flutter.version.json"
         if ! jq -e --arg revision "$revision" \
-            '.frameworkVersion == "3.44.7"
-                and .flutterVersion == "3.44.7"
+            '.frameworkVersion == "3.47.5"
+                and .flutterVersion == "3.47.5"
                 and .frameworkRevision == $revision' \
             "$version_file" >/dev/null; then
             rendered_version="$(mktemp -- "$version_file.XXXXXX")"
             jq --arg revision "$revision" \
-                '.frameworkVersion = "3.44.7"
-                    | .flutterVersion = "3.44.7"
+                '.frameworkVersion = "3.47.5"
+                    | .flutterVersion = "3.47.5"
                     | .frameworkRevision = $revision' \
                 "$version_file" >"$rendered_version"
             mv -- "$rendered_version" "$version_file"

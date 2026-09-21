@@ -87,13 +87,13 @@ Set `DENIAL_PC_DEPENDENCY_ROOT`, `DENIAL_PC_BUILD_ROOT`, or
 
 The current development generation couples:
 
-- Flutter `3.44.7`;
+- Flutter `3.47.5`;
 - the exact Denial Flutter and Skia fork commits in
   `prebuilt/flutter-engine/SOURCE_LOCK.json`;
 - upstream Flutter compatibility revision
-  `84fc5cbb223bc12f83d65b647ff8a56caf779ffd`;
-- Dart `3.12.2`;
-- engine artifact revision `69c8c61792f04cc809dfef0c910414fb9afc06cd`;
+  `6a19cca56475dbfba1478ee68d7bd0c2ef891da1`;
+- Dart `3.13.4`;
+- engine artifact revision `af7e796e161ae0bb1ff0758c71a7105418bd9ded`;
 - the generated Rust embedder ABI in
   `compositor/flutter-engine/src/sys.rs`.
 
@@ -220,16 +220,17 @@ compiled payloads to tag-derived package metadata, signs them, and publishes
 them without compiling again. Stage 2 later adds offline input closure. See the
 [branch validation boundary](packaging/arch/BRANCH_VALIDATION.md).
 
-Live Flutter UI editing is deliberately split into a third, optional package.
-After the pinned debug and profile engines described under
-`prebuilt/flutter-engine/` have been rebuilt and staged, create and validate
-it with the repository's Rust task:
+Live Flutter UI editing remains split into a third, optional package. Debug
+and profile engines are excluded from the routine build and release path. The
+legacy package can only be refreshed after an explicitly requested engine
+build with `DENIAL_FLUTTER_ENGINE_DEVELOPMENT_MODES=1`; then create and
+validate it with the repository's Rust task:
 
 ```sh
 cargo xtask ui-development-package
 ```
 
-The resulting `denial-ui-development` archive is written beside the two
+The resulting legacy `denial-ui-development` archive is written beside the two
 required packages. It contains the coupled JIT engine, optimized AOT profile
 engine, curated Dart and Flutter runtime needed for shell assembly and editor
 attach, matching browser DevTools assets needed for Inspector and performance

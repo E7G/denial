@@ -257,13 +257,6 @@ jobs:
             --github-env "$GITHUB_ENV" \
             2>&1 | tee "$EVIDENCE_ROOT/flutter-engine.txt"
 
-      - name: Verify packaged Flutter tool snapshot
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo xtask flutter-tool-snapshot \
-            2>&1 | tee "$EVIDENCE_ROOT/flutter-tool-snapshot.txt"
-
       - name: Build Flutter integration-test bundle
         shell: bash
         run: |
@@ -271,14 +264,14 @@ jobs:
           tools/denial-pc bundle \
             2>&1 | tee "$EVIDENCE_ROOT/integration-test-bundle.txt"
 
-      - name: Run compositor and Flutter tests
+      - name: Run release-path compositor tests
         shell: bash
         env:
           # The hardened runner denies the test's SCHED_RESET_ON_FORK syscall.
           DENIAL_SKIP_CPU_CAPACITY_TEST: "1"
         run: |
           set -euo pipefail
-          tools/denial-pc test \
+          tools/denial-pc compositor-test \
             2>&1 | tee "$EVIDENCE_ROOT/denial-tests.txt"
           (
             cd "$DENIAL_PC_DEPENDENCY_ROOT/flutter/packages/flutter_tools"
@@ -296,7 +289,6 @@ jobs:
           set -euo pipefail
           TIMEFORMAT=$'real_seconds=%3R\nuser_seconds=%3U\nsystem_seconds=%3S\ncpu_percent=%P'
           {
-            time cargo xtask ui-development-package
             time tools/denial-pc arch-package
             time tools/denial-pc native-packages
             time tools/denial-pc alpine-package
@@ -308,13 +300,9 @@ jobs:
         run: |
           set -euo pipefail
           failure_root="$RUNNER_TEMP/denial-$GITHUB_REF_NAME-failure"
-          snapshot_root="${XDG_CACHE_HOME:-$HOME/.cache}/denial/pc-build/ui-development/flutter-tools/snapshot-failure"
           install -d -m 0755 "$failure_root"
           if [[ -n "${EVIDENCE_ROOT:-}" && -d "$EVIDENCE_ROOT" ]]; then
             cp -a -- "$EVIDENCE_ROOT" "$failure_root/evidence"
-          fi
-          if [[ -d "$snapshot_root" && -f "${EVIDENCE_ROOT:-}/flutter-tool-snapshot.txt" ]]; then
-            cp -a -- "$snapshot_root" "$failure_root/snapshot-failure"
           fi
 
       - name: Upload failed build diagnostics
@@ -369,8 +357,8 @@ jobs:
               -print0 \
               | sort -z
           )
-          if ((${#arch_packages[@]} != 3)); then
-            printf 'Expected three Arch packages, found %d\n' \
+          if ((${#arch_packages[@]} != 2)); then
+            printf 'Expected two Arch packages, found %d\n' \
               "${#arch_packages[@]}" >&2
             exit 1
           fi
@@ -634,8 +622,8 @@ jobs:
               -print0 \
               | sort -z
           )
-          if ((${#packages[@]} != 3)); then
-            printf 'Expected three candidate Arch packages, found %d\n' \
+          if ((${#packages[@]} != 2)); then
+            printf 'Expected two candidate Arch packages, found %d\n' \
               "${#packages[@]}" >&2
             exit 1
           fi
@@ -685,35 +673,12 @@ jobs:
 
           denial_packages=0
           engine_packages=0
-          ui_development_packages=0
           denial_arch_package=''
           engine_arch_package=''
           denial_version=''
           engine_version=''
-          ui_development_version=''
-          ui_denial_before="$(
-            jq -er \
-              '.compatibility.denial_version_before' \
-              packaging/arch/ui-development/manifest.json
-          )"
-          expected_debug_engine_sha="$(
-            awk 'NR == 1 { print $1 }' \
-              prebuilt/flutter-engine/linux-x64-debug/libflutter_engine.so.sha256
-          )"
-          expected_profile_engine_sha="$(
-            awk 'NR == 1 { print $1 }' \
-              prebuilt/flutter-engine/linux-x64-profile/libflutter_engine.so.sha256
-          )"
-          expected_flutter_tool_sha="$(
-            awk 'NR == 1 { print $1 }' \
-              prebuilt/flutter-tools/3.44.7/flutter_tools.snapshot.sha256
-          )"
           expected_source_lock_sha="$(
             sha256sum prebuilt/flutter-engine/SOURCE_LOCK.json \
-              | awk '{ print $1 }'
-          )"
-          expected_ui_manifest_sha="$(
-            sha256sum packaging/arch/ui-development/manifest.json \
               | awk '{ print $1 }'
           )"
           for package in "${packages[@]}"; do
@@ -748,10 +713,7 @@ jobs:
                 test "$package_filename" = \
                   "denial-${package_version}-x86_64.pkg.tar.zst"
                 grep -Fxq \
-                  'depend = denial-flutter-engine-abi=3.44.7.denial1' \
-                  <<<"$package_info"
-                grep -Fxq \
-                  'optdepend = denial-ui-development: live Flutter UI editing and hot reload' \
+                  'depend = denial-flutter-engine-abi=3.47.5.denial1' \
                   <<<"$package_info"
                 bsdtar -tf "$package" \
                   | grep -Fxq usr/bin/deniald
@@ -774,7 +736,7 @@ jobs:
                 test "$package_filename" = \
                   "denial-flutter-engine-${package_version}-x86_64.pkg.tar.zst"
                 grep -Fxq \
-                  'provides = denial-flutter-engine-abi=3.44.7.denial1' \
+                  'provides = denial-flutter-engine-abi=3.47.5.denial1' \
                   <<<"$package_info"
                 bsdtar -tf "$package" \
                   | grep -Fxq \
@@ -789,71 +751,6 @@ jobs:
                     | awk '{ print $1 }'
                 )" = "$expected_source_lock_sha"
                 ;;
-              denial-ui-development)
-                ui_development_packages=$((ui_development_packages + 1))
-                ui_development_version="$package_version"
-                ui_package_identity="${package_version%-*}"
-                test "$package_filename" = \
-                  "denial-ui-development-${package_version}-x86_64.pkg.tar.zst"
-                grep -Fxq \
-                  'depend = denial-flutter-engine-abi=3.44.7.denial1' \
-                  <<<"$package_info"
-                grep -Fxq \
-                  "depend = denial>=${ui_package_identity}" \
-                  <<<"$package_info"
-                grep -Fxq \
-                  "depend = denial<${ui_denial_before}" \
-                  <<<"$package_info"
-                bsdtar -tf "$package" \
-                  | grep -Fxq usr/bin/denial-ui
-                bsdtar -tf "$package" \
-                  | grep -Fxq \
-                    usr/lib/denial/ui-development/lib/libflutter_engine.so
-                bsdtar -tf "$package" \
-                  | grep -Fxq \
-                    usr/lib/denial/ui-development/profile/lib/libflutter_engine.so
-                bsdtar -tf "$package" \
-                  | grep -Fxq \
-                    usr/lib/denial/ui-development/flutter/bin/cache/flutter_tools.snapshot
-                bsdtar -tf "$package" \
-                  | grep -Fxq \
-                    usr/share/denial/ui-development/manifest.json
-                test "$(
-                  bsdtar -xOf \
-                    "$package" \
-                    usr/lib/denial/ui-development/lib/libflutter_engine.so \
-                    | sha256sum \
-                    | awk '{ print $1 }'
-                )" = "$expected_debug_engine_sha"
-                test "$(
-                  bsdtar -xOf \
-                    "$package" \
-                    usr/lib/denial/ui-development/profile/lib/libflutter_engine.so \
-                    | sha256sum \
-                    | awk '{ print $1 }'
-                )" = "$expected_profile_engine_sha"
-                test "$(
-                  bsdtar -xOf \
-                    "$package" \
-                    usr/lib/denial/ui-development/flutter/bin/cache/flutter_tools.snapshot \
-                    | sha256sum \
-                    | awk '{ print $1 }'
-                )" = "$expected_flutter_tool_sha"
-                test "$(
-                  bsdtar -xOf \
-                    "$package" \
-                    usr/share/denial/ui-development/manifest.json \
-                    | sha256sum \
-                  | awk '{ print $1 }'
-                )" = "$expected_ui_manifest_sha"
-                test "$(
-                  bsdtar -xOf \
-                    "$package" \
-                    usr/share/denial/ui-development/SOURCE_LOCK.json \
-                    | sha256sum \
-                    | awk '{ print $1 }'
-                )" = "$expected_source_lock_sha"
-                ;;
               *)
                 printf 'Unexpected package name: %s\n' "$package_name" >&2
                 exit 1
@@ -862,9 +759,7 @@ jobs:
           done
           test "$denial_packages" -eq 1
           test "$engine_packages" -eq 1
-          test "$ui_development_packages" -eq 1
           test "$engine_version" = "1:${denial_version}"
-          test "$ui_development_version" = "$denial_version"
           test -n "$denial_arch_package"
           test -n "$engine_arch_package"
 
@@ -895,7 +790,7 @@ jobs:
               show -s --format=%ct "$GITHUB_SHA"
           )"
           grep -Fxq "build_identity=$BUILD_IDENTITY" "$provenance"
-          test "$FLUTTER_ENGINE_ABI" = 3.44.7.denial1
+          test "$FLUTTER_ENGINE_ABI" = 3.47.5.denial1
           test "$FLUTTER_ENGINE_SHA256" = "$(
             awk 'NR == 1 { print $1 }' \
               prebuilt/flutter-engine/linux-x64-release/libflutter_engine.so.sha256
@@ -1037,7 +932,7 @@ jobs:
                 test "$(basename -- "$package")" = \
                   "denial-flutter-engine-${apk_version}-r${PACKAGE_RELEASE}.apk"
                 grep -Fxq \
-                  'provides = denial-flutter-engine-abi-3.44.7.denial1' \
+                  'provides = denial-flutter-engine-abi-3.47.5.denial1' \
                   <<<"$package_info"
                 ;;
               *)

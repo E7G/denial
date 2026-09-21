@@ -33,7 +33,11 @@ if [[ "$DENIAL_ARCH" == aarch64 ]] && ((DEFAULT_BUILD_JOBS > 10)); then
   DEFAULT_BUILD_JOBS=10
 fi
 BUILD_JOBS="${DENIAL_FLUTTER_ENGINE_JOBS:-$DEFAULT_BUILD_JOBS}"
-MODES=(release debug profile)
+if [[ "${DENIAL_FLUTTER_ENGINE_DEVELOPMENT_MODES:-0}" == 1 ]]; then
+  MODES=(release debug profile)
+else
+  MODES=(release)
+fi
 ARTIFACT_STAGING=''
 if [[ "$DENIAL_FLUTTER_ARCH" == x64 ]]; then
   NATIVE_TOOLCHAIN_JOBS=16
@@ -87,7 +91,7 @@ Usage:
 
 Commands:
   cache-key  Print the immutable cache key for the locked source and GN args.
-  build      Reuse/build all modes and stage them into prebuilt/ for local use.
+  build      Reuse/build the release engine and stage it for local use.
   flutter-test
              Build the lock-matched debug flutter_tester and run the shell tests.
              Arguments after -- are forwarded to flutter test.
@@ -98,7 +102,7 @@ Commands:
              artifacts shipped for editable UI development.
   refresh-metadata
              After deliberately advancing SOURCE_LOCK.json, regenerate GN
-             arguments and canonical checksums, then build and stage all modes.
+             arguments and canonical checksums, then build and stage release.
   verify     Require and verify an existing exact artifact hit.
 
 Environment:
@@ -109,6 +113,9 @@ Environment:
   DENIAL_FLUTTER_ENGINE_JOBS        Explicit Ninja parallelism.
   DENIAL_FLUTTER_ENGINE_DEDICATED_BUILDER
                                       Set to 1 to use every CPU by default.
+  DENIAL_FLUTTER_ENGINE_DEVELOPMENT_MODES
+                                      Set to 1 to additionally build and
+                                      refresh debug and profile engines.
   DENIAL_FLUTTER_TEST_COMMAND          Prepared lock-matched Flutter launcher
                                       used to run shell tests.
 
@@ -322,11 +329,11 @@ validate_source_lock() {
   jq -e '
     .schema_version == 1
     and .flutter.repository == "https://github.com/denialwm/flutter.git"
-    and .flutter.branch == "denial/3.44.7-r1"
+    and .flutter.branch == "denial/3.47.5-r1"
     and (.flutter.revision | test("^[0-9a-f]{40}$"))
     and (.flutter.upstream_revision | test("^[0-9a-f]{40}$"))
     and .skia.repository == "https://github.com/denialwm/skia.git"
-    and .skia.branch == "denial/3.44.7-r1"
+    and .skia.branch == "denial/3.47.5-r1"
     and (.skia.revision | test("^[0-9a-f]{40}$"))
     and (.skia.upstream_revision | test("^[0-9a-f]{40}$"))
     and .depot_tools.repository ==
@@ -423,10 +430,12 @@ write_github_env() {
     printf 'DENIAL_ENGINE_CACHE_KEY=%s\n' "$key"
     printf 'DENIAL_PC_ENGINE_SOURCE=%s\n' \
       "$artifact_dir/release/libflutter_engine.so"
-    printf 'DENIAL_PACKAGE_DEBUG_ENGINE_SOURCE=%s\n' \
-      "$artifact_dir/debug/libflutter_engine.so"
-    printf 'DENIAL_PACKAGE_PROFILE_ENGINE_SOURCE=%s\n' \
-      "$artifact_dir/profile/libflutter_engine.so"
+    if [[ "${DENIAL_FLUTTER_ENGINE_DEVELOPMENT_MODES:-0}" == 1 ]]; then
+      printf 'DENIAL_PACKAGE_DEBUG_ENGINE_SOURCE=%s\n' \
+        "$artifact_dir/debug/libflutter_engine.so"
+      printf 'DENIAL_PACKAGE_PROFILE_ENGINE_SOURCE=%s\n' \
+        "$artifact_dir/profile/libflutter_engine.so"
+    fi
   } >>"$destination"
 }
 

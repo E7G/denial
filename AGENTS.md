@@ -134,12 +134,13 @@ tools/denial-pc build
 tools/denial-pc test
 ```
 
-Never invoke `flutter test` directly for `dart_shell`. Use
-`tools/denial-pc flutter-test [FLUTTER_TEST_ARGS...]` for targeted or
-Flutter-only tests. It prepares or reuses the lock-matched
-`denial_host_debug` build and supplies the required local-engine selection.
-Use `tools/denial-pc test` when the complete compositor and Flutter test suite
-is required.
+Never invoke `flutter test` directly for `dart_shell`. Routine release-path
+validation uses `tools/denial-pc compositor-test` and does not build a debug
+engine. Use `tools/denial-pc flutter-test [FLUTTER_TEST_ARGS...]` only for an
+explicitly requested Flutter development-engine test; it prepares or reuses
+the lock-matched `denial_host_debug` build and supplies the required
+local-engine selection. `tools/denial-pc test` runs the complete compositor and
+Flutter suite and therefore has the same explicit development-engine boundary.
 
 The compositor binary is written to
 `$XDG_CACHE_HOME/denial/pc-build/rust/release/deniald` by default. The Flutter
@@ -150,9 +151,9 @@ not use a third-party platform runner or a C++ Linux runner.
 
 The source lock in `prebuilt/flutter-engine/SOURCE_LOCK.json` pins Denial's
 Flutter and Skia forks at exact commits. Their upstream compatibility base is
-Flutter `3.44.7`
-(`84fc5cbb223bc12f83d65b647ff8a56caf779ffd`), coupled to Dart `3.12.2` and
-engine artifact `69c8c61792f04cc809dfef0c910414fb9afc06cd`. All Denial engine,
+Flutter `3.47.5`
+(`6a19cca56475dbfba1478ee68d7bd0c2ef891da1`), coupled to Dart `3.13.4` and
+engine artifact `af7e796e161ae0bb1ff0758c71a7105418bd9ded`. All Denial engine,
 framework, and Flutter-tool changes live as normal commits in those forks;
 this repository must not carry a downstream patch series. Cargo resolves the
 exact crate and Smithay revisions in `compositor/Cargo.lock`.
@@ -188,9 +189,12 @@ Routine builds use `build`, which also stages the verified cache artifacts
 below `prebuilt/` for `tools/denial-pc`. Immediately after deliberately
 advancing `SOURCE_LOCK.json`, run
 `tools/denial-flutter-engine refresh-metadata` once instead: it regenerates
-all modes' tracked `args.gn` and canonical checksums, builds the invalidated
-targets, populates the new immutable cache entry, and stages its artifacts.
-Never repair an expected checksum one mode at a time.
+the release mode's tracked `args.gn` and canonical checksum, builds the
+invalidated target, populates the new immutable cache entry, and stages its
+artifact. Debug and profile engines are not part of the routine build or
+release path. `DENIAL_FLUTTER_ENGINE_DEVELOPMENT_MODES=1` is reserved for an
+explicitly requested development-engine refresh. Never repair an expected
+checksum one mode at a time.
 Before committing a lock advance, refresh both package manifests and run
 `tools/denial-release source-audit --branch dev`.
 Before pushing Denial, verify every locked fork commit exists on its remote.

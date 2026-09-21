@@ -12,7 +12,7 @@ license=(
   'GPL-3.0-only'
   'OFL-1.1'
 )
-_flutter_generation='3.44.7.denial1'
+_flutter_generation='3.47.5.denial1'
 depends=(
   'adobe-source-han-sans-cn-fonts'
   'bash'
@@ -43,7 +43,6 @@ depends=(
 optdepends=(
   'fprintd: fingerprint unlock and enrollment'
   'sudo: authorize fingerprint management in Settings'
-  'denial-ui-development: live Flutter UI editing and hot reload'
   'iwd: Wi-Fi controls without NetworkManager'
   'lact: AMD GPU performance controls'
   'networkmanager: Wi-Fi and network controls through NetworkManager'

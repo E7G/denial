@@ -477,15 +477,14 @@ jobs:
               -print0 \
               | sort -z
           )
-          if ((${#packages[@]} != 3)); then
-            printf 'Expected three promoted packages, found %d\n' \
+          if ((${#packages[@]} != 2)); then
+            printf 'Expected two promoted packages, found %d\n' \
               "${#packages[@]}" >&2
             exit 1
           fi
           for expected_package in \
             "denial-${RELEASE_VERSION}-1-x86_64.pkg.tar.zst" \
-            "denial-flutter-engine-1:${RELEASE_VERSION}-1-x86_64.pkg.tar.zst" \
-            "denial-ui-development-${RELEASE_VERSION}-1-x86_64.pkg.tar.zst"; do
+            "denial-flutter-engine-1:${RELEASE_VERSION}-1-x86_64.pkg.tar.zst"; do
             test -f "$PROMOTED_PACKAGE_ROOT/$expected_package"
           done
           cp --reflink=auto -- "${packages[@]}" "$UNSIGNED_ROOT/packages/"

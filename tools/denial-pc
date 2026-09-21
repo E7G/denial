@@ -30,7 +30,8 @@ DEPENDENCY_ROOT="${DENIAL_PC_DEPENDENCY_ROOT:-$CACHE_HOME/denial/pc-dependencies
 CANONICAL_FLUTTER_SOURCE="/mnt/exty/denial-flutter-fork-3.44.7"
 
 FLUTTER_SDK_REPOSITORY="$(jq -er '.flutter.repository' "$FLUTTER_SOURCE_LOCK")"
-FLUTTER_SDK_VERSION="3.44.7"
+export FLUTTER_GIT_URL="$FLUTTER_SDK_REPOSITORY"
+FLUTTER_SDK_VERSION="3.47.5"
 FLUTTER_SDK_REVISION="$(jq -er '.flutter.revision' "$FLUTTER_SOURCE_LOCK")"
 FLUTTER_UPSTREAM_REVISION="$(
     jq -er '.flutter.upstream_revision' "$FLUTTER_SOURCE_LOCK"
@@ -163,6 +164,7 @@ Commands:
   alpine-package    Build installable Alpine Linux APK packages
   native-packages   Build Debian-family and Fedora packages from one payload
   flutter-test      Run lock-matched Flutter shell tests; forwards remaining arguments
+  compositor-test   Run compositor and Rust embedder tests without a debug engine
   test              Run compositor and lock-matched Flutter shell tests
   session           Run the real DRM session (normally invoked by a display manager)
   engine-test-build Build only the local release engine and stage an isolated test bundle
@@ -1365,6 +1367,7 @@ case "${1:-}" in
         shift
         test_flutter "$@"
         ;;
+    compositor-test) test_compositor ;;
     test) test_all ;;
     session) run_display_manager_session ;;
     engine-test-build) stage_engine_test ;;

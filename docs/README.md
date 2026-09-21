@@ -54,6 +54,6 @@ The following documentation stays with its implementation or artifact:
 
 - [`compositor/README.md`](../compositor/README.md)
 - [`protocol/golden/README.md`](../protocol/golden/README.md)
-- [Flutter Engine validation](flutter-engine/3.44.7/VALIDATION.md)
+- [Flutter Engine validation](flutter-engine/3.47.5/VALIDATION.md)
 - [`prebuilt/flutter-engine/.../BUILD_INFO.md`](../prebuilt/flutter-engine/linux-x64-release/BUILD_INFO.md)
 - [`tools/flutter-embedder-bindings/README.md`](../tools/flutter-embedder-bindings/README.md)
