@@ -192,9 +192,6 @@ Environment:
   DENIAL_BUILD_JOBS  Explicit Cargo and Flutter build parallelism
   DENIAL_PC_DEDICATED_BUILDER
                      Set to 1 to use every CPU by default
-  DENIAL_FLUTTER_RENDERER
-                     Development-session renderer: skia or impeller (default: impeller)
-                     DENIA_FLUTTER_RENDERER remains a compatibility alias
   DENIAL_PC_XWAYLAND  Set to 0 to build and run without Xwayland (default: 1)
 
 The production compositor is deniald and its native client is denialctl. The
@@ -858,11 +855,6 @@ run_compositor() {
         mobile | desktop) ;;
         *) die "DENIAL_SHELL_PROFILE must be mobile or desktop, got: $shell_profile" ;;
     esac
-    local flutter_renderer="${DENIAL_FLUTTER_RENDERER-${DENIA_FLUTTER_RENDERER-impeller}}"
-    case "$flutter_renderer" in
-        skia | impeller) ;;
-        *) die "DENIAL_FLUTTER_RENDERER must be skia or impeller, got: $flutter_renderer" ;;
-    esac
 
     unset DISPLAY WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE SWAYSOCK I3SOCK
     unset NO_COLOR WLR_DRM_DEVICES AQ_DRM_DEVICES
@@ -880,7 +872,7 @@ run_compositor() {
         --wayland \
         "${xwayland_arguments[@]}" \
         --flutter-bundle "$BUNDLE" \
-        --flutter-renderer "$flutter_renderer"
+        --flutter-renderer impeller
 }
 
 run_session() {

@@ -7,7 +7,7 @@ ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/denial-architecture.sh"
 denial_arch_configure
 SOURCE_LOCK="$ROOT/prebuilt/flutter-engine/SOURCE_LOCK.json"
-CACHE_SCHEMA='2'
+CACHE_SCHEMA='3'
 CACHE_ROOT="${DENIAL_FLUTTER_ENGINE_CACHE_ROOT:-${XDG_CACHE_HOME:-${HOME:?HOME is required}/.cache}/denial/flutter-engine}"
 CANONICAL_FLUTTER_SOURCE='/mnt/exty/denial-flutter-fork-3.44.7'
 CANONICAL_SKIA_SOURCE='/mnt/exty/denial-skia-fork-3.44.7'
@@ -46,6 +46,13 @@ else
   NATIVE_TOOLCHAIN_JOBS=4
   GN_ARCH_ARGS=(--linux "--linux-cpu=$DENIAL_FLUTTER_ARCH")
 fi
+GN_ENGINE_ARGS=(
+  --slimpeller
+  --enable-fontconfig
+  --gn-args=shell_enable_vulkan=false
+  --gn-args=test_enable_vulkan=false
+  --gn-args=skia_use_vulkan=false
+)
 NATIVE_RELEASE_ENGINE_DIR="$ROOT/prebuilt/flutter-engine/$DENIAL_FLUTTER_PLATFORM-release"
 
 fail() {
@@ -132,6 +139,9 @@ managed checkout fallback for isolated CI builders.
 
 Interactive machines leave two logical CPUs free by default. GitHub Actions
 and explicitly dedicated builders may use every available CPU.
+
+All generated engine modes are Slimpeller builds: Impeller is required and the
+Ganesh and Graphite rendering backends are not compiled.
 
 Routine builds must use `build`. `refresh-metadata` is the one-time maintainer
 operation for a controlled Flutter/Skia lock advance; it intentionally updates
@@ -237,6 +247,26 @@ verify_engine_exports() {
   done
 }
 
+verify_slimpeller_args() {
+  local mode="$1"
+  local generated="$2"
+  local argument
+  local -a arguments=(
+    "slimpeller = true"
+    "skia_enable_ganesh = false"
+    "skia_enable_graphite = false"
+    "shell_enable_vulkan = false"
+    "test_enable_vulkan = false"
+    "skia_use_vulkan = false"
+  )
+
+  for argument in "${arguments[@]}"; do
+    if ! grep -Fqx "$argument" "$generated"; then
+      fail "$mode generated args are not a Slimpeller configuration: missing $argument"
+    fi
+  done
+}
+
 normalize_generated_args() {
   local mode="$1"
   local generated="$2"
@@ -244,6 +274,8 @@ normalize_generated_args() {
   local expected_jobs
   local generated_job_count
   local normalized="${generated}.denial-normalized.$$"
+
+  verify_slimpeller_args "$mode" "$generated"
 
   if [[ ! -f "$expected" ]]; then
     grep -Fqx 'host_os = "linux"' "$generated" \
@@ -309,6 +341,8 @@ refresh_generated_args() {
   local destination="$4"
   local expected_jobs
   local normalized="${generated}.denial-refresh.$$"
+
+  verify_slimpeller_args "$mode" "$generated"
 
   expected_jobs="$(
     awk '$1 == "concurrent_toolchain_jobs" && $2 == "=" { print $3 }' \
@@ -774,7 +808,7 @@ build_artifacts() {
         VPYTHON_VIRTUALENV_ROOT="$VPYTHON_CACHE_ROOT" \
         ./flutter/tools/gn \
           --runtime-mode="$mode" \
-          --enable-fontconfig \
+          "${GN_ENGINE_ARGS[@]}" \
           --out-dir="$BUILD_ROOT" \
           --target-dir="$target"
     )
@@ -878,7 +912,7 @@ refresh_metadata() {
         VPYTHON_VIRTUALENV_ROOT="$VPYTHON_CACHE_ROOT" \
         ./flutter/tools/gn \
           --runtime-mode="$mode" \
-          --enable-fontconfig \
+          "${GN_ENGINE_ARGS[@]}" \
           --out-dir="$BUILD_ROOT" \
           --target-dir="$target"
     )
@@ -1003,7 +1037,7 @@ run_flutter_tests() {
       VPYTHON_VIRTUALENV_ROOT="$VPYTHON_CACHE_ROOT" \
       ./flutter/tools/gn \
         --runtime-mode=debug \
-        --enable-fontconfig \
+        "${GN_ENGINE_ARGS[@]}" \
         --out-dir="$BUILD_ROOT" \
         --target-dir="$target"
   )
@@ -1075,7 +1109,7 @@ prepare_app_build() {
       ./flutter/tools/gn \
         "${GN_ARCH_ARGS[@]}" \
         --runtime-mode=release \
-        --enable-fontconfig \
+        "${GN_ENGINE_ARGS[@]}" \
         --out-dir="$BUILD_ROOT" \
         --target-dir="$target"
   )
@@ -1164,7 +1198,7 @@ prepare_development_sdk() {
         VPYTHON_VIRTUALENV_ROOT="$VPYTHON_CACHE_ROOT" \
         ./flutter/tools/gn \
           --runtime-mode="$mode" \
-          --enable-fontconfig \
+          "${GN_ENGINE_ARGS[@]}" \
           --out-dir="$BUILD_ROOT" \
           --target-dir="$target"
     )

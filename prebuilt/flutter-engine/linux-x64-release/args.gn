@@ -1,8 +1,8 @@
 buildtools_path = "//flutter/buildtools"
 is_debug = false
 optimize_for_size = false
-engine_version = "718ccf2c2314f6cac9808e5eb37d0117407eb4e4"
-content_hash = "fafcbfb9a4136b6804cab68151c4a406cfb2dd36"
+engine_version = "17ce3edf38ef4b948542dc4b3a3cd27c6076e4bc"
+content_hash = "afa9c18c0f71e65efb60527e1856e5e7c6c4aea1"
 skia_version = "5b495e3e15a59ee76af882d83316d351654c1e88"
 dart_version = "b530c21f7de367b94fb04787bfed9d8e989d75e8"
 full_dart_sdk = false
@@ -21,6 +21,9 @@ skia_use_xps = false
 is_official_build = true
 android_full_debug = false
 is_clang = true
+skia_enable_graphite = false
+skia_enable_ganesh = false
+slimpeller = true
 skia_gl_standard = ""
 use_clang_static_analyzer = false
 enable_coverage = false
@@ -64,3 +67,6 @@ angle_vulkan_loader_dir = "//flutter/third_party/vulkan-deps/vulkan-loader/src"
 angle_vulkan_tools_dir = "//flutter/third_party/vulkan-deps/vulkan-tools/src"
 angle_lunarg_vulkantools_dir =
     "//flutter/third_party/vulkan-deps/lunarg-vulkantools/src"
+shell_enable_vulkan = false
+test_enable_vulkan = false
+skia_use_vulkan = false

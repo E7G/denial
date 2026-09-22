@@ -99,16 +99,30 @@ let
     );
   engineCallPackage =
     path: args:
-    pkgs.callPackage path (
-      args
-      // {
-        inherit dart;
-      }
-      // lib.optionalAttrs (path == flutterNix + "/engine/package.nix") {
-        tools = engineTools;
-        callPackage = enginePackageCallPackage;
-      }
-    );
+    let
+      isEnginePackage = path == flutterNix + "/engine/package.nix";
+      package = pkgs.callPackage path (
+        args
+        // {
+          inherit dart;
+        }
+        // lib.optionalAttrs isEnginePackage {
+          tools = engineTools;
+          callPackage = enginePackageCallPackage;
+        }
+      );
+    in
+    if isEnginePackage then
+      package.overrideAttrs (oldAttrs: {
+        configureFlags = (oldAttrs.configureFlags or [ ]) ++ [
+          "--slimpeller"
+          "--gn-args=shell_enable_vulkan=false"
+          "--gn-args=test_enable_vulkan=false"
+          "--gn-args=skia_use_vulkan=false"
+        ];
+      })
+    else
+      package;
   flutterCallPackage =
     path: args:
     pkgs.callPackage path (

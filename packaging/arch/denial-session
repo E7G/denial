@@ -286,12 +286,6 @@ esac
 export DENIAL_SHELL_PROFILE="$shell_profile"
 export DENIA_SHELL_PROFILE="$shell_profile"
 
-flutter_renderer="${DENIAL_FLUTTER_RENDERER-${DENIA_FLUTTER_RENDERER-}}"
-case "$flutter_renderer" in
-  '' | skia | impeller) ;;
-  *) die "DENIAL_FLUTTER_RENDERER must be skia or impeller, got: $flutter_renderer" ;;
-esac
-
 no_predecessor="${DENIAL_NO_PREDECESSOR-${DENIA_NO_PREDECESSOR-}}"
 export DENIAL_NO_PREDECESSOR="$no_predecessor"
 export DENIA_NO_PREDECESSOR="$no_predecessor"
@@ -368,7 +362,7 @@ if [[ "${1:-}" == --check ]]; then
   printf 'ok  %-16s %s\n' 'render driver' "${render_driver:-unknown}"
   printf 'ok  %-16s %s\n' 'Mesa rendering' "$mesa_rendering"
   printf 'ok  %-16s %s\n' 'shell profile' "$DENIAL_SHELL_PROFILE"
-  printf 'ok  %-16s %s\n' 'Flutter renderer' "${flutter_renderer:-impeller (default)}"
+  printf 'ok  %-16s %s\n' 'Flutter renderer' 'impeller (Slimpeller)'
   printf 'ok  %-16s %s\n' 'Xwayland scale' "$xwayland_scale_mode"
   printf 'ok  %-16s %s\n' \
     'Qt platform theme' "${qt_platform_theme:-toolkit default (explicit)}"
@@ -387,9 +381,6 @@ denial_args=(
 )
 if [[ -n "$render_device" ]]; then
   denial_args+=(--render-device "$render_device")
-fi
-if [[ -n "$flutter_renderer" ]]; then
-  denial_args+=(--flutter-renderer "$flutter_renderer")
 fi
 if [[ "$software_rendering" == 1 ]]; then
   denial_args+=(--software-rendering)

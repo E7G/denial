@@ -296,17 +296,12 @@ DENIAL_FPRINT_TEST_BUS=1 dbus-run-session -- \
 
 ## Renderer selection
 
-Impeller GLES is the default renderer. A machine that needs the retained
-Skia/Ganesh compatibility path can select it persistently in
-`/etc/denial/session.conf`:
+Official Denial engines are Slimpeller builds. They run Impeller GLES; Skia's
+Ganesh and Graphite renderers are omitted.
 
-```sh
-DENIAL_FLUTTER_RENDERER=skia
-```
-
-For a controlled one-shot session, pass `--flutter-renderer skia` through the
-launcher instead. Renderer changes take effect when the Flutter engine starts,
-so restart the Denial session after changing the machine override.
+The low-level `--flutter-renderer` switch remains available for developers who
+pair deniald with a custom non-Slimpeller engine, but packaged and PC
+development sessions use Impeller.
 
 Denial environment variables use the `DENIAL_*` prefix. The former `DENIA_*`
 spellings remain compatibility aliases during the transition; when both forms

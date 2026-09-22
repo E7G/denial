@@ -63,11 +63,11 @@ a distinct source rectangle from the same framebuffer, so output count does
 not introduce a compositor copy. Flutter renders through one shared atlas pool
 whose ownership is synchronized with the independently clocked outputs.
 
-Impeller GLES is the default Flutter renderer. Denial's locked engine fork
-connects it directly to the rotating compositor-owned FBOs, preserves atlas
-damage, and keeps external client textures alive through native GPU fences.
-Skia/Ganesh remains compiled into the same engine as an explicit compatibility
-fallback.
+Denial's Flutter engine is a Slimpeller build: it runs Impeller GLES, while
+Skia's Ganesh and Graphite renderers are disabled at engine-generation time.
+The locked engine fork connects Impeller directly to the rotating
+compositor-owned FBOs, preserves atlas damage, and keeps external client
+textures alive through native GPU fences.
 
 Atomic presentation synchronization lives in the in-tree
 `denial_core::volition` library module at `compositor/src/volition/`. Volition
