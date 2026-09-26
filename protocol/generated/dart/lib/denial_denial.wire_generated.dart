@@ -2285,10 +2285,12 @@ class WindowSnapshot {
 
   List<Window>? get windows => const fb.ListReader<Window>(Window.reader).vTableGetNullable(_bc, _bcOffset, 4);
   List<int>? get restoredWindowIds => const fb.ListReader<int>(fb.Uint64Reader()).vTableGetNullable(_bc, _bcOffset, 6);
+  bool get delta => const fb.BoolReader().vTableGet(_bc, _bcOffset, 8, false);
+  List<int>? get windowOrder => const fb.ListReader<int>(fb.Uint64Reader()).vTableGetNullable(_bc, _bcOffset, 10);
 
   @override
   String toString() {
-    return 'WindowSnapshot{windows: ${windows}, restoredWindowIds: ${restoredWindowIds}}';
+    return 'WindowSnapshot{windows: ${windows}, restoredWindowIds: ${restoredWindowIds}, delta: ${delta}, windowOrder: ${windowOrder}}';
   }
 }
 
@@ -2306,7 +2308,7 @@ class WindowSnapshotBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(4);
   }
 
   int addWindowsOffset(int? offset) {
@@ -2315,6 +2317,14 @@ class WindowSnapshotBuilder {
   }
   int addRestoredWindowIdsOffset(int? offset) {
     fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+  int addDelta(bool? delta) {
+    fbBuilder.addBool(2, delta);
+    return fbBuilder.offset;
+  }
+  int addWindowOrderOffset(int? offset) {
+    fbBuilder.addOffset(3, offset);
     return fbBuilder.offset;
   }
 
@@ -2326,13 +2336,19 @@ class WindowSnapshotBuilder {
 class WindowSnapshotObjectBuilder extends fb.ObjectBuilder {
   final List<WindowObjectBuilder>? _windows;
   final List<int>? _restoredWindowIds;
+  final bool? _delta;
+  final List<int>? _windowOrder;
 
   WindowSnapshotObjectBuilder({
     List<WindowObjectBuilder>? windows,
     List<int>? restoredWindowIds,
+    bool? delta,
+    List<int>? windowOrder,
   })
       : _windows = windows,
-        _restoredWindowIds = restoredWindowIds;
+        _restoredWindowIds = restoredWindowIds,
+        _delta = delta,
+        _windowOrder = windowOrder;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2341,9 +2357,13 @@ class WindowSnapshotObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeList(_windows!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
     final int? restoredWindowIdsOffset = _restoredWindowIds == null ? null
         : fbBuilder.writeListUint64(_restoredWindowIds!);
-    fbBuilder.startTable(2);
+    final int? windowOrderOffset = _windowOrder == null ? null
+        : fbBuilder.writeListUint64(_windowOrder!);
+    fbBuilder.startTable(4);
     fbBuilder.addOffset(0, windowsOffset);
     fbBuilder.addOffset(1, restoredWindowIdsOffset);
+    fbBuilder.addBool(2, _delta);
+    fbBuilder.addOffset(3, windowOrderOffset);
     return fbBuilder.endTable();
   }
 
@@ -2701,10 +2721,11 @@ class WindowRequest {
   int get workspaceId => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 22, 1);
   double get systemBarThickness => const fb.Float64Reader().vTableGet(_bc, _bcOffset, 24, -1.0);
   double get maximizePadding => const fb.Float64Reader().vTableGet(_bc, _bcOffset, 26, -1.0);
+  bool get windowDeltas => const fb.BoolReader().vTableGet(_bc, _bcOffset, 28, false);
 
   @override
   String toString() {
-    return 'WindowRequest{kind: ${kind}, windowId: ${windowId}, geometry: ${geometry}, appId: ${appId}, title: ${title}, systemBarSide: ${systemBarSide}, systemBarMonitorIds: ${systemBarMonitorIds}, flags: ${flags}, monitorId: ${monitorId}, workspaceId: ${workspaceId}, systemBarThickness: ${systemBarThickness}, maximizePadding: ${maximizePadding}}';
+    return 'WindowRequest{kind: ${kind}, windowId: ${windowId}, geometry: ${geometry}, appId: ${appId}, title: ${title}, systemBarSide: ${systemBarSide}, systemBarMonitorIds: ${systemBarMonitorIds}, flags: ${flags}, monitorId: ${monitorId}, workspaceId: ${workspaceId}, systemBarThickness: ${systemBarThickness}, maximizePadding: ${maximizePadding}, windowDeltas: ${windowDeltas}}';
   }
 }
 
@@ -2722,7 +2743,7 @@ class WindowRequestBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(12);
+    fbBuilder.startTable(13);
   }
 
   int addKind(WindowRequestKind? kind) {
@@ -2773,6 +2794,10 @@ class WindowRequestBuilder {
     fbBuilder.addFloat64(11, maximizePadding);
     return fbBuilder.offset;
   }
+  int addWindowDeltas(bool? windowDeltas) {
+    fbBuilder.addBool(12, windowDeltas);
+    return fbBuilder.offset;
+  }
 
   int finish() {
     return fbBuilder.endTable();
@@ -2792,6 +2817,7 @@ class WindowRequestObjectBuilder extends fb.ObjectBuilder {
   final int? _workspaceId;
   final double? _systemBarThickness;
   final double? _maximizePadding;
+  final bool? _windowDeltas;
 
   WindowRequestObjectBuilder({
     WindowRequestKind? kind,
@@ -2806,6 +2832,7 @@ class WindowRequestObjectBuilder extends fb.ObjectBuilder {
     int? workspaceId,
     double? systemBarThickness,
     double? maximizePadding,
+    bool? windowDeltas,
   })
       : _kind = kind,
         _windowId = windowId,
@@ -2818,7 +2845,8 @@ class WindowRequestObjectBuilder extends fb.ObjectBuilder {
         _monitorId = monitorId,
         _workspaceId = workspaceId,
         _systemBarThickness = systemBarThickness,
-        _maximizePadding = maximizePadding;
+        _maximizePadding = maximizePadding,
+        _windowDeltas = windowDeltas;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2829,7 +2857,7 @@ class WindowRequestObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeString(_title!);
     final int? systemBarMonitorIdsOffset = _systemBarMonitorIds == null ? null
         : fbBuilder.writeListInt64(_systemBarMonitorIds!);
-    fbBuilder.startTable(12);
+    fbBuilder.startTable(13);
     fbBuilder.addUint8(0, _kind?.value);
     fbBuilder.addUint64(1, _windowId);
     if (_geometry != null) {
@@ -2844,6 +2872,7 @@ class WindowRequestObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addUint32(9, _workspaceId);
     fbBuilder.addFloat64(10, _systemBarThickness);
     fbBuilder.addFloat64(11, _maximizePadding);
+    fbBuilder.addBool(12, _windowDeltas);
     return fbBuilder.endTable();
   }
 

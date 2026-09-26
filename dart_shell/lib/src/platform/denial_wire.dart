@@ -89,6 +89,9 @@ class DenialDecodedEnvelope {
 }
 
 class DenialWireCodec {
+  Map<int, DenialWindow>? _publishedWindows;
+  List<DenialWindow>? _publishedWindowList;
+  int _lastWindowSequence = 0;
   int _nextSequence = 1;
   int _lastPlacementSequence = 0;
   int _lastDragIconSequence = 0;
@@ -219,6 +222,7 @@ class DenialWireCodec {
         flags: flags,
         monitorId: monitorId,
         workspaceId: workspaceId,
+        windowDeltas: kind == generated.WindowRequestKind.ListWindows,
       ),
       requestId: requestId,
     );
@@ -1300,12 +1304,35 @@ class DenialWireCodec {
     );
   }
 
-  List<DenialWindow>? decodeWindows(generated.WindowSnapshot snapshot) {
+  List<DenialWindow>? decodeWindows(
+    generated.WindowSnapshot snapshot, {
+    int sequence = 0,
+  }) {
+    // An outstanding full-list response may arrive after a newer publication.
+    // It must not roll back the base used by subsequent deltas.
+    if (sequence > 0 && sequence < _lastWindowSequence) {
+      return _publishedWindowList;
+    }
     final source = snapshot.windows ?? const <generated.Window>[];
+    final delta = snapshot.delta;
+    final order = snapshot.windowOrder ?? const <int>[];
+    if (order.length > denialWireMaxWindows) {
+      rejectedStructuredMessages += 1;
+      return null;
+    }
+    final orderedIds = order.toSet();
+    if ((delta && _publishedWindows == null) ||
+        (delta &&
+            (orderedIds.length != order.length ||
+                order.any((id) => id <= 0))) ||
+        (!delta && order.isNotEmpty)) {
+      rejectedStructuredMessages += 1;
+      return null;
+    }
     final restoredSource = snapshot.restoredWindowIds ?? const <int>[];
     final restoredWindowIds = <int>{};
     if (source.length > denialWireMaxWindows ||
-        restoredSource.length > source.length ||
+        restoredSource.length > (delta ? order.length : source.length) ||
         restoredSource.any(
           (windowId) => windowId <= 0 || !restoredWindowIds.add(windowId),
         )) {
@@ -1441,11 +1468,36 @@ class DenialWireCodec {
       }
       windows.add(decoded);
     }
-    if (!windowIds.containsAll(restoredWindowIds)) {
+    if (delta && !orderedIds.containsAll(windowIds)) {
       rejectedStructuredMessages += 1;
       return null;
     }
-    return List<DenialWindow>.unmodifiable(windows);
+    final changed = {for (final window in windows) window.windowId: window};
+    final merged = <DenialWindow>[];
+    for (final id in delta ? order : windows.map((window) => window.windowId)) {
+      final next = changed[id] ?? _publishedWindows?[id];
+      if (next == null ||
+          next.restoredAcrossFlutterRestart != restoredWindowIds.contains(id)) {
+        rejectedStructuredMessages += 1;
+        return null;
+      }
+      final previous = _publishedWindows?[id];
+      merged.add(previous == next ? previous! : next);
+    }
+    if (!(delta ? orderedIds : windowIds).containsAll(restoredWindowIds) ||
+        merged.fold<int>(
+              0,
+              (count, window) => count + window.surfaceLayers.length,
+            ) >
+            denialWireMaxSurfaces) {
+      rejectedStructuredMessages += 1;
+      return null;
+    }
+    // Commit only after validating the whole update. Unchanged windows (and
+    // their layer lists) retain identity; omitted delta IDs are removed.
+    _publishedWindows = {for (final window in merged) window.windowId: window};
+    if (sequence > 0) _lastWindowSequence = sequence;
+    return _publishedWindowList = List<DenialWindow>.unmodifiable(merged);
   }
 
   DisplayLayout? decodeDisplayLayout(generated.DisplayLayout layout) {

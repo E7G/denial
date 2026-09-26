@@ -415,6 +415,11 @@ table WindowSnapshot {
   // windows mapped after the replacement are intentionally absent.
   // Appended for wire compatibility: older senders/receivers default empty.
   restored_window_ids:[ulong];
+  // Negotiated through ListWindows.window_deltas. In a delta, windows holds
+  // only changed/new descriptions and window_order is the complete live order
+  // (absent IDs are removed). A full snapshot establishes/replaces the base.
+  delta:bool;
+  window_order:[ulong];
 }
 
 table DisplayOutput {
@@ -480,6 +485,9 @@ table WindowRequest {
   // existing values when decoding requests from an older shell.
   system_bar_thickness:double = -1.0;
   maximize_padding:double = -1.0;
+  // ListWindows only: accept incremental WindowSnapshot publications after
+  // the full response. Older shells leave this false and receive full lists.
+  window_deltas:bool;
 }
 
 table WindowResponse {

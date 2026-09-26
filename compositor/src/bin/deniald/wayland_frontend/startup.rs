@@ -327,10 +327,6 @@ impl WaylandFrontend {
             #[cfg(feature = "flutter")]
             scene_surface_windows_scratch: HashMap::new(),
             #[cfg(feature = "flutter")]
-            scene_complex_windows: HashSet::new(),
-            #[cfg(feature = "flutter")]
-            scene_complex_windows_scratch: HashSet::new(),
-            #[cfg(feature = "flutter")]
             scene_layer_surface_roots: HashSet::new(),
             #[cfg(feature = "flutter")]
             scene_layer_surface_roots_scratch: HashSet::new(),
@@ -364,6 +360,8 @@ impl WaylandFrontend {
             input_root_ids: HashMap::new(),
             #[cfg(feature = "flutter")]
             input_visibility_known: false,
+            #[cfg(feature = "flutter")]
+            sampled_surface_ids: HashSet::new(),
             #[cfg(feature = "flutter")]
             client_input_route_cache: None,
             #[cfg(feature = "flutter")]

@@ -4847,6 +4847,8 @@ impl<'a> flatbuffers::Follow<'a> for WindowSnapshot<'a> {
 impl<'a> WindowSnapshot<'a> {
   pub const VT_WINDOWS: flatbuffers::VOffsetT = 4;
   pub const VT_RESTORED_WINDOW_IDS: flatbuffers::VOffsetT = 6;
+  pub const VT_DELTA: flatbuffers::VOffsetT = 8;
+  pub const VT_WINDOW_ORDER: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -4858,8 +4860,10 @@ impl<'a> WindowSnapshot<'a> {
     args: &'args WindowSnapshotArgs<'args>
   ) -> flatbuffers::WIPOffset<WindowSnapshot<'bldr>> {
     let mut builder = WindowSnapshotBuilder::new(_fbb);
+    if let Some(x) = args.window_order { builder.add_window_order(x); }
     if let Some(x) = args.restored_window_ids { builder.add_restored_window_ids(x); }
     if let Some(x) = args.windows { builder.add_windows(x); }
+    builder.add_delta(args.delta);
     builder.finish()
   }
 
@@ -4878,6 +4882,20 @@ impl<'a> WindowSnapshot<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u64>>>(WindowSnapshot::VT_RESTORED_WINDOW_IDS, None)}
   }
+  #[inline]
+  pub fn delta(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(WindowSnapshot::VT_DELTA, Some(false)).unwrap()}
+  }
+  #[inline]
+  pub fn window_order(&self) -> Option<flatbuffers::Vector<'a, u64>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u64>>>(WindowSnapshot::VT_WINDOW_ORDER, None)}
+  }
 }
 
 impl flatbuffers::Verifiable for WindowSnapshot<'_> {
@@ -4889,6 +4907,8 @@ impl flatbuffers::Verifiable for WindowSnapshot<'_> {
     v.visit_table(pos)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Window>>>>("windows", Self::VT_WINDOWS, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u64>>>("restored_window_ids", Self::VT_RESTORED_WINDOW_IDS, false)?
+     .visit_field::<bool>("delta", Self::VT_DELTA, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u64>>>("window_order", Self::VT_WINDOW_ORDER, false)?
      .finish();
     Ok(())
   }
@@ -4896,6 +4916,8 @@ impl flatbuffers::Verifiable for WindowSnapshot<'_> {
 pub struct WindowSnapshotArgs<'a> {
     pub windows: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Window<'a>>>>>,
     pub restored_window_ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u64>>>,
+    pub delta: bool,
+    pub window_order: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u64>>>,
 }
 impl<'a> Default for WindowSnapshotArgs<'a> {
   #[inline]
@@ -4903,6 +4925,8 @@ impl<'a> Default for WindowSnapshotArgs<'a> {
     WindowSnapshotArgs {
       windows: None,
       restored_window_ids: None,
+      delta: false,
+      window_order: None,
     }
   }
 }
@@ -4919,6 +4943,14 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> WindowSnapshotBuilder<'a, 'b, A
   #[inline]
   pub fn add_restored_window_ids(&mut self, restored_window_ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u64>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(WindowSnapshot::VT_RESTORED_WINDOW_IDS, restored_window_ids);
+  }
+  #[inline]
+  pub fn add_delta(&mut self, delta: bool) {
+    self.fbb_.push_slot::<bool>(WindowSnapshot::VT_DELTA, delta, false);
+  }
+  #[inline]
+  pub fn add_window_order(&mut self, window_order: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u64>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(WindowSnapshot::VT_WINDOW_ORDER, window_order);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> WindowSnapshotBuilder<'a, 'b, A> {
@@ -4940,6 +4972,8 @@ impl core::fmt::Debug for WindowSnapshot<'_> {
     let mut ds = f.debug_struct("WindowSnapshot");
       ds.field("windows", &self.windows());
       ds.field("restored_window_ids", &self.restored_window_ids());
+      ds.field("delta", &self.delta());
+      ds.field("window_order", &self.window_order());
       ds.finish()
   }
 }
@@ -5471,6 +5505,7 @@ impl<'a> WindowRequest<'a> {
   pub const VT_WORKSPACE_ID: flatbuffers::VOffsetT = 22;
   pub const VT_SYSTEM_BAR_THICKNESS: flatbuffers::VOffsetT = 24;
   pub const VT_MAXIMIZE_PADDING: flatbuffers::VOffsetT = 26;
+  pub const VT_WINDOW_DELTAS: flatbuffers::VOffsetT = 28;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -5492,6 +5527,7 @@ impl<'a> WindowRequest<'a> {
     if let Some(x) = args.title { builder.add_title(x); }
     if let Some(x) = args.app_id { builder.add_app_id(x); }
     if let Some(x) = args.geometry { builder.add_geometry(x); }
+    builder.add_window_deltas(args.window_deltas);
     builder.add_system_bar_side(args.system_bar_side);
     builder.add_kind(args.kind);
     builder.finish()
@@ -5582,6 +5618,13 @@ impl<'a> WindowRequest<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<f64>(WindowRequest::VT_MAXIMIZE_PADDING, Some(-1.0)).unwrap()}
   }
+  #[inline]
+  pub fn window_deltas(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(WindowRequest::VT_WINDOW_DELTAS, Some(false)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for WindowRequest<'_> {
@@ -5603,6 +5646,7 @@ impl flatbuffers::Verifiable for WindowRequest<'_> {
      .visit_field::<u32>("workspace_id", Self::VT_WORKSPACE_ID, false)?
      .visit_field::<f64>("system_bar_thickness", Self::VT_SYSTEM_BAR_THICKNESS, false)?
      .visit_field::<f64>("maximize_padding", Self::VT_MAXIMIZE_PADDING, false)?
+     .visit_field::<bool>("window_deltas", Self::VT_WINDOW_DELTAS, false)?
      .finish();
     Ok(())
   }
@@ -5620,6 +5664,7 @@ pub struct WindowRequestArgs<'a> {
     pub workspace_id: u32,
     pub system_bar_thickness: f64,
     pub maximize_padding: f64,
+    pub window_deltas: bool,
 }
 impl<'a> Default for WindowRequestArgs<'a> {
   #[inline]
@@ -5637,6 +5682,7 @@ impl<'a> Default for WindowRequestArgs<'a> {
       workspace_id: 1,
       system_bar_thickness: -1.0,
       maximize_padding: -1.0,
+      window_deltas: false,
     }
   }
 }
@@ -5695,6 +5741,10 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> WindowRequestBuilder<'a, 'b, A>
     self.fbb_.push_slot::<f64>(WindowRequest::VT_MAXIMIZE_PADDING, maximize_padding, -1.0);
   }
   #[inline]
+  pub fn add_window_deltas(&mut self, window_deltas: bool) {
+    self.fbb_.push_slot::<bool>(WindowRequest::VT_WINDOW_DELTAS, window_deltas, false);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> WindowRequestBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     WindowRequestBuilder {
@@ -5724,6 +5774,7 @@ impl core::fmt::Debug for WindowRequest<'_> {
       ds.field("workspace_id", &self.workspace_id());
       ds.field("system_bar_thickness", &self.system_bar_thickness());
       ds.field("maximize_padding", &self.maximize_padding());
+      ds.field("window_deltas", &self.window_deltas());
       ds.finish()
   }
 }

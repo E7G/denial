@@ -1536,17 +1536,21 @@ impl CompositorHandler for RuntimeState {
         #[cfg(feature = "flutter")]
         if let Some(published) = published_surface_commits {
             if committed_window_metadata_changed {
+                // Placement reconciliation can rearrange sibling tiles and
+                // transient descendants, so it is a desktop-wide change.
                 self.scene_sync.mark_dirty();
-            } else if affects_published_scene {
-                if published.metadata_changed {
-                    // A full publication captures every source in the tree,
-                    // so buffer-only entries in the same transaction need no
-                    // separate acknowledgement.
-                    self.scene_sync.mark_dirty();
+            } else if affects_published_scene && published.metadata_changed {
+                let owner = owning_toplevel
+                    .as_ref()
+                    .and_then(|root| self.wayland.as_ref()?.surface_id(root));
+                if let Some(window_id) = owner {
+                    self.scene_sync.mark_window_dirty(window_id);
                 } else {
-                    self.scene_sync
-                        .mark_surfaces_dirty(published.buffer_surface_ids.iter().copied());
+                    self.scene_sync.mark_dirty();
                 }
+            } else if affects_published_scene {
+                self.scene_sync
+                    .mark_surfaces_dirty(published.buffer_surface_ids.iter().copied());
             }
             self.wayland
                 .as_mut()

@@ -2833,7 +2833,7 @@ class DenialBridge {
     int requestId,
     wire.WindowSnapshot snapshot,
   ) {
-    final windows = _wireCodec.decodeWindows(snapshot);
+    final windows = _wireCodec.decodeWindows(snapshot, sequence: sequence);
     if (windows == null) {
       return;
     }

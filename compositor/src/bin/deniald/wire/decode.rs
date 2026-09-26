@@ -137,6 +137,7 @@ impl WireBridge {
                     &self.windows,
                     &self.restored_window_ids,
                 )?;
+                self.window_deltas = request.window_deltas();
                 Ok(Some(self.outbound_builder.finished_data()))
             }
             fb::WindowRequestKind::GetDisplayLayout => {

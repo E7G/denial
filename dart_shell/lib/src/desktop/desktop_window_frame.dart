@@ -354,6 +354,8 @@ class _DesktopWindowFrame extends ConsumerWidget {
                           builder: (context) {
                             final client = _DesktopWindowContent(
                               window: window,
+                              allowDirectLayers:
+                                  !transformed && !resizing && !minimized,
                               smooth: transformed || resizing,
                               active: active && !minimized,
                               borderRadius: BorderRadius.circular(windowRadius),
@@ -694,6 +696,7 @@ class _DesktopAnimatedWindowPositionState
 class _DesktopSurfaceTexture extends StatefulWidget {
   const _DesktopSurfaceTexture({
     required this.window,
+    required this.allowDirectLayers,
     required this.smooth,
     required this.presentationScale,
     required this.pixelGridOrigin,
@@ -704,6 +707,7 @@ class _DesktopSurfaceTexture extends StatefulWidget {
   });
 
   final DenialWindow window;
+  final bool allowDirectLayers;
   final bool smooth;
   final double presentationScale;
   final Offset pixelGridOrigin;
@@ -720,6 +724,7 @@ class _DesktopSurfaceTexture extends StatefulWidget {
 class _DesktopWindowContent extends ConsumerWidget {
   const _DesktopWindowContent({
     required this.window,
+    this.allowDirectLayers = false,
     required this.smooth,
     required this.active,
     required this.borderRadius,
@@ -731,6 +736,7 @@ class _DesktopWindowContent extends ConsumerWidget {
   });
 
   final DenialWindow window;
+  final bool allowDirectLayers;
   final bool smooth;
   final bool active;
   final BorderRadius borderRadius;
@@ -782,6 +788,7 @@ class _DesktopWindowContent extends ConsumerWidget {
     }
     return _DesktopSurfaceTexture(
       window: window,
+      allowDirectLayers: allowDirectLayers,
       smooth: smooth,
       presentationScale:
           presentationScale ?? MediaQuery.devicePixelRatioOf(context),
@@ -869,17 +876,67 @@ class _DesktopSurfaceTextureState extends State<_DesktopSurfaceTexture> {
         pixelGridOrigin: widget.pixelGridOrigin,
       );
     }
-    return WindowPlane.child(
-      radius: widget.radius,
-      frameWidth: widget.frameWidth,
-      frameColor: widget.frameColor,
-      backdrop: widget.backdrop,
-      child: WindowSurfaceTree(
-        window: widget.window,
-        filterQuality: filterQuality,
-        presentationScale: widget.presentationScale,
-        pixelGridOrigin: widget.pixelGridOrigin,
-      ),
+    final layers = widget.window.paintedMainSurfaceLayers;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final content = (Offset.zero & size).deflate(
+          widget.frameWidth.clamp(0.0, size.shortestSide / 2),
+        );
+        if (widget.allowDirectLayers &&
+            !_smooth &&
+            canDrawWindowLayersDirectly(
+              window: widget.window,
+              layers: layers,
+              content: content,
+              radius: widget.radius,
+              frameWidth: widget.frameWidth,
+              presentationScale: widget.presentationScale,
+              hasBackdrop: widget.backdrop != null,
+            )) {
+          return Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.none,
+            children: [
+              WindowPlane.texture(
+                texture: windowPlaneTextureForLayer(
+                  widget.window,
+                  layers.first,
+                ),
+                radius: widget.radius,
+                frameWidth: widget.frameWidth,
+                frameColor: widget.frameColor,
+                filterQuality: filterQuality,
+                presentationScale: widget.presentationScale,
+                pixelGridOrigin: widget.pixelGridOrigin,
+              ),
+              for (final layer in layers.skip(1))
+                Positioned.fromRect(
+                  key: ValueKey(layer.surfaceId),
+                  rect: widget.window.mapSurfaceRect(layer, content),
+                  child: SurfaceLayerTexture(
+                    layer: layer,
+                    filterQuality: filterQuality,
+                    presentationScale: widget.presentationScale,
+                    pixelGridOrigin: widget.pixelGridOrigin,
+                  ),
+                ),
+            ],
+          );
+        }
+        return WindowPlane.child(
+          radius: widget.radius,
+          frameWidth: widget.frameWidth,
+          frameColor: widget.frameColor,
+          backdrop: widget.backdrop,
+          child: WindowSurfaceTree(
+            window: widget.window,
+            filterQuality: filterQuality,
+            presentationScale: widget.presentationScale,
+            pixelGridOrigin: widget.pixelGridOrigin,
+          ),
+        );
+      },
     );
   }
 }

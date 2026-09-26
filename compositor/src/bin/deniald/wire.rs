@@ -675,6 +675,7 @@ pub struct WireBridge {
     work_area: WorkAreaOptions,
     windows: Vec<WindowDescription>,
     windows_revision: Option<u64>,
+    window_deltas: bool,
     restored_window_ids: Vec<u64>,
     active_workspaces: BTreeMap<i64, u8>,
     // Flutter copies platform-channel payloads during the synchronous engine
@@ -717,6 +718,7 @@ impl WireBridge {
             work_area,
             windows: Vec::new(),
             windows_revision: None,
+            window_deltas: false,
             restored_window_ids: Vec::new(),
             active_workspaces,
             outbound_builder: FlatBufferBuilder::with_capacity(1024),

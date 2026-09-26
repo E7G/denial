@@ -125,16 +125,51 @@ impl WireBridge {
             })
             .collect::<Vec<_>>();
         validate_windows(&windows)?;
+        // Metadata invalidation is conservative (e.g. surface-tree commits).
+        // Do not wake Dart for a snapshot that is byte-for-byte equivalent in
+        // meaning. Texture generations travel independently of this stream.
+        if self.windows_revision.is_some()
+            && self.windows == windows
+            && self.restored_window_ids == next_restored_window_ids
+        {
+            self.windows_revision = Some(revision);
+            return Ok((None, windows));
+        }
+        let delta = self.window_deltas && self.windows_revision.is_some();
         std::mem::swap(&mut self.windows, &mut windows);
         self.windows_revision = Some(revision);
-        self.restored_window_ids = next_restored_window_ids;
+        let previous_restored =
+            std::mem::replace(&mut self.restored_window_ids, next_restored_window_ids);
         let sequence = self.take_sequence();
         self.outbound_builder.reset();
+        let previous = windows
+            .iter()
+            .map(|window| (window.window_id, window))
+            .collect::<BTreeMap<_, _>>();
+        let changed = self
+            .windows
+            .iter()
+            .filter(|window| {
+                !delta
+                    || previous
+                        .get(&window.window_id)
+                        .is_none_or(|old| *old != *window)
+                    || previous_restored.contains(&window.window_id)
+                        != self.restored_window_ids.contains(&window.window_id)
+            })
+            .collect::<Vec<_>>();
+        let order = delta.then(|| {
+            self.windows
+                .iter()
+                .map(|window| window.window_id)
+                .collect::<Vec<_>>()
+        });
         encode_windows_update(
             &mut self.outbound_builder,
             sequence,
-            &self.windows,
+            &changed,
             &self.restored_window_ids,
+            order.as_deref(),
         )?;
         Ok((Some(self.outbound_builder.finished_data()), windows))
     }
@@ -546,8 +581,9 @@ impl WireBridge {
 
 fn create_window_snapshot<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    descriptions: &[WindowDescription],
+    descriptions: &[&WindowDescription],
     restored_window_ids: &[u64],
+    window_order: Option<&[u64]>,
 ) -> WIPOffset<fb::WindowSnapshot<'a>> {
     let mut windows = Vec::with_capacity(descriptions.len());
     for description in descriptions {
@@ -631,11 +667,14 @@ fn create_window_snapshot<'a>(
     }
     let windows = builder.create_vector(&windows);
     let restored_window_ids = builder.create_vector(restored_window_ids);
+    let order = window_order.map(|order| builder.create_vector(order));
     fb::WindowSnapshot::create(
         builder,
         &fb::WindowSnapshotArgs {
             windows: Some(windows),
             restored_window_ids: Some(restored_window_ids),
+            delta: window_order.is_some(),
+            window_order: order,
         },
     )
 }
@@ -647,7 +686,8 @@ pub(super) fn encode_windows_response(
     descriptions: &[WindowDescription],
     restored_window_ids: &[u64],
 ) -> Result<(), WireError> {
-    let snapshot = create_window_snapshot(builder, descriptions, restored_window_ids);
+    let descriptions = descriptions.iter().collect::<Vec<_>>();
+    let snapshot = create_window_snapshot(builder, &descriptions, restored_window_ids, None);
     let response = fb::WindowResponse::create(
         builder,
         &fb::WindowResponseArgs {
@@ -663,10 +703,11 @@ pub(super) fn encode_windows_response(
 fn encode_windows_update(
     builder: &mut FlatBufferBuilder<'_>,
     sequence: u64,
-    descriptions: &[WindowDescription],
+    descriptions: &[&WindowDescription],
     restored_window_ids: &[u64],
+    window_order: Option<&[u64]>,
 ) -> Result<(), WireError> {
-    let snapshot = create_window_snapshot(builder, descriptions, restored_window_ids);
+    let snapshot = create_window_snapshot(builder, descriptions, restored_window_ids, window_order);
     let envelope = fb::Envelope::create(
         builder,
         &fb::EnvelopeArgs {

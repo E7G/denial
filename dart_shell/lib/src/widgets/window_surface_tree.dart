@@ -2,6 +2,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/denial_window.dart';
+import '../models/surface_occlusion.dart';
 import 'window_plane.dart';
 
 /// Selects the primitive's explicit imported-image contract. Multiple main
@@ -21,9 +22,7 @@ WindowPlaneTexture? singleWindowPlaneTexture(DenialWindow window) {
       opacity: window.opacity,
     );
   }
-  final layers = window.mainSurfaceLayers
-      .where((layer) => layer.textureId > 0)
-      .toList();
+  final layers = window.paintedMainSurfaceLayers;
   if (layers.length > 1) return null;
   if (layers.isEmpty) {
     return const WindowPlaneTexture(
@@ -33,6 +32,13 @@ WindowPlaneTexture? singleWindowPlaneTexture(DenialWindow window) {
     );
   }
   final layer = layers.single;
+  return windowPlaneTextureForLayer(window, layer);
+}
+
+WindowPlaneTexture windowPlaneTextureForLayer(
+  DenialWindow window,
+  DenialSurfaceLayer layer,
+) {
   return WindowPlaneTexture(
     id: layer.textureId,
     bufferSize: Size(layer.width.toDouble(), layer.height.toDouble()),
@@ -45,6 +51,47 @@ WindowPlaneTexture? singleWindowPlaneTexture(DenialWindow window) {
     destination: window.mapSurfaceRect(layer, const Rect.fromLTWH(0, 0, 1, 1)),
     transform: layer.transform,
     opacity: layer.opacity,
+  );
+}
+
+/// An opaque base makes source-over child composition independent of the
+/// backdrop. Children strictly inside the material's AA fringe can be drawn
+/// directly after that base, without a window-sized intermediate texture.
+/// Effects and edge-touching children keep the composed-input contract.
+bool canDrawWindowLayersDirectly({
+  required DenialWindow window,
+  required List<DenialSurfaceLayer> layers,
+  required Rect content,
+  required double radius,
+  required double frameWidth,
+  required double presentationScale,
+  required bool hasBackdrop,
+}) {
+  if (content.isEmpty) return false;
+  final scale = presentationScale.isFinite && presentationScale > 0
+      ? presentationScale
+      : 1.0;
+  return canDrawInteriorSurfaceLayers(
+    layers,
+    content: (
+      left: content.left,
+      top: content.top,
+      right: content.right,
+      bottom: content.bottom,
+    ),
+    edgeInset:
+        (radius - frameWidth).clamp(0.0, content.shortestSide / 2) + 2 / scale,
+    hasBackdrop: hasBackdrop,
+    opaque: (layer) => layer.opaque && layer.opacity == 1,
+    bounds: (layer) {
+      final rect = window.mapSurfaceRect(layer, content);
+      return (
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+      );
+    },
   );
 }
 
@@ -138,10 +185,14 @@ class WindowSurfaceTree extends StatelessWidget {
             children: [
               for (final layer
                   in includePopups
-                      ? window.surfaceLayers
-                      : window.mainSurfaceLayers)
+                      ? [
+                          ...window.paintedMainSurfaceLayers,
+                          ...window.popupSurfaceLayers,
+                        ]
+                      : window.paintedMainSurfaceLayers)
                 if (layer.textureId > 0)
                   Positioned.fromRect(
+                    key: ValueKey(layer.surfaceId),
                     rect: window.mapSurfaceRect(layer, targetRect),
                     child: SurfaceLayerTexture(
                       layer: layer,

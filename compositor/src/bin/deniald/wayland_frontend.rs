@@ -446,10 +446,6 @@ pub(super) struct WaylandFrontend {
     #[cfg(feature = "flutter")]
     scene_surface_windows_scratch: HashMap<u64, u64>,
     #[cfg(feature = "flutter")]
-    scene_complex_windows: HashSet<u64>,
-    #[cfg(feature = "flutter")]
-    scene_complex_windows_scratch: HashSet<u64>,
-    #[cfg(feature = "flutter")]
     scene_layer_surface_roots: HashSet<u64>,
     #[cfg(feature = "flutter")]
     scene_layer_surface_roots_scratch: HashSet<u64>,
@@ -483,6 +479,8 @@ pub(super) struct WaylandFrontend {
     input_root_ids: HashMap<ObjectId, u64>,
     #[cfg(feature = "flutter")]
     input_visibility_known: bool,
+    #[cfg(feature = "flutter")]
+    sampled_surface_ids: HashSet<u64>,
     #[cfg(feature = "flutter")]
     client_input_route_cache: Option<ClientInputRoute>,
     #[cfg(feature = "flutter")]
@@ -798,7 +796,11 @@ fn committed_size_requires_reassertion(
     preview: Option<Size<i32, Logical>>,
     committed: Size<i32, Logical>,
 ) -> bool {
-    preview.is_none() && committed != target
+    // Initial and unmapped surface trees have no usable content geometry.
+    // In particular, a client building its subsurface tree may commit several
+    // times before its first non-empty window. Those commits do not reject a
+    // configure and must not spend the contract's single resize reassertion.
+    committed.w > 0 && committed.h > 0 && preview.is_none() && committed != target
 }
 
 #[cfg(test)]
@@ -853,6 +855,52 @@ mod window_geometry_intent_tests {
             Size::from((640, 600)),
         ));
         assert!(committed_size_requires_reassertion(target, None, preview,));
+    }
+
+    #[test]
+    fn empty_startup_commits_preserve_the_first_real_resize_retry() {
+        let mut intent = intent(WindowGeometryAuthority::Layout);
+        for committed in [(0, 0), (0, 600), (800, 0), (0, 0)] {
+            let committed = Size::from(committed);
+            if committed_size_requires_reassertion(intent.target.size, None, committed) {
+                intent.claim_reassertion();
+            }
+            assert_eq!(intent.reassertion, WindowGeometryReassertion::Available);
+            assert!(intent.retained_after_commit(committed));
+        }
+
+        let first_content = Size::from((1024, 768));
+        assert!(committed_size_requires_reassertion(
+            intent.target.size,
+            None,
+            first_content,
+        ));
+        assert_eq!(
+            intent.claim_reassertion(),
+            WindowGeometryReassertionAction::Send
+        );
+        // A real mismatch still gets only one retry, even if an empty commit
+        // follows it. Preserve the configure-loop protection for live clients.
+        assert!(!committed_size_requires_reassertion(
+            intent.target.size,
+            None,
+            Size::from((0, 0)),
+        ));
+        assert_eq!(
+            intent.claim_reassertion(),
+            WindowGeometryReassertionAction::ReportSuppressed
+        );
+    }
+
+    #[test]
+    fn matching_first_content_does_not_reassert_geometry() {
+        let intent = intent(WindowGeometryAuthority::Pending);
+        assert!(!committed_size_requires_reassertion(
+            intent.target.size,
+            None,
+            intent.target.size,
+        ));
+        assert!(!intent.retained_after_commit(intent.target.size));
     }
 
     #[test]

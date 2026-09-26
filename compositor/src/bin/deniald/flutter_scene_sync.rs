@@ -84,7 +84,12 @@ pub(super) fn synchronize_flutter_scene(
     let (windows, textures) = events
         .wayland
         .as_mut()
-        .map(wayland_frontend::WaylandFrontend::flutter_scene)
+        .map(|frontend| {
+            frontend.flutter_scene(
+                events.scene_sync.metadata_windows(),
+                runtime.published_window_descriptions(),
+            )
+        })
         .transpose()?
         .unwrap_or_default();
     let flutter_runtime::SyncedWaylandScene {

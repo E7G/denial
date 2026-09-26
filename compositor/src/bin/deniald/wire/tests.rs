@@ -704,3 +704,170 @@ fn malformed_truncated_and_mutated_corpus_never_panics() {
         exercise(&bytes);
     }
 }
+
+fn scene_window(id: u64) -> WindowDescription {
+    WindowDescription {
+        object_id: id,
+        surface_id: id,
+        window_id: id,
+        texture_id: id,
+        title: format!("window {id}"),
+        app_id: "test".into(),
+        width: 100,
+        height: 80,
+        surface_x: 0.0,
+        surface_y: 0.0,
+        surface_width: 100.0,
+        surface_height: 80.0,
+        texture_source_x: 0.0,
+        texture_source_y: 0.0,
+        texture_source_width: 100.0,
+        texture_source_height: 80.0,
+        geometry_x: 0.0,
+        geometry_y: 0.0,
+        geometry_width: 100.0,
+        geometry_height: 80.0,
+        monitor_id: 9,
+        workspace_id: 1,
+        transient_parent_id: 0,
+        minimized: false,
+        fullscreen: false,
+        maximized: false,
+        pinned: false,
+        transform: 0,
+        scale_120: 120,
+        content_x: 0.0,
+        content_y: 0.0,
+        content_width: 100.0,
+        content_height: 80.0,
+        surfaces: vec![],
+        suppress_animations: false,
+        server_side_decorated: true,
+        opacity: 1.0,
+        content_kind: WindowContentKind::SurfaceTree,
+        opacity_class: WindowOpacityClass::FullyOpaque,
+    }
+}
+
+#[test]
+fn metadata_updates_suppress_identical_snapshots_even_at_new_revisions() {
+    let mut bridge = bridge();
+    let windows = vec![scene_window(1), scene_window(2)];
+    assert!(
+        bridge
+            .update_windows(1, windows.clone(), &BTreeSet::new())
+            .unwrap()
+            .0
+            .is_some()
+    );
+    assert!(
+        bridge
+            .update_windows(2, windows, &BTreeSet::new())
+            .unwrap()
+            .0
+            .is_none()
+    );
+    assert_eq!(bridge.windows_revision, Some(2));
+}
+
+#[test]
+fn negotiated_window_deltas_preserve_order_removals_and_restored_state() {
+    let mut bridge = bridge();
+    let mut windows = vec![scene_window(1), scene_window(2)];
+    bridge
+        .update_windows(1, windows.clone(), &BTreeSet::new())
+        .unwrap();
+    let mut builder = FlatBufferBuilder::new();
+    let req = fb::WindowRequest::create(
+        &mut builder,
+        &fb::WindowRequestArgs {
+            window_deltas: true,
+            ..Default::default()
+        },
+    );
+    let envelope = fb::Envelope::create(
+        &mut builder,
+        &fb::EnvelopeArgs {
+            protocol_version: PROTOCOL_VERSION,
+            sequence: 1,
+            request_id: 1,
+            payload_type: fb::Payload::WindowRequest,
+            payload: Some(req.as_union_value()),
+        },
+    );
+    fb::finish_envelope_buffer(&mut builder, envelope);
+    let full = bridge.handle(builder.finished_data()).unwrap().unwrap();
+    let full = fb::root_as_envelope(full)
+        .unwrap()
+        .payload_as_window_response()
+        .unwrap()
+        .windows()
+        .unwrap();
+    assert!(!full.delta());
+    assert_eq!(full.windows().unwrap().len(), 2);
+
+    windows[1].title = "updated".into();
+    let (bytes, _) = bridge
+        .update_windows(2, windows.clone(), &BTreeSet::new())
+        .unwrap();
+    let update = fb::root_as_envelope(bytes.unwrap())
+        .unwrap()
+        .payload_as_window_snapshot()
+        .unwrap();
+    assert!(update.delta());
+    assert_eq!(update.windows().unwrap().len(), 1);
+    assert_eq!(update.windows().unwrap().get(0).window_id(), 2);
+    assert_eq!(
+        update.window_order().unwrap().iter().collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+
+    windows.reverse();
+    let (bytes, _) = bridge
+        .update_windows(3, windows.clone(), &BTreeSet::new())
+        .unwrap();
+    let update = fb::root_as_envelope(bytes.unwrap())
+        .unwrap()
+        .payload_as_window_snapshot()
+        .unwrap();
+    assert_eq!(update.windows().unwrap().len(), 0);
+    assert_eq!(
+        update.window_order().unwrap().iter().collect::<Vec<_>>(),
+        vec![2, 1]
+    );
+
+    let (bytes, _) = bridge
+        .update_windows(4, windows, &BTreeSet::from([1]))
+        .unwrap();
+    let update = fb::root_as_envelope(bytes.unwrap())
+        .unwrap()
+        .payload_as_window_snapshot()
+        .unwrap();
+    assert_eq!(update.windows().unwrap().get(0).window_id(), 1);
+    assert_eq!(update.restored_window_ids().unwrap().get(0), 1);
+
+    let (bytes, _) = bridge.update_windows(5, vec![], &BTreeSet::new()).unwrap();
+    let update = fb::root_as_envelope(bytes.unwrap())
+        .unwrap()
+        .payload_as_window_snapshot()
+        .unwrap();
+    assert!(update.delta());
+    assert_eq!(update.window_order().unwrap().len(), 0);
+}
+
+#[test]
+fn legacy_window_readers_continue_receiving_full_snapshots() {
+    let mut bridge = bridge();
+    bridge
+        .update_windows(1, vec![scene_window(1)], &BTreeSet::new())
+        .unwrap();
+    let (bytes, _) = bridge
+        .update_windows(2, vec![scene_window(1), scene_window(2)], &BTreeSet::new())
+        .unwrap();
+    let update = fb::root_as_envelope(bytes.unwrap())
+        .unwrap()
+        .payload_as_window_snapshot()
+        .unwrap();
+    assert!(!update.delta());
+    assert_eq!(update.windows().unwrap().len(), 2);
+}

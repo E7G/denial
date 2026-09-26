@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'surface_occlusion.dart';
+
 enum DenialWindowContentKind {
   surfaceTree,
   localFlutter,
@@ -275,6 +277,32 @@ class DenialWindow {
   Iterable<DenialSurfaceLayer> get mainSurfaceLayers =>
       surfaceLayers.where((layer) => !layer.belongsToPopup);
 
+  /// Paint only layers that can contribute to the clipped window. Keep the
+  /// protocol tree intact for input, popup parenting and future unocclusion.
+  /// An opaque layer must cover the entire destination of a lower layer;
+  /// partial coverage and translucent overlaps retain normal composition.
+  List<DenialSurfaceLayer> get paintedMainSurfaceLayers {
+    final clip = presentationCoordinateRect;
+    return unoccludedSurfaceLayers(
+      surfaceLayers,
+      clip: (
+        left: clip.left,
+        top: clip.top,
+        right: clip.right,
+        bottom: clip.bottom,
+      ),
+      paints: (layer) =>
+          !layer.belongsToPopup && layer.textureId > 0 && layer.opacity > 0,
+      opaque: (layer) => layer.opaque && layer.opacity == 1,
+      bounds: (layer) => (
+        left: layer.surfaceX,
+        top: layer.surfaceY,
+        right: layer.surfaceX + layer.surfaceWidth,
+        bottom: layer.surfaceY + layer.surfaceHeight,
+      ),
+    );
+  }
+
   Iterable<DenialSurfaceLayer> get popupSurfaceLayers =>
       surfaceLayers.where((layer) => layer.belongsToPopup);
 
@@ -308,7 +336,7 @@ class DenialWindow {
       }
       return;
     }
-    for (final layer in mainSurfaceLayers) {
+    for (final layer in paintedMainSurfaceLayers) {
       if (layer.textureId > 0) {
         yield layer.surfaceId;
       }
@@ -322,7 +350,7 @@ class DenialWindow {
       }
       return;
     }
-    for (final layer in surfaceLayers) {
+    for (final layer in [...paintedMainSurfaceLayers, ...popupSurfaceLayers]) {
       if (layer.textureId > 0) {
         yield layer.surfaceId;
       }
@@ -365,6 +393,7 @@ class DenialWindow {
   /// crop, opacity, and surface-tree updates therefore do not require the
   /// surrounding wallpaper, bars, panels, or other windows to rebuild.
   bool hasSameStaticSceneRoleAs(DenialWindow other) {
+    if (identical(this, other)) return true;
     return other.objectId == objectId &&
         other.objectKind == objectKind &&
         other.surfaceId == surfaceId &&
@@ -389,6 +418,7 @@ class DenialWindow {
   /// labels and switcher text. Keyed consumers can update that one window
   /// without invalidating geometry, textures, or the other scene windows.
   bool hasSameSceneDescriptionAs(DenialWindow other) {
+    if (identical(this, other)) return true;
     return other.objectId == objectId &&
         other.objectKind == objectKind &&
         other.surfaceId == surfaceId &&
@@ -428,14 +458,16 @@ class DenialWindow {
         other.contentWidth == contentWidth &&
         other.contentHeight == contentHeight &&
         other.contentKind == contentKind &&
+        other.opacityClass == opacityClass &&
         listEquals(other.surfaceLayers, surfaceLayers);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is DenialWindow &&
-        other.title == title &&
-        hasSameSceneDescriptionAs(other);
+    return identical(this, other) ||
+        other is DenialWindow &&
+            other.title == title &&
+            hasSameSceneDescriptionAs(other);
   }
 
   @override
