@@ -12,6 +12,75 @@ import 'package:denial_dart_shell/src/platform/denial_wire.dart'
     hide InputWindowRegion;
 
 void main() {
+  test('notification text survives validation without losing UTF-8 fields', () {
+    final values = List.generate(10, (index) => 'Field $index: café 日本語');
+    final bytes = DesktopNotificationEventObjectBuilder(
+      kind: DesktopNotificationEventKind.Added,
+      notificationId: 42,
+      notification: DesktopNotificationObjectBuilder(
+        id: 42,
+        sender: values[0],
+        appName: values[1],
+        appIcon: values[2],
+        summary: values[3],
+        body: values[4],
+        category: values[5],
+        desktopEntry: values[6],
+        imagePath: values[7],
+        soundName: values[8],
+        soundFile: values[9],
+      ),
+    ).toBytes();
+    final notification = DenialWireCodec()
+        .decodeNotificationEvent(DesktopNotificationEvent(bytes))!
+        .notification!;
+    expect([
+      notification.sender,
+      notification.appName,
+      notification.appIcon,
+      notification.summary,
+      notification.body,
+      notification.category,
+      notification.desktopEntry,
+      notification.imagePath,
+      notification.soundName,
+      notification.soundFile,
+    ], values);
+  });
+
+  test(
+    'materialized window and surface geometry retains finite validation',
+    () {
+      for (final invalidWindow in [false, true]) {
+        final bytes = WindowSnapshotObjectBuilder(
+          windows: [
+            WindowObjectBuilder(
+              objectId: 1,
+              windowId: 2,
+              surfaceId: 3,
+              width: 100,
+              height: 100,
+              contentWidth: 100,
+              contentHeight: 100,
+              geometryX: invalidWindow ? double.nan : 0,
+              surfaces: [
+                SurfaceLayerObjectBuilder(
+                  surfaceId: 3,
+                  surfaceX: invalidWindow ? 0 : double.infinity,
+                  surfaceWidth: 100,
+                  surfaceHeight: 100,
+                ),
+              ],
+            ),
+          ],
+        ).toBytes();
+        final codec = DenialWireCodec();
+        expect(codec.decodeWindows(WindowSnapshot(bytes)), isNull);
+        expect(codec.rejectedStructuredMessages, 1);
+      }
+    },
+  );
+
   test('mouse speed request is bounded and independently encoded', () {
     final codec = DenialWireCodec();
     const capabilities = DenialInputDeviceCapabilities(
@@ -504,9 +573,8 @@ void main() {
         8 => 'eight',
         _ => 'many',
       };
-      final bytes = File(
-        '../protocol/golden/native_windows_$label.denw',
-      ).readAsBytesSync();
+      final bytes = File('../protocol/golden/native_windows_$label.denw')
+          .readAsBytesSync();
       final codec = DenialWireCodec();
       final decoded = codec.decodeStructured(ByteData.sublistView(bytes));
       expect(decoded, isNotNull);

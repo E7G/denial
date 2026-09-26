@@ -1,9 +1,9 @@
-import 'dart:convert' show utf8;
 import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/utf8_size.dart';
 import '../../launcher/models/desktop_app.dart';
 import '../../localization/denial_localizations.dart';
 import '../../theme/motion.dart';
@@ -42,15 +42,16 @@ const settingsEnvironmentBackToApplicationsKey = ValueKey<String>(
 ValueKey<String> settingsEnvironmentApplicationScopeKey(String desktopFileId) =>
     ValueKey<String>('settings-environment-application-$desktopFileId');
 
-typedef ApplicationEnvironmentSave =
-    void Function(
-      String? desktopFileId,
-      String? previousName,
-      String name,
-      String? value,
-    );
-typedef ApplicationEnvironmentDelete =
-    void Function(String? desktopFileId, String name);
+typedef ApplicationEnvironmentSave = void Function(
+  String? desktopFileId,
+  String? previousName,
+  String name,
+  String? value,
+);
+typedef ApplicationEnvironmentDelete = void Function(
+  String? desktopFileId,
+  String name,
+);
 
 enum _EnvironmentOverrideMode { add, hide }
 
@@ -368,7 +369,7 @@ class _SettingsEnvironmentPageState extends State<SettingsEnvironmentPage> {
     if (value.contains('\u0000')) {
       return context.l10n.settingsEnvironmentValueNul;
     }
-    if (utf8.encode(value).length > applicationEnvironmentMaximumValueBytes) {
+    if (!fitsUtf8ByteLimit(value, applicationEnvironmentMaximumValueBytes)) {
       return context.l10n.settingsEnvironmentValueTooLong;
     }
     return null;

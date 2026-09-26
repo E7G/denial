@@ -62,6 +62,8 @@ mod lifecycle;
 #[cfg(feature = "flutter")]
 #[path = "deniald/local_windows.rs"]
 mod local_windows;
+#[path = "deniald/keyboard_resize.rs"]
+mod keyboard_resize;
 #[path = "deniald/native_shortcut.rs"]
 mod native_shortcut;
 #[cfg(feature = "flutter")]

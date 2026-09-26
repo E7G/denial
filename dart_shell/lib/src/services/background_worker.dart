@@ -8,8 +8,10 @@ import 'dart:isolate';
 typedef BackgroundWorkerEntrypoint = void Function(List<SendPort> bootstrap);
 
 /// Handles one operation inside a background worker isolate.
-typedef BackgroundWorkerOperationHandler =
-    FutureOr<Object?> Function(int operation, Object? payload);
+typedef BackgroundWorkerOperationHandler = FutureOr<Object?> Function(
+  int operation,
+  Object? payload,
+);
 
 /// A reusable, persistent request/response channel to one worker isolate.
 ///
@@ -17,12 +19,7 @@ typedef BackgroundWorkerOperationHandler =
 /// integer operation protocol private. Results are decoded on the caller's
 /// isolate after the potentially blocking operation has completed.
 final class BackgroundWorker {
-  BackgroundWorker({
-    required BackgroundWorkerEntrypoint entrypoint,
-    required String debugName,
-  }) : this._(entrypoint, debugName);
-
-  BackgroundWorker._(this._entrypoint, this._debugName);
+  BackgroundWorker({required this._entrypoint, required this._debugName});
 
   static const Duration _startupTimeout = Duration(seconds: 10);
 
@@ -36,6 +33,7 @@ final class BackgroundWorker {
   ReceivePort? _errors;
   ReceivePort? _exits;
   Future<SendPort>? _starting;
+  Completer<Never>? _startupAbort;
   int _generation = 0;
   int _nextRequestId = 1;
 
@@ -45,12 +43,16 @@ final class BackgroundWorker {
     required Result Function(Object? response) decode,
   }) async {
     final commands = await _ensureStarted();
+    if (!identical(commands, _commands)) {
+      throw StateError(
+        'Background worker $_debugName was closed before dispatch',
+      );
+    }
     final requestId = _nextRequestId++;
     final completer = Completer<Object?>();
     _pending[requestId] = completer;
-    commands.send(<Object?>[requestId, operation, payload]);
-
     try {
+      commands.send(<Object?>[requestId, operation, payload]);
       return decode(await completer.future);
     } finally {
       _pending.remove(requestId);
@@ -58,7 +60,18 @@ final class BackgroundWorker {
   }
 
   Future<void> close() async {
-    _failPending(StateError('Background worker $_debugName was closed'));
+    _stop(StateError('Background worker $_debugName was closed'));
+  }
+
+  void _stop(Object error) {
+    // Invalidate spawn and handshake continuations before releasing the ports.
+    _generation++;
+    final startupAbort = _startupAbort;
+    _startupAbort = null;
+    if (startupAbort != null && !startupAbort.isCompleted) {
+      startupAbort.completeError(error);
+    }
+    _failPending(error);
     _commands = null;
     _starting = null;
     _isolate?.kill(priority: Isolate.immediate);
@@ -86,6 +99,11 @@ final class BackgroundWorker {
 
   Future<SendPort> _start() async {
     final generation = ++_generation;
+    final abort = Completer<Never>();
+    // Cancellation may win before Isolate.spawn returns its future. Keep the
+    // error handled even in that gap; the races below still observe it.
+    abort.future.ignore();
+    _startupAbort = abort;
     final ready = ReceivePort();
     final responses = ReceivePort();
     final errors = ReceivePort();
@@ -104,22 +122,32 @@ final class BackgroundWorker {
     });
 
     try {
-      final isolate = await Isolate.spawn<List<SendPort>>(
-        _entrypoint,
-        <SendPort>[ready.sendPort, responses.sendPort],
-        debugName: _debugName,
-        errorsAreFatal: true,
-        onError: errors.sendPort,
-        onExit: exits.sendPort,
-      );
+      final spawning =
+          Isolate.spawn<List<SendPort>>(
+            _entrypoint,
+            <SendPort>[ready.sendPort, responses.sendPort],
+            debugName: _debugName,
+            errorsAreFatal: true,
+            onError: errors.sendPort,
+            onExit: exits.sendPort,
+          ).then((isolate) {
+            if (generation != _generation) {
+              isolate.kill(priority: Isolate.immediate);
+              throw StateError(
+                'Background worker $_debugName startup was superseded',
+              );
+            }
+            _isolate = isolate;
+            return isolate;
+          });
+      await Future.any<Isolate>([spawning, abort.future]);
+      final message = await Future.any<Object?>([ready.first, abort.future])
+          .timeout(_startupTimeout);
       if (generation != _generation) {
-        isolate.kill(priority: Isolate.immediate);
         throw StateError(
           'Background worker $_debugName startup was superseded',
         );
       }
-      _isolate = isolate;
-      final message = await ready.first.timeout(_startupTimeout);
       if (message is! SendPort) {
         throw StateError(
           'Background worker $_debugName returned an invalid command port',
@@ -127,16 +155,16 @@ final class BackgroundWorker {
       }
       _commands = message;
       return message;
-    } on Object {
+    } on Object catch (error) {
       if (generation == _generation) {
-        _commands = null;
-        _isolate?.kill(priority: Isolate.immediate);
-        _isolate = null;
-        _closePorts();
+        _stop(error);
       }
       rethrow;
     } finally {
       ready.close();
+      if (identical(_startupAbort, abort)) {
+        _startupAbort = null;
+      }
     }
   }
 
@@ -168,14 +196,11 @@ final class BackgroundWorker {
     if (generation != _generation) {
       return;
     }
-    _commands = null;
-    _isolate = null;
-    _failPending(
+    _stop(
       failure is List<Object?> && failure.isNotEmpty
           ? StateError(failure.first.toString())
-          : failure,
+          : failure ?? StateError('Background worker $_debugName failed'),
     );
-    _closePorts();
   }
 
   void _failPending(Object? failure) {

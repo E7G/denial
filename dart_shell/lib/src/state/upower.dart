@@ -112,7 +112,9 @@ class UPowerController extends Notifier<UPowerState>
         );
       }
     } finally {
-      _reading = false;
+      if (generation == _buildGeneration) {
+        _reading = false;
+      }
     }
   }
 

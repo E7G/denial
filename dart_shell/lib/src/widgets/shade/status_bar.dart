@@ -7,7 +7,6 @@ import '../../input/input_layout.dart';
 import '../../localization/denial_localizations.dart';
 import '../../state/shell_controller.dart';
 import '../../state/system_status.dart';
-import '../../theme/motion.dart';
 import '../../theme/shell_color_scheme.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';

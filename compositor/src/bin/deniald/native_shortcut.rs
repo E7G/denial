@@ -13,9 +13,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+use super::keyboard_resize::KeyboardResize;
 use super::window_layout::LayoutDirection;
 
-const SHORTCUT_SCHEMA_VERSION: u64 = 9;
+const SHORTCUT_SCHEMA_VERSION: u64 = 10;
 const OLDEST_SHORTCUT_SCHEMA_VERSION: u64 = 1;
 const MAX_SHORTCUT_FILE_BYTES: usize = 128 * 1024;
 pub(super) const MAX_SHORTCUTS: usize = 256;
@@ -81,6 +82,13 @@ const SHORTCUT_V6_ADDITIONS: &[(&str, ShortcutAction)] = &[
 const SHORTCUT_V9_ADDITIONS: &[(&str, ShortcutAction)] = &[
     ("FourFingerSwipeDown", ShortcutAction::PreviousWorkspace),
     ("FourFingerSwipeUp", ShortcutAction::NextWorkspace),
+];
+
+const SHORTCUT_V10_ADDITIONS: &[(&str, ShortcutAction)] = &[
+    ("Super+Minus", ShortcutAction::ResizeShrinkWidth),
+    ("Super+Equal", ShortcutAction::ResizeGrowWidth),
+    ("Super+Shift+Minus", ShortcutAction::ResizeShrinkHeight),
+    ("Super+Shift+Equal", ShortcutAction::ResizeGrowHeight),
 ];
 
 const KEY_ESCAPE: u32 = 1;
@@ -184,6 +192,11 @@ pub(super) enum ShortcutAction {
     OpenDashboard,
     OpenOverview,
     ToggleVerticalMaximize,
+    ResizeGrowWidth,
+    ResizeShrinkWidth,
+    ResizeGrowHeight,
+    ResizeShrinkHeight,
+    ResetWindowHeight,
     WindowSwitcher,
     OpenClipboard,
     CaptureRegion,
@@ -236,7 +249,7 @@ pub(super) enum ShortcutAction {
 }
 
 impl ShortcutAction {
-    pub(super) const ALL: [Self; 54] = [
+    pub(super) const ALL: [Self; 59] = [
         Self::OpenApplications,
         Self::OpenDashboard,
         Self::OpenSettings,
@@ -248,6 +261,11 @@ impl ShortcutAction {
         Self::MinimizeWindow,
         Self::MinimizeAllWindows,
         Self::ToggleVerticalMaximize,
+        Self::ResizeGrowWidth,
+        Self::ResizeShrinkWidth,
+        Self::ResizeGrowHeight,
+        Self::ResizeShrinkHeight,
+        Self::ResetWindowHeight,
         Self::ToggleMaximize,
         Self::ToggleFullscreen,
         Self::ToggleWindowAlwaysOnTop,
@@ -387,6 +405,10 @@ impl ShortcutTarget {
                     | ShortcutAction::VolumeDown
                     | ShortcutAction::BrightnessUp
                     | ShortcutAction::BrightnessDown
+                    | ShortcutAction::ResizeGrowWidth
+                    | ShortcutAction::ResizeShrinkWidth
+                    | ShortcutAction::ResizeGrowHeight
+                    | ShortcutAction::ResizeShrinkHeight
                     | ShortcutAction::FocusLeft
                     | ShortcutAction::FocusRight
                     | ShortcutAction::FocusUp
@@ -850,6 +872,7 @@ fn migrate_shortcut_file(file: &mut ShortcutFile) -> Result<Option<usize>, Short
         6 => &[SHORTCUT_V9_ADDITIONS],
         7 => &[SHORTCUT_V9_ADDITIONS],
         8 => &[SHORTCUT_V9_ADDITIONS],
+        9 => &[],
         version => {
             return Err(ShortcutError::Document(format!(
                 "shortcut version {version} is not supported; expected {OLDEST_SHORTCUT_SCHEMA_VERSION}..={SHORTCUT_SCHEMA_VERSION}"
@@ -890,8 +913,8 @@ fn migrate_shortcut_file(file: &mut ShortcutFile) -> Result<Option<usize>, Short
     for binding in &file.shortcuts {
         configured.insert(parse_shortcut(&binding.shortcut)?);
     }
-    for additions in additions {
-        for &(shortcut, action) in *additions {
+    for additions in additions.iter().copied().chain([SHORTCUT_V10_ADDITIONS]) {
+        for &(shortcut, action) in additions {
             let trigger = parse_shortcut(shortcut)?;
             if configured.contains(&trigger) || file.shortcuts.len() == MAX_SHORTCUTS {
                 continue;
@@ -1142,6 +1165,7 @@ fn default_shortcut_file() -> ShortcutFile {
             .chain(SHORTCUT_V5_ADDITIONS.iter().copied())
             .chain(SHORTCUT_V6_ADDITIONS.iter().copied())
             .chain(SHORTCUT_V9_ADDITIONS.iter().copied())
+            .chain(SHORTCUT_V10_ADDITIONS.iter().copied())
             .map(|(shortcut, action)| ShortcutBinding {
                 shortcut: shortcut.to_owned(),
                 target: ShortcutTarget::DenialAction { action },
@@ -1690,6 +1714,7 @@ pub(super) enum ShortcutDisposition {
     RequestDashboard,
     RequestOverview,
     RequestToggleVerticalMaximize,
+    RequestResize(KeyboardResize),
     RequestWindowSwitcherNext,
     RequestWindowSwitcherPrevious,
     RequestWindowSwitcherEnd {
@@ -1726,6 +1751,31 @@ pub(super) enum ShortcutDisposition {
         desktop_file_id: Option<String>,
     },
     SpawnSh(String),
+}
+
+impl ShortcutDisposition {
+    pub(super) fn repeats_with_timer(&self) -> bool {
+        self.repeats_system_control()
+            || matches!(
+                self,
+                Self::RequestResize(
+                    KeyboardResize::GrowWidth
+                        | KeyboardResize::ShrinkWidth
+                        | KeyboardResize::GrowHeight
+                        | KeyboardResize::ShrinkHeight
+                )
+            )
+    }
+
+    pub(super) fn repeats_system_control(&self) -> bool {
+        matches!(
+            self,
+            Self::RequestVolumeUp
+                | Self::RequestVolumeDown
+                | Self::RequestBrightnessUp
+                | Self::RequestBrightnessDown
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -2100,6 +2150,11 @@ impl From<ShortcutAction> for ShortcutDisposition {
             ShortcutAction::OpenDashboard => Self::RequestDashboard,
             ShortcutAction::OpenOverview => Self::RequestOverview,
             ShortcutAction::ToggleVerticalMaximize => Self::RequestToggleVerticalMaximize,
+            ShortcutAction::ResizeGrowWidth => Self::RequestResize(KeyboardResize::GrowWidth),
+            ShortcutAction::ResizeShrinkWidth => Self::RequestResize(KeyboardResize::ShrinkWidth),
+            ShortcutAction::ResizeGrowHeight => Self::RequestResize(KeyboardResize::GrowHeight),
+            ShortcutAction::ResizeShrinkHeight => Self::RequestResize(KeyboardResize::ShrinkHeight),
+            ShortcutAction::ResetWindowHeight => Self::RequestResize(KeyboardResize::ResetHeight),
             ShortcutAction::WindowSwitcher => Self::RequestWindowSwitcherNext,
             ShortcutAction::OpenClipboard => Self::RequestClipboard,
             ShortcutAction::CaptureRegion => Self::RequestScreenshotRegion,
@@ -2176,6 +2231,74 @@ mod tests {
     use super::*;
 
     #[test]
+    fn resize_defaults_repeat_and_capture_releases() {
+        for (keycode, shift, action) in [
+            (12, false, KeyboardResize::ShrinkWidth),
+            (13, false, KeyboardResize::GrowWidth),
+            (12, true, KeyboardResize::ShrinkHeight),
+            (13, true, KeyboardResize::GrowHeight),
+        ] {
+            let mut engine = ShortcutEngine::from_file(&default_shortcut_file()).unwrap();
+            engine.observe(KEY_LEFT_META, true);
+            if shift {
+                engine.observe(KEY_LEFT_SHIFT, true);
+            }
+            let expected = ShortcutDisposition::RequestResize(action);
+            assert_eq!(engine.observe(keycode, true), expected);
+            assert_eq!(engine.observe(keycode, true), expected);
+            assert!(expected.repeats_with_timer());
+            assert_eq!(engine.observe(keycode, false), ShortcutDisposition::Consume);
+        }
+        assert!(
+            !ShortcutDisposition::RequestResize(KeyboardResize::ResetHeight).repeats_with_timer()
+        );
+    }
+
+    #[test]
+    fn v10_migration_preserves_custom_bindings_and_runs_only_once() {
+        let custom = ShortcutBinding {
+            shortcut: "Super+Minus".to_owned(),
+            target: ShortcutTarget::SpawnSh {
+                command: "custom".to_owned(),
+            },
+        };
+        let mut file = ShortcutFile {
+            version: 9,
+            revision: 12,
+            shortcuts: vec![custom.clone()],
+        };
+        assert_eq!(migrate_shortcut_file(&mut file).unwrap(), Some(3));
+        assert_eq!(file.revision, 13);
+        assert_eq!(file.shortcuts[0], custom);
+        assert_eq!(file.shortcuts.len(), 4);
+        assert!(compile_shortcuts(&file).is_ok());
+        file.shortcuts.pop();
+        assert_eq!(migrate_shortcut_file(&mut file).unwrap(), None);
+        assert_eq!(file.shortcuts.len(), 3);
+    }
+
+    #[test]
+    fn level_shortcuts_repeat_while_the_key_remains_pressed() {
+        for (keycode, expected) in [
+            (KEY_VOLUME_UP, ShortcutDisposition::RequestVolumeUp),
+            (KEY_VOLUME_DOWN, ShortcutDisposition::RequestVolumeDown),
+            (KEY_BRIGHTNESS_UP, ShortcutDisposition::RequestBrightnessUp),
+            (
+                KEY_BRIGHTNESS_DOWN,
+                ShortcutDisposition::RequestBrightnessDown,
+            ),
+        ] {
+            let mut engine = ShortcutEngine::from_file(&default_shortcut_file()).unwrap();
+
+            assert_eq!(engine.observe(keycode, true), expected.clone());
+            let repeated = engine.observe(keycode, true);
+            assert_eq!(repeated, expected);
+            assert!(repeated.repeats_system_control());
+            assert_eq!(engine.observe(keycode, false), ShortcutDisposition::Consume);
+        }
+    }
+
+    #[test]
     fn ctrl_alt_function_keys_request_vt_switch_and_capture_their_lifecycle() {
         for vt in 1..=12 {
             let keycode = match vt {
@@ -2244,6 +2367,7 @@ mod tests {
                     + SHORTCUT_V5_ADDITIONS.len()
                     + SHORTCUT_V6_ADDITIONS.len()
                     + SHORTCUT_V9_ADDITIONS.len()
+                    + SHORTCUT_V10_ADDITIONS.len()
             )
         );
         assert_eq!(file.version, SHORTCUT_SCHEMA_VERSION);
@@ -2319,10 +2443,13 @@ mod tests {
 
         assert_eq!(remove_retired_shortcut_actions(&mut document), 1);
         let mut file = serde_json::from_value::<ShortcutFile>(document).unwrap();
-        assert_eq!(migrate_shortcut_file(&mut file).unwrap(), Some(2));
+        assert_eq!(
+            migrate_shortcut_file(&mut file).unwrap(),
+            Some(2 + SHORTCUT_V10_ADDITIONS.len())
+        );
         assert_eq!(file.version, SHORTCUT_SCHEMA_VERSION);
         assert_eq!(file.revision, 13);
-        assert_eq!(file.shortcuts.len(), 3);
+        assert_eq!(file.shortcuts.len(), 3 + SHORTCUT_V10_ADDITIONS.len());
         assert_eq!(file.shortcuts[0].shortcut, "Super+Alt+Right");
     }
 
@@ -2339,7 +2466,10 @@ mod tests {
             }],
         };
 
-        assert_eq!(migrate_shortcut_file(&mut file).unwrap(), Some(3));
+        assert_eq!(
+            migrate_shortcut_file(&mut file).unwrap(),
+            Some(3 + SHORTCUT_V10_ADDITIONS.len())
+        );
         assert_eq!(file.version, SHORTCUT_SCHEMA_VERSION);
         assert_eq!(file.revision, 12);
         assert!(file.shortcuts.iter().any(|binding| {
@@ -2381,7 +2511,10 @@ mod tests {
             ],
         };
 
-        assert_eq!(migrate_shortcut_file(&mut file).unwrap(), Some(3));
+        assert_eq!(
+            migrate_shortcut_file(&mut file).unwrap(),
+            Some(3 + SHORTCUT_V10_ADDITIONS.len())
+        );
         assert_eq!(file.version, SHORTCUT_SCHEMA_VERSION);
         assert_eq!(file.revision, 15);
         assert!(matches!(

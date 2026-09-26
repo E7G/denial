@@ -4,6 +4,12 @@ enum DenialShortcutAction {
   openDashboard,
   openOverview,
   toggleVerticalMaximize,
+  resizeGrowWidth,
+  resizeShrinkWidth,
+  resizeGrowHeight,
+  resizeShrinkHeight,
+  resetWindowHeight,
+
   windowSwitcher,
   openClipboard,
   captureRegion,

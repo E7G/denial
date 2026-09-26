@@ -1249,10 +1249,10 @@ impl flatbuffers::SimpleToVerifyInSlice for SettingsResponseKind {}
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_SHORTCUT_ACTION_KIND: u8 = 0;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_SHORTCUT_ACTION_KIND: u8 = 53;
+pub const ENUM_MAX_SHORTCUT_ACTION_KIND: u8 = 58;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_SHORTCUT_ACTION_KIND: [ShortcutActionKind; 54] = [
+pub const ENUM_VALUES_SHORTCUT_ACTION_KIND: [ShortcutActionKind; 59] = [
   ShortcutActionKind::Shutdown,
   ShortcutActionKind::OpenApplications,
   ShortcutActionKind::OpenOverview,
@@ -1307,6 +1307,11 @@ pub const ENUM_VALUES_SHORTCUT_ACTION_KIND: [ShortcutActionKind; 54] = [
   ShortcutActionKind::MoveToWorkspace8,
   ShortcutActionKind::MoveToWorkspace9,
   ShortcutActionKind::ToggleWindowAlwaysOnTop,
+  ShortcutActionKind::ResizeGrowWidth,
+  ShortcutActionKind::ResizeShrinkWidth,
+  ShortcutActionKind::ResizeGrowHeight,
+  ShortcutActionKind::ResizeShrinkHeight,
+  ShortcutActionKind::ResetWindowHeight,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -1368,9 +1373,14 @@ impl ShortcutActionKind {
   pub const MoveToWorkspace8: Self = Self(51);
   pub const MoveToWorkspace9: Self = Self(52);
   pub const ToggleWindowAlwaysOnTop: Self = Self(53);
+  pub const ResizeGrowWidth: Self = Self(54);
+  pub const ResizeShrinkWidth: Self = Self(55);
+  pub const ResizeGrowHeight: Self = Self(56);
+  pub const ResizeShrinkHeight: Self = Self(57);
+  pub const ResetWindowHeight: Self = Self(58);
 
   pub const ENUM_MIN: u8 = 0;
-  pub const ENUM_MAX: u8 = 53;
+  pub const ENUM_MAX: u8 = 58;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::Shutdown,
     Self::OpenApplications,
@@ -1426,6 +1436,11 @@ impl ShortcutActionKind {
     Self::MoveToWorkspace8,
     Self::MoveToWorkspace9,
     Self::ToggleWindowAlwaysOnTop,
+    Self::ResizeGrowWidth,
+    Self::ResizeShrinkWidth,
+    Self::ResizeGrowHeight,
+    Self::ResizeShrinkHeight,
+    Self::ResetWindowHeight,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
@@ -1484,6 +1499,11 @@ impl ShortcutActionKind {
       Self::MoveToWorkspace8 => Some("MoveToWorkspace8"),
       Self::MoveToWorkspace9 => Some("MoveToWorkspace9"),
       Self::ToggleWindowAlwaysOnTop => Some("ToggleWindowAlwaysOnTop"),
+      Self::ResizeGrowWidth => Some("ResizeGrowWidth"),
+      Self::ResizeShrinkWidth => Some("ResizeShrinkWidth"),
+      Self::ResizeGrowHeight => Some("ResizeGrowHeight"),
+      Self::ResizeShrinkHeight => Some("ResizeShrinkHeight"),
+      Self::ResetWindowHeight => Some("ResetWindowHeight"),
       _ => None,
     }
   }

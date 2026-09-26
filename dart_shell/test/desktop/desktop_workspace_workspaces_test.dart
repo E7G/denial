@@ -50,6 +50,58 @@ void main() {
     );
   });
 
+  test('workspace updates cannot be mutated through caller-owned maps', () {
+    final activeWorkspaces = <int, int>{11: 2};
+    final transitions = <int, DesktopWorkspaceTransition>{
+      11: const DesktopWorkspaceTransition(
+        monitorId: 11,
+        fromWorkspace: 1,
+        toWorkspace: 2,
+        serial: 1,
+      ),
+    };
+    final state = DesktopWorkspaceState.initial().copyWith(
+      workspacesEnabled: true,
+      activeWorkspaces: activeWorkspaces,
+      workspaceTransitions: transitions,
+    );
+    activeWorkspaces[11] = 3;
+    transitions.clear();
+
+    expect(state.activeWorkspaceFor(11), 2);
+    expect(state.workspaceTransitions[11]?.fromWorkspace, 1);
+    expect(() => state.activeWorkspaces.clear(), throwsUnsupportedError);
+    expect(() => state.workspaceTransitions.clear(), throwsUnsupportedError);
+
+    final panel = state.copyWith(panel: DesktopPanel.launcher);
+    expect(identical(panel.activeWorkspaces, state.activeWorkspaces), isTrue);
+    expect(
+      identical(panel.workspaceTransitions, state.workspaceTransitions),
+      isTrue,
+    );
+    expect(desktopWorkspaceHasSameSceneStructure(state, panel), isTrue);
+  });
+
+  test('overview selection shares geometry but new geometry is a snapshot', () {
+    final overview = DesktopOverviewState(
+      monitorId: 11,
+      bounds: const Rect.fromLTWH(0, 0, 1920, 1080),
+      backgroundBounds: const Rect.fromLTWH(0, 0, 1920, 1080),
+      selectedObjectId: first.objectId,
+      frames: {first.objectId: first.frame, second.objectId: second.frame},
+    );
+    final selected = overview.copyWith(selectedObjectId: second.objectId);
+    expect(selected.selectedObjectId, second.objectId);
+    expect(identical(selected.frames, overview.frames), isTrue);
+
+    final replacements = {second.objectId: second.frame};
+    final updated = selected.copyWith(frames: replacements);
+    replacements.clear();
+    expect(updated.frames, {second.objectId: second.frame});
+    expect(() => updated.frames.clear(), throwsUnsupportedError);
+    expect(overview.frames.length, 2);
+  });
+
   test('display layout restores the authoritative active workspace', () {
     final container = ProviderContainer.test();
     addTearDown(container.dispose);

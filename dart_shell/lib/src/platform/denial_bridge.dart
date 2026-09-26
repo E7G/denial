@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
+import '../core/utf8_size.dart';
 import '../input/input_layout.dart';
 import '../models/denial_drag_icon.dart';
 import '../models/denial_cursor_state.dart';
@@ -21,146 +22,13 @@ import '../models/denial_window.dart';
 import '../models/denial_window_event.dart';
 import '../models/denial_window_snapshot.dart';
 import '../models/ui_development.dart';
+import 'bounded_byte_stream.dart';
+import 'denial_bridge_models.dart';
+import 'system_control_protocol.dart';
 import 'denial_wire.dart' as wire;
 import 'ui_development_protocol.dart';
 
-enum DenialShellAction {
-  applications,
-  dashboard,
-  overview,
-  windowSwitcherNext,
-  windowSwitcherPrevious,
-  windowSwitcherEnd,
-  clipboard,
-  screenshotPrepare,
-  screenshotTextureReady,
-  screenshotDone,
-  clientPointerPressed,
-  wallpaper,
-  openSettings,
-  workspaceChanged,
-  focusLeft,
-  focusRight,
-  focusUp,
-  focusDown,
-}
-
-class DenialShellActionEvent {
-  const DenialShellActionEvent({
-    required this.action,
-    required this.monitorId,
-    required this.requestId,
-    required this.textureId,
-    required this.workspaceId,
-  });
-
-  final DenialShellAction action;
-  final int? monitorId;
-  final int requestId;
-  final int? textureId;
-  final int? workspaceId;
-}
-
-class DenialAudioState {
-  const DenialAudioState({
-    required this.level,
-    required this.requestSerial,
-    this.completesRead = false,
-  });
-
-  final double level;
-  final int requestSerial;
-
-  /// Whether this update satisfied an explicit state read from Dart.
-  ///
-  /// Reconciliation reads update controls but should not look like a fresh
-  /// hardware-key interaction to transient shell surfaces.
-  final bool completesRead;
-}
-
-class DenialAudioStream {
-  const DenialAudioStream({
-    required this.id,
-    required this.name,
-    required this.level,
-    required this.muted,
-  });
-
-  final int id;
-  final String name;
-  final double level;
-  final bool muted;
-}
-
-class DenialAudioDevice {
-  const DenialAudioDevice({
-    required this.name,
-    required this.description,
-    required this.active,
-    required this.available,
-  });
-
-  final String name;
-  final String description;
-  final bool active;
-  final bool available;
-}
-
-class DenialBrightnessState {
-  const DenialBrightnessState({
-    required this.monitorId,
-    required this.level,
-    this.completesRead = false,
-  });
-
-  final int monitorId;
-  final double level;
-
-  /// Whether this update satisfied an explicit state read from Dart.
-  ///
-  /// Reconciliation reads seed controls but must not present the transient
-  /// brightness HUD as though the user changed the hardware level.
-  final bool completesRead;
-}
-
-class DenialSoftwareDimmingState {
-  const DenialSoftwareDimmingState({
-    required this.monitorId,
-    required this.level,
-    required this.supported,
-    this.completesRead = false,
-  });
-
-  final int monitorId;
-  final double level;
-  final bool supported;
-  final bool completesRead;
-}
-
-class DenialTextInputState {
-  const DenialTextInputState({
-    required this.active,
-    required this.inputPanelVisible,
-    required this.legacy,
-    required this.contentHint,
-    required this.contentPurpose,
-    this.activationSerial = 0,
-  });
-
-  final bool active;
-  final bool inputPanelVisible;
-  final bool legacy;
-  final int contentHint;
-  final int contentPurpose;
-  final int activationSerial;
-}
-
-class DenialSettingsDocument {
-  const DenialSettingsDocument({required this.revision, required this.json});
-
-  final int revision;
-  final String json;
-}
+export 'denial_bridge_models.dart';
 
 class DenialBridge {
   static const String _hapticsChannel = 'denial/haptics';
@@ -247,7 +115,7 @@ class DenialBridge {
   _pendingShortcutRequests = {};
   final Map<int, Completer<DenialShortcutValidation>>
   _pendingShortcutValidationRequests = {};
-  final Set<Completer<double?>> _pendingAudioReads = {};
+  Set<Completer<double?>> _pendingAudioReads = {};
   final Map<int, Set<Completer<double?>>> _pendingBrightnessReads = {};
   final Map<int, Set<Completer<double?>>> _pendingSoftwareDimmingReads = {};
   final StreamController<DenialWindowEvent> _windowEvents =
@@ -385,7 +253,7 @@ class DenialBridge {
     try {
       final path = _outputControlSocketPath();
       if (path == null ||
-          FileSystemEntity.typeSync(path, followLinks: false) !=
+          await FileSystemEntity.type(path, followLinks: false) !=
               FileSystemEntityType.unixDomainSock) {
         throw const DenialOutputControlException(
           'unavailable',
@@ -411,7 +279,7 @@ class DenialBridge {
       socket.add(utf8.encode('$request\n'));
       await socket.flush();
       final lines = StreamIterator<String>(
-        utf8.decoder.bind(socket).transform(const LineSplitter()),
+        decodeBoundedUtf8Lines(socket, maximumBytes: _maxOutputControlBytes),
       );
       try {
         final hasInitial = await lines.moveNext().timeout(
@@ -442,6 +310,12 @@ class DenialBridge {
           'The Denial settings subscription closed.',
         );
       }
+    } on ByteStreamLimitExceeded catch (_, stackTrace) {
+      failure = const DenialOutputControlException(
+        'invalid_response',
+        'The Denial settings update is too large.',
+      );
+      failureStackTrace = stackTrace;
     } on Object catch (error, stackTrace) {
       failure = error;
       failureStackTrace = stackTrace;
@@ -479,12 +353,6 @@ class DenialBridge {
     String line,
     int requestId,
   ) {
-    if (utf8.encode(line).length > _maxOutputControlBytes) {
-      throw const DenialOutputControlException(
-        'invalid_response',
-        'The Denial settings update is too large.',
-      );
-    }
     final decoded = jsonDecode(line);
     if (decoded is! Map<String, Object?> ||
         decoded['version'] != 1 ||
@@ -864,8 +732,7 @@ class DenialBridge {
   }) async {
     if (expectedRevision <= 0 ||
         document.isEmpty ||
-        utf8.encode(document).length >
-            wire.denialWireMaxSettingsDocumentBytes) {
+        !fitsUtf8ByteLimit(document, wire.denialWireMaxSettingsDocumentBytes)) {
       throw ArgumentError('invalid Denial settings document');
     }
     if (!useControlSocket) {
@@ -900,8 +767,7 @@ class DenialBridge {
         revision <= 0 ||
         document is! String ||
         document.isEmpty ||
-        utf8.encode(document).length >
-            wire.denialWireMaxSettingsDocumentBytes) {
+        !fitsUtf8ByteLimit(document, wire.denialWireMaxSettingsDocumentBytes)) {
       throw StateError('Denial returned an invalid settings document');
     }
     return DenialSettingsDocument(revision: revision, json: document);
@@ -1645,10 +1511,9 @@ class DenialBridge {
   }
 
   bool _validBrightnessTarget(int monitorId, String connector) {
-    final connectorBytes = utf8.encode(connector);
     return monitorId >= 0 &&
-        connectorBytes.isNotEmpty &&
-        connectorBytes.length <= 128 &&
+        connector.isNotEmpty &&
+        fitsUtf8ByteLimit(connector, 128) &&
         !connector.contains('\u0000');
   }
 
@@ -2064,7 +1929,7 @@ class DenialBridge {
         'The Denial output control socket is unavailable.',
       );
     }
-    if (FileSystemEntity.typeSync(path, followLinks: false) !=
+    if (await FileSystemEntity.type(path, followLinks: false) !=
         FileSystemEntityType.unixDomainSock) {
       throw const DenialOutputControlException(
         'unavailable',
@@ -2078,7 +1943,8 @@ class DenialBridge {
       'method': method,
       'params': ?parameters,
     });
-    if (utf8.encode(request).length + 1 > _maxOutputControlBytes) {
+    final requestBytes = utf8.encode('$request\n');
+    if (requestBytes.length > _maxOutputControlBytes) {
       throw const DenialOutputControlException(
         'invalid_request',
         'The output configuration is too large.',
@@ -2092,18 +1958,12 @@ class DenialBridge {
         0,
         timeout: _outputControlTimeout,
       );
-      socket.add(utf8.encode('$request\n'));
+      socket.add(requestBytes);
       await socket.flush();
-      final responseBytes = <int>[];
-      await for (final chunk in socket.timeout(_outputControlTimeout)) {
-        responseBytes.addAll(chunk);
-        if (responseBytes.length > _maxOutputControlBytes) {
-          throw const DenialOutputControlException(
-            'invalid_response',
-            'The compositor output response is too large.',
-          );
-        }
-      }
+      final responseBytes = await collectBoundedBytes(
+        socket.timeout(_outputControlTimeout),
+        maximumBytes: _maxOutputControlBytes,
+      );
       final decoded = jsonDecode(utf8.decode(responseBytes));
       if (decoded is! Map<String, Object?> ||
           decoded['version'] != 1 ||
@@ -2135,6 +1995,11 @@ class DenialBridge {
       throw const DenialOutputControlException(
         'invalid_response',
         'The compositor returned no output configuration.',
+      );
+    } on ByteStreamLimitExceeded {
+      throw const DenialOutputControlException(
+        'invalid_response',
+        'The compositor output response is too large.',
       );
     } on DenialOutputControlException {
       rethrow;
@@ -2279,11 +2144,15 @@ class DenialBridge {
       if (value is! num) return null;
       final level = value.toDouble().clamp(0.0, 1.0);
       final requestSerial = result['request_serial'];
+      final muted = result['muted'];
+      final limitReached = result['limit_reached'];
       if (!_audioStates.isClosed) {
         _audioStates.add(
           DenialAudioState(
             level: level,
             requestSerial: requestSerial is int ? requestSerial : 0,
+            muted: muted is bool && muted,
+            limitReached: limitReached is bool && limitReached,
             completesRead: true,
           ),
         );
@@ -2550,131 +2419,52 @@ class DenialBridge {
   }
 
   Future<ByteData?> _handleAudioStateMessage(ByteData? data) async {
-    if (data == null || data.lengthInBytes < 1) {
-      return null;
-    }
-
-    final level = data.getUint8(0).clamp(0, 100) / 100.0;
-    final requestSerial = data.lengthInBytes >= 5
-        ? data.getUint32(1, Endian.little)
-        : 0;
-    final completesRead = _pendingAudioReads.isNotEmpty;
+    final update = SystemControlProtocol.decodeAudioState(data);
+    if (update == null) return null;
+    // Detach this response's readers before notifying synchronous listeners.
+    // A listener may start a new read, which must await the next response.
+    final pending = _pendingAudioReads.isEmpty ? null : _pendingAudioReads;
+    if (pending != null) _pendingAudioReads = {};
     if (!_audioStates.isClosed) {
       _audioStates.add(
         DenialAudioState(
-          level: level,
-          requestSerial: requestSerial,
-          completesRead: completesRead,
+          level: update.level,
+          requestSerial: update.requestSerial,
+          muted: update.muted,
+          limitReached: update.limitReached,
+          completesRead: pending != null,
         ),
       );
     }
-    final pending = _pendingAudioReads.toList(growable: false);
-    _pendingAudioReads.clear();
-    for (final completer in pending) {
-      if (!completer.isCompleted) {
-        completer.complete(level);
+    if (pending != null) {
+      for (final completer in pending) {
+        if (!completer.isCompleted) {
+          completer.complete(update.level);
+        }
       }
     }
     return null;
   }
 
   Future<ByteData?> _handleAudioStreamsStateMessage(ByteData? data) async {
-    if (data == null || data.lengthInBytes < 4) {
-      return null;
-    }
-
-    final count = data.getUint32(0, Endian.little);
-    var offset = 4;
-    final streams = <DenialAudioStream>[];
-    for (var i = 0; i < count; i += 1) {
-      if (offset + 8 > data.lengthInBytes) {
-        return null;
-      }
-      final id = data.getUint32(offset, Endian.little);
-      final level = data.getUint8(offset + 4).clamp(0, 100) / 100.0;
-      final muted = data.getUint8(offset + 5) != 0;
-      final nameLength = data.getUint16(offset + 6, Endian.little);
-      offset += 8;
-      if (offset + nameLength > data.lengthInBytes) {
-        return null;
-      }
-      final nameBytes = data.buffer.asUint8List(
-        data.offsetInBytes + offset,
-        nameLength,
-      );
-      streams.add(
-        DenialAudioStream(
-          id: id,
-          name: utf8.decode(nameBytes, allowMalformed: true),
-          level: level,
-          muted: muted,
-        ),
-      );
-      offset += nameLength;
-    }
-
-    if (!_audioStreamStates.isClosed) {
-      _audioStreamStates.add(List<DenialAudioStream>.unmodifiable(streams));
-    }
+    if (_audioStreamStates.isClosed) return null;
+    final streams = SystemControlProtocol.decodeAudioStreams(data);
+    if (streams != null) _audioStreamStates.add(streams);
     return null;
   }
 
   Future<ByteData?> _handleAudioDevicesStateMessage(ByteData? data) async {
-    if (data == null || data.lengthInBytes < 4) {
-      return null;
-    }
-
-    final count = data.getUint32(0, Endian.little);
-    var offset = 4;
-    final devices = <DenialAudioDevice>[];
-    for (var i = 0; i < count; i += 1) {
-      if (offset + 6 > data.lengthInBytes) {
-        return null;
-      }
-      final active = data.getUint8(offset) != 0;
-      final available = data.getUint8(offset + 1) != 0;
-      final nameLength = data.getUint16(offset + 2, Endian.little);
-      final descriptionLength = data.getUint16(offset + 4, Endian.little);
-      offset += 6;
-      if (offset + nameLength + descriptionLength > data.lengthInBytes) {
-        return null;
-      }
-      final nameBytes = data.buffer.asUint8List(
-        data.offsetInBytes + offset,
-        nameLength,
-      );
-      offset += nameLength;
-      final descriptionBytes = data.buffer.asUint8List(
-        data.offsetInBytes + offset,
-        descriptionLength,
-      );
-      offset += descriptionLength;
-      devices.add(
-        DenialAudioDevice(
-          name: utf8.decode(nameBytes, allowMalformed: true),
-          description: utf8.decode(descriptionBytes, allowMalformed: true),
-          active: active,
-          available: available,
-        ),
-      );
-    }
-
-    if (!_audioDeviceStates.isClosed) {
-      _audioDeviceStates.add(List<DenialAudioDevice>.unmodifiable(devices));
-    }
+    if (_audioDeviceStates.isClosed) return null;
+    final devices = SystemControlProtocol.decodeAudioDevices(data);
+    if (devices != null) _audioDeviceStates.add(devices);
     return null;
   }
 
   Future<ByteData?> _handleBrightnessStateMessage(ByteData? data) async {
-    if (data == null || data.lengthInBytes < 9) {
-      return null;
-    }
-
-    final monitorId = data.getInt64(0, Endian.little);
-    if (monitorId < 0 || _brightnessStates.isClosed) {
-      return null;
-    }
-    final level = data.getUint8(8).clamp(0, 100) / 100.0;
+    if (_brightnessStates.isClosed) return null;
+    final update = SystemControlProtocol.decodeBrightness(data);
+    if (update == null) return null;
+    final (:monitorId, :level) = update;
     final pending = _pendingBrightnessReads.remove(monitorId);
     _brightnessStates.add(
       DenialBrightnessState(
@@ -2694,15 +2484,10 @@ class DenialBridge {
   }
 
   Future<ByteData?> _handleSoftwareDimmingStateMessage(ByteData? data) async {
-    if (data == null || data.lengthInBytes < 10) {
-      return null;
-    }
-    final monitorId = data.getInt64(0, Endian.little);
-    if (monitorId <= 0 || _softwareDimmingStates.isClosed) {
-      return null;
-    }
-    final level = data.getUint8(8).clamp(0, 100) / 100.0;
-    final supported = data.getUint8(9) != 0;
+    if (_softwareDimmingStates.isClosed) return null;
+    final update = SystemControlProtocol.decodeSoftwareDimming(data);
+    if (update == null) return null;
+    final (:monitorId, :level, :supported) = update;
     final pending = _pendingSoftwareDimmingReads.remove(monitorId);
     _softwareDimmingStates.add(
       DenialSoftwareDimmingState(
@@ -2883,8 +2668,10 @@ class DenialBridge {
       if (!response.success ||
           response.revision <= 0 ||
           document == null ||
-          utf8.encode(document).length >
-              wire.denialWireMaxSettingsDocumentBytes) {
+          !fitsUtf8ByteLimit(
+            document,
+            wire.denialWireMaxSettingsDocumentBytes,
+          )) {
         if (completer != null && !completer.isCompleted) {
           completer.completeError(
             StateError(response.error ?? 'Denial settings request failed'),

@@ -8,7 +8,7 @@ const int authenticationMaxPayloadBytes = 4096;
 const int authenticationMaxPacketBytes =
     authenticationHeaderBytes + authenticationMaxPayloadBytes;
 const int _authenticationVersion = 1;
-const List<int> _authenticationMagic = <int>[0x44, 0x41, 0x55, 0x54];
+const int _authenticationMagic = 0x54554144; // DAUT, little-endian.
 
 enum AuthenticationPacketKind {
   sync(1),
@@ -100,16 +100,8 @@ abstract final class AuthenticationProtocol {
         data.lengthInBytes > authenticationMaxPacketBytes) {
       return null;
     }
-    final bytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
-    for (var index = 0; index < _authenticationMagic.length; index += 1) {
-      if (bytes[index] != _authenticationMagic[index]) {
-        return null;
-      }
-    }
-    if (data.getUint16(4, Endian.little) != _authenticationVersion) {
+    if (data.getUint32(0, Endian.little) != _authenticationMagic ||
+        data.getUint16(4, Endian.little) != _authenticationVersion) {
       return null;
     }
     final kind = AuthenticationPacketKind.fromValue(data.getUint8(6));
@@ -121,7 +113,9 @@ abstract final class AuthenticationProtocol {
         authenticationHeaderBytes + payloadLength != data.lengthInBytes) {
       return null;
     }
-    final payloadBytes = bytes.sublist(authenticationHeaderBytes);
+    // Decoding is synchronous and returns a String, so the byte view never
+    // escapes this call and no intermediate payload copy is needed.
+    final payloadBytes = Uint8List.sublistView(data, authenticationHeaderBytes);
     if (payloadBytes.contains(0)) {
       return null;
     }
@@ -170,8 +164,8 @@ abstract final class AuthenticationProtocol {
       return null;
     }
     final bytes = Uint8List(authenticationHeaderBytes + payloadBytes.length);
-    bytes.setRange(0, _authenticationMagic.length, _authenticationMagic);
     final data = ByteData.sublistView(bytes);
+    data.setUint32(0, _authenticationMagic, Endian.little);
     data.setUint16(4, _authenticationVersion, Endian.little);
     data.setUint8(6, kind.value);
     data.setUint8(7, 0);

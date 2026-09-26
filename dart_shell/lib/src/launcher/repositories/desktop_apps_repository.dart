@@ -49,37 +49,49 @@ class DesktopAppsRepository {
   Future<List<DesktopApp>> loadApplications() async {
     final filesById = <String, File>{};
     for (final dir in _paths.desktopApplicationDirs()) {
-      if (!await dir.exists()) {
-        continue;
-      }
-
-      await for (final entity in dir.list(
-        recursive: true,
-        followLinks: false,
-      )) {
-        if (!entity.path.endsWith('.desktop')) {
-          continue;
-        }
-        final type = await FileSystemEntity.type(
-          entity.path,
-          followLinks: true,
-        );
-        if (type != FileSystemEntityType.file) {
+      try {
+        if (!await dir.exists()) {
           continue;
         }
 
-        final relative = p.relative(entity.path, from: dir.path);
-        final desktopFileId = p.split(relative).join('-');
-        filesById.putIfAbsent(desktopFileId, () => File(entity.path));
+        await for (final entity in dir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          if (!entity.path.endsWith('.desktop')) {
+            continue;
+          }
+          // Directory listings already identify regular files. Only symlinks
+          // need another filesystem lookup to resolve their target type.
+          if (entity is! File &&
+              (entity is! Link ||
+                  await FileSystemEntity.type(entity.path) !=
+                      FileSystemEntityType.file)) {
+            continue;
+          }
+
+          final relative = p.relative(entity.path, from: dir.path);
+          final desktopFileId = p.split(relative).join('-');
+          filesById.putIfAbsent(desktopFileId, () => File(entity.path));
+        }
+      } on FileSystemException {
+        // Keep entries already discovered if a directory disappears or an
+        // inaccessible subtree interrupts enumeration, then try the next root.
       }
     }
 
     final iconCache = <String, String?>{};
     final apps = <DesktopApp>[];
     for (final entry in filesById.entries) {
-      final app = await _parseDesktopFile(entry.key, entry.value, iconCache);
-      if (app != null) {
-        apps.add(app);
+      try {
+        final app = await _parseDesktopFile(entry.key, entry.value, iconCache);
+        if (app != null) {
+          apps.add(app);
+        }
+      } on FileSystemException {
+        // Package installation/removal can race with the directory scan.
+      } on FormatException {
+        // One desktop entry with invalid text must not hide the other apps.
       }
     }
 

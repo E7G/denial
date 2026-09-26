@@ -301,6 +301,14 @@ class ShellSettingsController extends Notifier<ShellSettings> {
     _update(state.copyWith(layout: state.layout.copyWith(windowLayout: value)));
   }
 
+  void setScrollingLayoutPreserveSwapSizes(bool value) {
+    _update(
+      state.copyWith(
+        layout: state.layout.copyWith(scrollingLayoutPreserveSwapSizes: value),
+      ),
+    );
+  }
+
   void setScrollingLayoutWheelSpeed(double value) {
     _update(
       state.copyWith(

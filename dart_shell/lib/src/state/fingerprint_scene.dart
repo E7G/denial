@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,11 +82,13 @@ class FingerprintSceneController extends Notifier<FingerprintScene> {
     if (_disposed ||
         epoch == 0 ||
         state.epoch != epoch ||
-        _acknowledged == epoch)
+        _acknowledged == epoch) {
       return;
+    }
     _acknowledged = epoch;
     await _channel.send('$epoch');
-    if (!_disposed && state.epoch == epoch)
+    if (!_disposed && state.epoch == epoch) {
       WidgetsBinding.instance.scheduleFrame();
+    }
   }
 }

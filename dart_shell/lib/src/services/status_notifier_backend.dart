@@ -119,12 +119,9 @@ class _StatusNotifierDbusBackend {
       path: DBusObjectPath(watcherPath),
     );
     await object
-        .callMethod(
-          watcherInterface,
-          'RegisterStatusNotifierHost',
-          <DBusValue>[DBusString(hostName)],
-          replySignature: DBusSignature(''),
-        )
+        .callMethod(watcherInterface, 'RegisterStatusNotifierHost', <DBusValue>[
+          DBusString(hostName),
+        ], replySignature: DBusSignature(''))
         .timeout(_methodTimeout);
     _watcherSignals = DBusSignalStream(
       _client,
@@ -634,18 +631,7 @@ class _StatusNotifierDbusBackend {
     );
   }
 
-  List<SystemTrayItem> _orderedItems() {
-    final items = _items.values.toList(growable: false)
-      ..sort((left, right) {
-        final byStatus = _statusPriority(
-          left.status,
-        ).compareTo(_statusPriority(right.status));
-        return byStatus != 0
-            ? byStatus
-            : left.title.toLowerCase().compareTo(right.title.toLowerCase());
-      });
-    return List<SystemTrayItem>.unmodifiable(items);
-  }
+  List<SystemTrayItem> _orderedItems() => orderSystemTrayItems(_items.values);
 
   void _emit() {
     final next = _orderedItems();
@@ -680,6 +666,7 @@ abstract final class _StatusNotifierWorkerOperation {
   static const int loadMenu = 3;
   static const int activateMenuEntry = 4;
   static const int dispose = 5;
+  static const int resynchronize = 6;
 }
 
 @pragma('vm:entry-point')

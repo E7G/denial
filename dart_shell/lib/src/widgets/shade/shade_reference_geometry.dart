@@ -1,11 +1,10 @@
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/widgets.dart';
 
 // The reference device renders its 1220 px-wide panel at Android's configured
 // 480 dpi density, which is exactly 406 2/3 dp.
 const double colorOsReferenceShortSide = 1220 / 3;
 
-@visibleForTesting
+/// Maps a viewport to the shared shade reference geometry.
 double colorOsShadeScaleForViewport(Size size) {
   final shortSide = size.shortestSide;
   if (!shortSide.isFinite || shortSide <= 0) return 1;

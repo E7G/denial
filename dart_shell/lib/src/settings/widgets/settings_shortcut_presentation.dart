@@ -52,6 +52,16 @@ String settingsShortcutActionLabel(
       l10n.settingsShortcutActionOpenDashboard,
     DenialShortcutAction.openOverview =>
       l10n.settingsShortcutActionOpenOverview,
+    DenialShortcutAction.resizeGrowWidth =>
+      l10n.settingsShortcutActionResizeGrowWidth,
+    DenialShortcutAction.resizeShrinkWidth =>
+      l10n.settingsShortcutActionResizeShrinkWidth,
+    DenialShortcutAction.resizeGrowHeight =>
+      l10n.settingsShortcutActionResizeGrowHeight,
+    DenialShortcutAction.resizeShrinkHeight =>
+      l10n.settingsShortcutActionResizeShrinkHeight,
+    DenialShortcutAction.resetWindowHeight =>
+      l10n.settingsShortcutActionResetWindowHeight,
     DenialShortcutAction.toggleVerticalMaximize =>
       l10n.settingsShortcutActionToggleVerticalMaximize,
     DenialShortcutAction.windowSwitcher =>
@@ -153,6 +163,11 @@ IconData settingsShortcutActionIcon(DenialShortcutAction action) {
     DenialShortcutAction.openApplications => Icons.apps_rounded,
     DenialShortcutAction.openDashboard => Icons.dashboard_rounded,
     DenialShortcutAction.openOverview => Icons.view_quilt_outlined,
+    DenialShortcutAction.resizeGrowWidth => Icons.swap_horiz_rounded,
+    DenialShortcutAction.resizeShrinkWidth => Icons.swap_horiz_rounded,
+    DenialShortcutAction.resizeGrowHeight => Icons.height_rounded,
+    DenialShortcutAction.resizeShrinkHeight => Icons.height_rounded,
+    DenialShortcutAction.resetWindowHeight => Icons.height_rounded,
     DenialShortcutAction.toggleVerticalMaximize => Icons.height_rounded,
     DenialShortcutAction.windowSwitcher => Icons.flip_to_front_rounded,
     DenialShortcutAction.openClipboard => Icons.content_paste_rounded,

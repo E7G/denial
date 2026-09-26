@@ -13,6 +13,7 @@ import '../state/display_layout.dart';
 import '../settings/settings_controller.dart';
 import '../settings/shell_settings.dart';
 import 'desktop_workspace.dart';
+import 'desktop_input_surface_index.dart';
 
 class DesktopInputLayoutPublisher extends ConsumerStatefulWidget {
   const DesktopInputLayoutPublisher({required this.child, super.key});
@@ -32,6 +33,8 @@ class _DesktopInputLayoutPublisherState
   int _epoch = 0;
   InputLayoutSnapshot? _lastSnapshot;
   _DesktopInputLayoutSource? _lastSource;
+  DesktopInputSurfaceIndex? _surfaceIndex;
+  Map<int, DenialWindow>? _configuredAppWindows;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +110,8 @@ class _DesktopInputLayoutPublisherState
         viewSize: viewSize,
         devicePixelRatio: devicePixelRatio,
         windows: shell.windows,
+        windowsById: shell.openAppWindowsByObjectId,
+        popupSurfaces: shell.positionedPopupSurfaces,
         layerSurfaces: shell.layerSurfaces,
         windowSnapshotSequence: shell.windowSnapshotSequence,
         desktop: ref.read(desktopWorkspaceProvider),
@@ -129,47 +134,28 @@ class _DesktopInputLayoutPublisherState
     if (viewSize.width <= 0.0 || viewSize.height <= 0.0) {
       return false;
     }
-    final windows = source.windows;
-    final layerSurfaces = source.layerSurfaces
-        .where((surface) => surface.geometry != null)
-        .toList(growable: false);
-    final backgroundLayerSurfaces = layerSurfaces
-        .where(
-          (surface) =>
-              surface.contentKind ==
-                  DenialWindowContentKind.layerShellBackground ||
-              surface.contentKind == DenialWindowContentKind.layerShellBottom,
-        )
-        .toList(growable: false);
-    final foregroundLayerSurfaces = layerSurfaces
-        .where(
-          (surface) =>
-              surface.contentKind == DenialWindowContentKind.layerShellTop ||
-              surface.contentKind == DenialWindowContentKind.layerShellOverlay,
-        )
-        .toList(growable: false);
+    if (!identical(_surfaceIndex?.source, source.layerSurfaces)) {
+      _surfaceIndex = DesktopInputSurfaceIndex(source.layerSurfaces);
+    }
+    final layerSurfaces = _surfaceIndex!.positioned;
+    final backgroundLayerSurfaces = _surfaceIndex!.background;
+    final foregroundLayerSurfaces = _surfaceIndex!.foreground;
     final desktop = source.desktop;
     final interactions = source.interactions;
 
-    final windowsById = <int, DenialWindow>{
-      for (final window in windows)
-        if (window.isUserApp) window.objectId: window,
-    };
-    final popupSurfaces = windows
-        .where((window) => window.isPopupSurface && window.geometry != null)
-        .toList(growable: false);
+    final windowsById = source.windowsById;
+    final popupSurfaces = source.popupSurfaces;
     final switcher = source.switcher;
-    final sampledSwitcherIds =
-        interactions.capturesFullScene && (switcher?.isSelecting ?? false)
-        ? switcher!.objectIds.toSet()
-        : const <int>{};
+    final samplesSwitcher =
+        interactions.capturesFullScene && (switcher?.isSelecting ?? false);
     final placements =
         desktop.placements.values
             .where(
               (placement) =>
                   (!placement.minimized ||
                       desktop.isInOverview(placement.objectId) ||
-                      sampledSwitcherIds.contains(placement.objectId)) &&
+                      (samplesSwitcher &&
+                          switcher!.contains(placement.objectId))) &&
                   (desktop.isPlacementOnActiveWorkspace(placement) ||
                       desktop.isInOverview(placement.objectId)) &&
                   windowsById.containsKey(placement.objectId),
@@ -292,14 +278,11 @@ class _DesktopInputLayoutPublisherState
       final layers = windowsById[placement.objectId]!.surfaceLayers.length + 2;
       return math.max(stride, layers);
     });
-    final placementOrder = <int, int>{
-      for (var index = 0; index < placements.length; index += 1)
-        placements[index].objectId: index,
-    };
     // The wire hit tester consumes the first matching window. Build this list
     // in its final topmost-first order so the codec normally needs neither a
     // defensive copy nor another sort.
-    for (final placement in placements.reversed) {
+    for (var index = placements.length - 1; index >= 0; index--) {
+      final placement = placements[index];
       if (interactions.capturesFullScene) {
         final window = windowsById[placement.objectId]!;
         visibleSurfaceIds.addAll(window.visibleSurfaceIds);
@@ -315,8 +298,8 @@ class _DesktopInputLayoutPublisherState
       final visualContentRect = placement.contentRect;
       final sourceRect = window.contentCoordinateRect;
       final outputClip = outputClipFor(placement);
-      final baseZ = placementOrder[placement.objectId]! * zStride;
-      final popupRoots = window.popupRoots.toList(growable: false).reversed;
+      final baseZ = index * zStride;
+      final popupRoots = window.popupRootsFrontToBack;
       for (final popup in popupRoots) {
         final popupRect = window.mapSurfaceRect(popup, visualContentRect);
         final popupGeometry = outputClip == null
@@ -389,7 +372,10 @@ class _DesktopInputLayoutPublisherState
       ),
     );
 
-    _configureTracker.retainWindowIds(windowsById.keys.toSet());
+    if (!identical(windowsById, _configuredAppWindows)) {
+      _configureTracker.retainWindowIds(windowsById.keys.toSet());
+      _configuredAppWindows = windowsById;
+    }
     final snapshot = InputLayoutSnapshot(
       epoch: _epoch + 1,
       shellRegions: shellRegions,
@@ -448,7 +434,7 @@ List<InputWindowRegion> desktopLayerInputRegions(
     if (geometry == null) {
       continue;
     }
-    for (final popup in surface.popupRoots.toList().reversed) {
+    for (final popup in surface.popupRootsFrontToBack) {
       final popupRect = surface.mapSurfaceRect(popup, geometry);
       if (popupRect.isEmpty) {
         continue;
@@ -488,6 +474,8 @@ class _DesktopInputLayoutSource {
     required this.viewSize,
     required this.devicePixelRatio,
     required this.windows,
+    required this.windowsById,
+    required this.popupSurfaces,
     required this.layerSurfaces,
     required this.windowSnapshotSequence,
     required this.desktop,
@@ -500,6 +488,8 @@ class _DesktopInputLayoutSource {
   final Size viewSize;
   final double devicePixelRatio;
   final List<DenialWindow> windows;
+  final Map<int, DenialWindow> windowsById;
+  final List<DenialWindow> popupSurfaces;
   final List<DenialWindow> layerSurfaces;
   final int windowSnapshotSequence;
   final DesktopWorkspaceState desktop;
@@ -593,28 +583,28 @@ class DesktopWindowConfigureTracker {
 
 List<Rect> _subtractFromAll(List<Rect> regions, Rect cut) {
   final result = <Rect>[];
-  for (final region in regions) {
-    result.addAll(_subtractRect(region, cut));
-  }
-  return result;
-}
-
-List<Rect> _subtractRect(Rect source, Rect cut) {
-  final overlap = source.intersect(cut);
-  if (overlap.isEmpty) {
-    return <Rect>[source];
-  }
-
-  final result = <Rect>[];
   void add(Rect rect) {
     if (rect.width > 0.0 && rect.height > 0.0) {
       result.add(rect);
     }
   }
 
-  add(Rect.fromLTRB(source.left, source.top, source.right, overlap.top));
-  add(Rect.fromLTRB(source.left, overlap.bottom, source.right, source.bottom));
-  add(Rect.fromLTRB(source.left, overlap.top, overlap.left, overlap.bottom));
-  add(Rect.fromLTRB(overlap.right, overlap.top, source.right, overlap.bottom));
+  // Append fragments directly instead of allocating a list for every source
+  // rectangle, most of which often do not intersect this window at all.
+  for (final source in regions) {
+    final overlap = source.intersect(cut);
+    if (overlap.isEmpty) {
+      result.add(source);
+      continue;
+    }
+    add(Rect.fromLTRB(source.left, source.top, source.right, overlap.top));
+    add(
+      Rect.fromLTRB(source.left, overlap.bottom, source.right, source.bottom),
+    );
+    add(Rect.fromLTRB(source.left, overlap.top, overlap.left, overlap.bottom));
+    add(
+      Rect.fromLTRB(overlap.right, overlap.top, source.right, overlap.bottom),
+    );
+  }
   return result;
 }

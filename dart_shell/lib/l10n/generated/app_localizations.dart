@@ -98,6 +98,24 @@ abstract class AppLocalizations {
     Locale('zh'),
   ];
 
+  /// Scrolling layout swap setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrolling swaps'**
+  String get settingsScrollingLayoutSwapTitle;
+
+  /// Scrolling layout swap setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep window sizes when swapping'**
+  String get settingsScrollingLayoutPreserveSwapSizes;
+
+  /// Scrolling layout swap setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep each window’s width when swapping single-window columns on the same workspace and display. On vertical strips, keep height instead. Split columns keep their existing sizes.'**
+  String get settingsScrollingLayoutPreserveSwapSizesDescription;
+
   /// Accessible label for a home widget resize handle.
   ///
   /// In en, this message translates to:
@@ -7018,6 +7036,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} attempts remaining'**
   String simPinRetries(int count);
+
+  /// Shortcut action label: grow window width.
+  ///
+  /// In en, this message translates to:
+  /// **'Grow window width'**
+  String get settingsShortcutActionResizeGrowWidth;
+
+  /// Shortcut action label: shrink window width.
+  ///
+  /// In en, this message translates to:
+  /// **'Shrink window width'**
+  String get settingsShortcutActionResizeShrinkWidth;
+
+  /// Shortcut action label: grow window height.
+  ///
+  /// In en, this message translates to:
+  /// **'Grow window height'**
+  String get settingsShortcutActionResizeGrowHeight;
+
+  /// Shortcut action label: shrink window height.
+  ///
+  /// In en, this message translates to:
+  /// **'Shrink window height'**
+  String get settingsShortcutActionResizeShrinkHeight;
+
+  /// Shortcut action label: reset window height.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset window height'**
+  String get settingsShortcutActionResetWindowHeight;
 }
 
 class _AppLocalizationsDelegate

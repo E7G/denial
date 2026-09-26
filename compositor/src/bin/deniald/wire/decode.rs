@@ -735,6 +735,11 @@ fn shortcut_action_from_wire(action: fb::ShortcutActionKind) -> Result<ShortcutA
         fb::ShortcutActionKind::OpenApplications => Ok(ShortcutAction::OpenApplications),
         fb::ShortcutActionKind::OpenDashboard => Ok(ShortcutAction::OpenDashboard),
         fb::ShortcutActionKind::OpenOverview => Ok(ShortcutAction::OpenOverview),
+        fb::ShortcutActionKind::ResizeGrowWidth => Ok(ShortcutAction::ResizeGrowWidth),
+        fb::ShortcutActionKind::ResizeShrinkWidth => Ok(ShortcutAction::ResizeShrinkWidth),
+        fb::ShortcutActionKind::ResizeGrowHeight => Ok(ShortcutAction::ResizeGrowHeight),
+        fb::ShortcutActionKind::ResizeShrinkHeight => Ok(ShortcutAction::ResizeShrinkHeight),
+        fb::ShortcutActionKind::ResetWindowHeight => Ok(ShortcutAction::ResetWindowHeight),
         fb::ShortcutActionKind::ToggleVerticalMaximize => {
             Ok(ShortcutAction::ToggleVerticalMaximize)
         }

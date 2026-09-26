@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show mapEquals;
@@ -10,6 +11,7 @@ import '../models/denial_window_event.dart';
 import '../models/shell_popup_placement.dart';
 import '../settings/shell_settings.dart';
 import 'desktop_overview_layout.dart';
+import 'transient_family_order.dart';
 
 part 'desktop_workspace_controller.dart';
 
@@ -140,6 +142,14 @@ class DesktopOverviewState {
     required Map<int, Rect> frames,
   }) : frames = Map.unmodifiable(frames);
 
+  const DesktopOverviewState._({
+    required this.monitorId,
+    required this.bounds,
+    required this.backgroundBounds,
+    required this.selectedObjectId,
+    required this.frames,
+  });
+
   final int monitorId;
   final Rect bounds;
   final Rect backgroundBounds;
@@ -152,12 +162,14 @@ class DesktopOverviewState {
     int? selectedObjectId,
     Map<int, Rect>? frames,
   }) {
-    return DesktopOverviewState(
+    return DesktopOverviewState._(
       monitorId: monitorId,
       bounds: bounds,
       backgroundBounds: backgroundBounds,
       selectedObjectId: selectedObjectId ?? this.selectedObjectId,
-      frames: frames ?? this.frames,
+      frames: frames == null || identical(frames, this.frames)
+          ? this.frames
+          : Map.unmodifiable(frames),
     );
   }
 }
@@ -282,6 +294,7 @@ class DesktopWindowPlacement {
     this.serverSideDecorated = true,
     this.serverFrameWhileMaximized = false,
     this.dragging = false,
+    this.resizing = false,
     this.layoutPreviewing = false,
     this.restoreFrame,
     this.fullscreenRestoreFrame,
@@ -302,6 +315,10 @@ class DesktopWindowPlacement {
   /// stacking-mode maximize and true fullscreen.
   final bool serverFrameWhileMaximized;
   final bool dragging;
+
+  /// Tracks native resize transactions, including tiles sharing a split.
+  /// Their geometry follows the pointer without a placement animation.
+  final bool resizing;
 
   /// Whether this window is temporarily displaced by a managed layout drag.
   final bool layoutPreviewing;
@@ -329,6 +346,7 @@ class DesktopWindowPlacement {
     bool? serverSideDecorated,
     bool? serverFrameWhileMaximized,
     bool? dragging,
+    bool? resizing,
     bool? layoutPreviewing,
     Rect? restoreFrame,
     bool clearRestoreFrame = false,
@@ -348,6 +366,7 @@ class DesktopWindowPlacement {
       serverFrameWhileMaximized:
           serverFrameWhileMaximized ?? this.serverFrameWhileMaximized,
       dragging: dragging ?? this.dragging,
+      resizing: resizing ?? this.resizing,
       layoutPreviewing: layoutPreviewing ?? this.layoutPreviewing,
       restoreFrame: clearRestoreFrame
           ? null
@@ -385,28 +404,27 @@ DenialWindow? desktopWindowAtPosition({
   required DesktopWorkspaceState workspace,
   required Map<int, DenialWindow> windowsById,
 }) {
-  final placements =
-      workspace.placements.values
-          .where(
-            (placement) =>
-                !placement.minimized &&
-                windowsById.containsKey(placement.objectId),
-          )
-          .toList(growable: false)
-        ..sort((a, b) => compareDesktopWindowStack(a, b, windowsById));
-  for (final placement in placements.reversed) {
-    final window = windowsById[placement.objectId]!;
-    for (final popup in window.popupRoots.toList(growable: false).reversed) {
-      final popupRect = window.mapSurfaceRect(popup, placement.contentRect);
-      if (popupRect.contains(position)) {
-        return window;
-      }
+  DesktopWindowPlacement? topmost;
+  DenialWindow? hit;
+  for (final placement in workspace.placements.values) {
+    final window = windowsById[placement.objectId];
+    if (placement.minimized ||
+        window == null ||
+        (topmost != null &&
+            compareDesktopWindowStack(placement, topmost, windowsById) <= 0)) {
+      continue;
     }
-    if (placement.frame.contains(position)) {
-      return window;
+    if (placement.frame.contains(position) ||
+        window.popupRoots.any(
+          (popup) => window
+              .mapSurfaceRect(popup, placement.contentRect)
+              .contains(position),
+        )) {
+      topmost = placement;
+      hit = window;
     }
   }
-  return null;
+  return hit;
 }
 
 @immutable
@@ -491,6 +509,25 @@ class DesktopWorkspaceState {
     return overview?.frames[placement.objectId] ?? placement.frame;
   }
 
+  DesktopWorkspaceState _replacePlacement(DesktopWindowPlacement placement) {
+    // This map is created here and never exposed mutably. A read-only view
+    // avoids copying it again through the public copyWith snapshot boundary.
+    final next = Map<int, DesktopWindowPlacement>.of(placements);
+    next[placement.objectId] = placement;
+    return DesktopWorkspaceState._(
+      placements: UnmodifiableMapView(next),
+      nextZ: nextZ,
+      viewSize: viewSize,
+      panel: panel,
+      overview: overview,
+      inputLayoutRevision: inputLayoutRevision + 1,
+      workspacesEnabled: workspacesEnabled,
+      workspaceCount: workspaceCount,
+      activeWorkspaces: activeWorkspaces,
+      workspaceTransitions: workspaceTransitions,
+    );
+  }
+
   DesktopWorkspaceState copyWith({
     Map<int, DesktopWindowPlacement>? placements,
     int? nextZ,
@@ -504,7 +541,7 @@ class DesktopWorkspaceState {
     Map<int, DesktopWorkspaceTransition>? workspaceTransitions,
   }) {
     return DesktopWorkspaceState._(
-      placements: placements == null
+      placements: placements == null || identical(placements, this.placements)
           ? this.placements
           : Map.unmodifiable(placements),
       nextZ: nextZ ?? this.nextZ,
@@ -522,8 +559,16 @@ class DesktopWorkspaceState {
               : 0),
       workspacesEnabled: workspacesEnabled ?? this.workspacesEnabled,
       workspaceCount: workspaceCount ?? this.workspaceCount,
-      activeWorkspaces: activeWorkspaces ?? this.activeWorkspaces,
-      workspaceTransitions: workspaceTransitions ?? this.workspaceTransitions,
+      activeWorkspaces:
+          activeWorkspaces == null ||
+              identical(activeWorkspaces, this.activeWorkspaces)
+          ? this.activeWorkspaces
+          : Map.unmodifiable(activeWorkspaces),
+      workspaceTransitions:
+          workspaceTransitions == null ||
+              identical(workspaceTransitions, this.workspaceTransitions)
+          ? this.workspaceTransitions
+          : Map.unmodifiable(workspaceTransitions),
     );
   }
 }
@@ -551,6 +596,9 @@ bool desktopWorkspaceHasSameSceneStructure(
       !identical(left.overview, right.overview) ||
       left.placements.length != right.placements.length) {
     return false;
+  }
+  if (identical(left.placements, right.placements)) {
+    return true;
   }
   for (final entry in left.placements.entries) {
     final other = right.placements[entry.key];
@@ -581,6 +629,7 @@ bool _desktopPlacementHasSameSceneStructure(
       left.serverSideDecorated == right.serverSideDecorated &&
       left.serverFrameWhileMaximized == right.serverFrameWhileMaximized &&
       left.dragging == right.dragging &&
+      left.resizing == right.resizing &&
       left.layoutPreviewing == right.layoutPreviewing &&
       left.restoreFrame == right.restoreFrame &&
       left.fullscreenRestoreFrame == right.fullscreenRestoreFrame;

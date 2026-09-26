@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 
 import '../models/system_tray_item.dart';
 import 'background_worker.dart';
+import 'status_notifier_protocol.dart';
+import 'system_tray_order.dart';
 
 part 'status_notifier_backend.dart';
 part 'status_notifier_endpoint.dart';
@@ -91,20 +93,41 @@ class StatusNotifierService {
 
     final events = ReceivePort();
     _workerEvents = events;
+    final updates = StatusNotifierUpdateDecoder();
+    var receivedUpdate = false;
+    var resynchronizing = false;
     _workerEventSubscription = events.listen((message) {
       try {
-        _publish(_decodeTrayItems(message));
+        final items = updates.decode(message);
+        receivedUpdate = true;
+        resynchronizing = false;
+        _publish(items);
       } on Object {
-        // A malformed worker event is ignored without affecting later state.
+        // A rejected delta invalidates its dependent updates. Ask the worker
+        // for a full reset on the same ordered event port before accepting more.
+        if (_disposed || resynchronizing) return;
+        resynchronizing = true;
+        unawaited(
+          _worker!
+              .invoke<void>(
+                operation: _StatusNotifierWorkerOperation.resynchronize,
+                decode: (_) {},
+              )
+              .catchError((Object _) {
+                resynchronizing = false;
+              }),
+        );
       }
     });
     try {
       final initial = await _worker!.invoke<List<SystemTrayItem>>(
         operation: _StatusNotifierWorkerOperation.start,
         payload: events.sendPort,
-        decode: _decodeTrayItems,
+        decode: StatusNotifierProtocol.decodeItems,
       );
-      _publish(initial);
+      // Response and event ports can arrive in either order. A stream update
+      // supersedes the independently encoded initial response.
+      if (!receivedUpdate) _publish(initial);
     } on Object {
       _started = false;
       await _closeWorkerEvents();
@@ -139,7 +162,7 @@ class StatusNotifierService {
     return _worker!.invoke<List<SystemTrayMenuEntry>?>(
       operation: _StatusNotifierWorkerOperation.loadMenu,
       payload: <Object?>[item.id, parentId],
-      decode: _decodeMenuEntries,
+      decode: StatusNotifierProtocol.decodeMenu,
     );
   }
 
@@ -159,7 +182,8 @@ class StatusNotifierService {
     if (_disposed || listEquals(_current, items)) {
       return;
     }
-    _current = List<SystemTrayItem>.unmodifiable(items);
+    // Both the local backend and worker decoder own immutable snapshots.
+    _current = items;
     if (!_snapshots.isClosed) {
       _snapshots.add(_current);
     }

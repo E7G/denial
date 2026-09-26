@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/audio_service.dart';
+import 'app_audio_reconciliation.dart';
 import 'notifier_lifecycle.dart';
 
 final appAudioProvider = NotifierProvider<AppAudioController, AppAudioState>(
@@ -97,15 +98,14 @@ class AppAudioController extends Notifier<AppAudioState>
     final percent = (value.clamp(0.0, 1.0) * 100).round().clamp(0, 100);
     _pendingVolumes[streamId] = percent;
     _desiredVolumes[streamId] = percent;
-    state = state.copyWith(
-      streams: List<AppAudioStream>.unmodifiable(
-        state.streams.map(
-          (stream) => stream.id == streamId
-              ? stream.copyWith(level: percent / 100.0, muted: false)
-              : stream,
-        ),
-      ),
+    final streams = updateAppAudioStreamVolume(
+      state.streams,
+      streamId,
+      percent / 100.0,
     );
+    if (!identical(streams, state.streams)) {
+      state = state.copyWith(streams: streams);
+    }
     _armResponseTimeout();
   }
 
@@ -123,31 +123,12 @@ class AppAudioController extends Notifier<AppAudioState>
     if (!isBuildGenerationActive(generation)) {
       return;
     }
-    final liveIds = streams.map((stream) => stream.id).toSet();
-    _desiredVolumes.removeWhere((id, _) => !liveIds.contains(id));
-    _pendingVolumes.removeWhere((id, _) => !liveIds.contains(id));
-
-    final reconciled =
-        streams
-            .map((stream) {
-              final desired = _desiredVolumes[stream.id];
-              if (desired == null) {
-                return stream;
-              }
-              final observed = (stream.level * 100).round().clamp(0, 100);
-              if ((observed - desired).abs() <= 1 && !stream.muted) {
-                _desiredVolumes.remove(stream.id);
-                return stream;
-              }
-              return stream.copyWith(level: desired / 100.0, muted: false);
-            })
-            .toList(growable: false)
-          ..sort(
-            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-          );
-
     state = AppAudioState(
-      streams: List<AppAudioStream>.unmodifiable(reconciled),
+      streams: reconcileAppAudioStreams(
+        streams,
+        desiredVolumes: _desiredVolumes,
+        pendingVolumes: _pendingVolumes,
+      ),
       loading: false,
       error: null,
     );

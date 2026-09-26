@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,13 +42,15 @@ class SystemLevelHudLayer extends ConsumerWidget {
       child: IgnorePointer(
         child: _SystemLevelHudCard(
           level: hud.level,
+          limitReached: hud.limitReached,
+          revision: hud.revision,
           visible: hud.visible,
           onDismissed: () => ref
               .read(systemLevelHudProvider.notifier)
               .completeDismissal(hud.revision),
           icon: isBrightness
               ? Icons.brightness_6_rounded
-              : _volumeIcon(hud.level),
+              : _volumeIcon(hud.level, hud.muted),
           title: isBrightness ? l10n.brightnessTitle : l10n.volumeTitle,
           detail: isBrightness ? output.name : null,
           semanticLabel: isBrightness
@@ -75,8 +79,8 @@ class SystemLevelHudLayer extends ConsumerWidget {
     return null;
   }
 
-  IconData _volumeIcon(double level) {
-    if (level <= 0.01) {
+  IconData _volumeIcon(double level, bool muted) {
+    if (muted || level <= 0.01) {
       return Icons.volume_off_rounded;
     }
     if (level < 0.5) {
@@ -89,6 +93,8 @@ class SystemLevelHudLayer extends ConsumerWidget {
 class _SystemLevelHudCard extends StatelessWidget {
   const _SystemLevelHudCard({
     required this.level,
+    required this.limitReached,
+    required this.revision,
     required this.visible,
     required this.onDismissed,
     required this.icon,
@@ -99,6 +105,8 @@ class _SystemLevelHudCard extends StatelessWidget {
   });
 
   final double level;
+  final bool limitReached;
+  final int revision;
   final bool visible;
   final VoidCallback onDismissed;
   final IconData icon;
@@ -150,7 +158,11 @@ class _SystemLevelHudCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Row(
                     children: [
-                      Icon(icon, size: 22, color: theme.accent),
+                      _LimitPulse(
+                        revision: revision,
+                        active: limitReached,
+                        child: Icon(icon, size: 22, color: theme.accent),
+                      ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -199,6 +211,36 @@ class _SystemLevelHudCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LimitPulse extends StatelessWidget {
+  const _LimitPulse({
+    required this.revision,
+    required this.active,
+    required this.child,
+  });
+
+  final int revision;
+  final bool active;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : Motion.systemLevelHudLimit;
+    return TweenAnimationBuilder<double>(
+      key: ValueKey<int?>(active ? revision : null),
+      tween: Tween<double>(begin: 0, end: active ? 1 : 0),
+      duration: duration,
+      curve: Curves.easeInOut,
+      builder: (context, progress, child) {
+        final pulse = math.sin(progress * math.pi);
+        return Transform.scale(scale: 1 + pulse * 0.14, child: child);
+      },
+      child: child,
     );
   }
 }

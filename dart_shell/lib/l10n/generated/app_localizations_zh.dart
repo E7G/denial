@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -7,6 +8,16 @@ import 'app_localizations.dart';
 /// The translations for Chinese (`zh`).
 class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
+
+  @override
+  String get settingsScrollingLayoutSwapTitle => '滚动布局交换';
+
+  @override
+  String get settingsScrollingLayoutPreserveSwapSizes => '交换时保留窗口大小';
+
+  @override
+  String get settingsScrollingLayoutPreserveSwapSizesDescription =>
+      '在同一工作区和显示器上交换两个单窗口列时，保留各自的宽度。纵向滚动布局保留高度。拆分列保持原有大小。';
 
   @override
   String get homeResizeWidget => '调整小组件大小';
@@ -3759,4 +3770,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String simPinRetries(int count) {
     return '剩余 $count 次尝试';
   }
+
+  @override
+  String get settingsShortcutActionResizeGrowWidth => '增加窗口宽度';
+
+  @override
+  String get settingsShortcutActionResizeShrinkWidth => '减小窗口宽度';
+
+  @override
+  String get settingsShortcutActionResizeGrowHeight => '增加窗口高度';
+
+  @override
+  String get settingsShortcutActionResizeShrinkHeight => '减小窗口高度';
+
+  @override
+  String get settingsShortcutActionResetWindowHeight => '重置窗口高度';
 }

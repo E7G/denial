@@ -1948,6 +1948,62 @@ fn dispatch_flutter_repeat(state: &mut RuntimeState, keycode: u32) -> bool {
     true
 }
 
+#[cfg(feature = "flutter")]
+fn start_system_control_repeat(state: &mut RuntimeState, keycode: u32) {
+    cancel_flutter_repeat(state);
+    let Some(frontend) = state.wayland.as_mut() else {
+        return;
+    };
+    let rate = frontend.settings.keyboard().repeat_rate_hz;
+    if rate == 0 {
+        return;
+    }
+    let delay =
+        std::time::Duration::from_millis(u64::from(frontend.settings.keyboard().repeat_delay_ms));
+    let interval = std::time::Duration::from_secs_f64(1.0 / f64::from(rate));
+    frontend.flutter_repeat_generation = frontend.flutter_repeat_generation.wrapping_add(1);
+    let generation = frontend.flutter_repeat_generation;
+    frontend.flutter_repeat_key = Some(keycode);
+    let loop_handle = frontend.loop_handle.clone();
+    match loop_handle.insert_source(Timer::from_duration(delay), move |_, _, state| {
+        let current = state.wayland.as_ref().is_some_and(|frontend| {
+            frontend.flutter_repeat_generation == generation
+                && frontend.flutter_repeat_key == Some(keycode)
+        });
+        if !current || !dispatch_system_control_repeat(state, keycode) {
+            return TimeoutAction::Drop;
+        }
+        TimeoutAction::ToDuration(interval)
+    }) {
+        Ok(token) => {
+            state
+                .wayland
+                .as_mut()
+                .expect("missing Wayland frontend")
+                .flutter_repeat_token = Some(token);
+        }
+        Err(error) => {
+            warn!(%error, "could not schedule system-control keyboard repeat");
+            cancel_flutter_repeat(state);
+        }
+    }
+}
+
+#[cfg(feature = "flutter")]
+fn dispatch_system_control_repeat(state: &mut RuntimeState, xkb_keycode: u32) -> bool {
+    if !state.flutter_active || state.secure_session_locked() {
+        return false;
+    }
+    let Some(evdev_keycode) = xkb_keycode.checked_sub(8) else {
+        return false;
+    };
+    let disposition = state.native_escape_shortcut.observe(evdev_keycode, true);
+    if !disposition.repeats_with_timer() {
+        return false;
+    }
+    execute_shortcut_disposition(state, disposition)
+}
+
 fn intercept_native_escape(
     state: &mut RuntimeState,
     xkb_keycode: u32,
@@ -1958,6 +2014,15 @@ fn intercept_native_escape(
     let Some(evdev_keycode) = xkb_keycode.checked_sub(8) else {
         return false;
     };
+    #[cfg(feature = "flutter")]
+    if key_state == KeyState::Released
+        && state
+            .wayland
+            .as_ref()
+            .is_some_and(|frontend| frontend.flutter_repeat_key == Some(xkb_keycode))
+    {
+        cancel_flutter_repeat(state);
+    }
     let disposition = state
         .native_escape_shortcut
         .observe(evdev_keycode, key_state == KeyState::Pressed);
@@ -1988,9 +2053,15 @@ fn intercept_native_escape(
             _ => true,
         };
     }
+    #[cfg(feature = "flutter")]
+    let repeats_system_control = key_state == KeyState::Pressed && disposition.repeats_with_timer();
     let handled = execute_shortcut_disposition(state, disposition);
     if !handled && key_state == KeyState::Pressed {
         state.native_escape_shortcut.pass_through_key(evdev_keycode);
+    }
+    #[cfg(feature = "flutter")]
+    if handled && repeats_system_control {
+        start_system_control_repeat(state, xkb_keycode);
     }
     handled
 }
@@ -2131,6 +2202,13 @@ pub(super) fn execute_shortcut_disposition(
             }
             #[cfg(not(feature = "flutter"))]
             false
+        }
+        ShortcutDisposition::RequestResize(action) => {
+            #[cfg(feature = "flutter")]
+            super::window_management::resize_focused_toplevel(state, action);
+            #[cfg(not(feature = "flutter"))]
+            let _ = action;
+            true
         }
         ShortcutDisposition::RequestToggleVerticalMaximize => {
             #[cfg(feature = "flutter")]

@@ -155,7 +155,7 @@ class ShellInputLayoutCoordinator {
       rect.height / scale,
     );
     final regions = <InputWindowRegion>[];
-    for (final popup in window.popupRoots.toList(growable: false).reversed) {
+    for (final popup in window.popupRootsFrontToBack) {
       final popupRect = window.mapSurfaceRect(popup, fullContentRect);
       final clipped = popupRect.intersect(rect);
       if (clipped.isEmpty ||
@@ -208,14 +208,22 @@ class ShellInputLayoutCoordinator {
       return;
     }
 
+    final visibleSurfaceIds = <int>{};
+    DenialWindow? previousWindow;
+    for (final region in windows) {
+      // Popup regions share their toplevel's complete surface tree. Traverse
+      // it once for adjacent regions instead of once per popup.
+      if (!identical(region.window, previousWindow)) {
+        visibleSurfaceIds.addAll(region.window.visibleSurfaceIds);
+        previousWindow = region.window;
+      }
+    }
     final snapshot = InputLayoutSnapshot(
       epoch: _inputLayoutEpoch + 1,
       shellRegions: shellRegions,
       windows: windows,
       softwareKeyboardRegions: softwareKeyboardRegions,
-      visibleSurfaceIds: <int>{
-        for (final region in windows) ...region.window.visibleSurfaceIds,
-      }.toList(growable: false),
+      visibleSurfaceIds: visibleSurfaceIds.toList(growable: false),
       keyboardCapture: keyboardCapture,
       exclusiveShellMode: exclusiveShellMode,
     );

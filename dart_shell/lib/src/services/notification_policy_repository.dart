@@ -2,40 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../launcher/runtime_paths.dart';
+import '../models/notification_policy.dart';
 
-enum NotificationPreviewMode {
-  hidden,
-  applicationOnly,
-  full;
-
-  static NotificationPreviewMode parse(Object? value) {
-    return switch (value) {
-      'hidden' => NotificationPreviewMode.hidden,
-      'full' => NotificationPreviewMode.full,
-      _ => NotificationPreviewMode.applicationOnly,
-    };
-  }
-}
-
-class NotificationPolicy {
-  const NotificationPolicy({
-    this.doNotDisturb = false,
-    this.lockPreview = NotificationPreviewMode.applicationOnly,
-  });
-
-  final bool doNotDisturb;
-  final NotificationPreviewMode lockPreview;
-
-  NotificationPolicy copyWith({
-    bool? doNotDisturb,
-    NotificationPreviewMode? lockPreview,
-  }) {
-    return NotificationPolicy(
-      doNotDisturb: doNotDisturb ?? this.doNotDisturb,
-      lockPreview: lockPreview ?? this.lockPreview,
-    );
-  }
-}
+export '../models/notification_policy.dart';
 
 abstract interface class NotificationPolicyStore {
   Future<NotificationPolicy> read();

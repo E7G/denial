@@ -46,6 +46,33 @@ void main() {
     expect(direction, ScrollingLayoutWheelUpDirection.left);
   });
 
+  testWidgets('scrolling swap size toggle reflects and updates its setting', (
+    tester,
+  ) async {
+    bool? preserveSizes;
+    await tester.pumpWidget(
+      _harness(
+        const ShellLayoutSettings(
+          windowLayout: DesktopWindowLayout.scrolling,
+          scrollingLayoutPreserveSwapSizes: false,
+        ),
+        onSpeedChanged: (_) {},
+        onDirectionChanged: (_) {},
+        onPreserveSizesChanged: (value) => preserveSizes = value,
+      ),
+    );
+    final toggle = tester.widget<SettingsToggle>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SettingsToggle &&
+            widget.label == 'Keep window sizes when swapping',
+      ),
+    );
+    expect(toggle.value, isFalse);
+    toggle.onChanged(true);
+    expect(preserveSizes, isTrue);
+  });
+
   testWidgets('non-scrolling layouts hide wheel controls', (tester) async {
     await tester.pumpWidget(
       _harness(
@@ -60,11 +87,13 @@ void main() {
       findsNothing,
     );
     expect(find.text('Super + mouse wheel'), findsNothing);
+    expect(find.text('Keep window sizes when swapping'), findsNothing);
   });
 }
 
 Widget _harness(
   ShellLayoutSettings settings, {
+  ValueChanged<bool>? onPreserveSizesChanged,
   required ValueChanged<double> onSpeedChanged,
   required ValueChanged<ScrollingLayoutWheelUpDirection> onDirectionChanged,
 }) {
@@ -78,6 +107,8 @@ Widget _harness(
             settings: settings,
             displayLayout: null,
             onWindowLayoutChanged: (_) {},
+            onScrollingLayoutPreserveSwapSizesChanged:
+                onPreserveSizesChanged ?? (_) {},
             onScrollingLayoutWheelSpeedChanged: onSpeedChanged,
             onScrollingLayoutWheelUpDirectionChanged: onDirectionChanged,
             onWorkspacesEnabledChanged: (_) {},

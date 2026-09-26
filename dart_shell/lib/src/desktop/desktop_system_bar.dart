@@ -8,7 +8,6 @@ import '../input/shell_interaction_registry.dart';
 import '../models/display_layout.dart';
 import '../localization/denial_localizations.dart';
 import '../models/battery_status.dart';
-import '../platform/denial_bridge.dart';
 import '../services/media_player_service.dart';
 import '../settings/settings_controller.dart';
 import '../state/shell_controller.dart';

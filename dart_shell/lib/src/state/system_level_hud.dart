@@ -62,6 +62,8 @@ class SystemLevelHudState {
   const SystemLevelHudState({
     required this.kind,
     required this.level,
+    required this.muted,
+    required this.limitReached,
     required this.visible,
     required this.revision,
     this.monitorId,
@@ -70,6 +72,8 @@ class SystemLevelHudState {
   final SystemLevelHudKind kind;
   final int? monitorId;
   final double level;
+  final bool muted;
+  final bool limitReached;
   final bool visible;
 
   /// Changes every time a native update is presented in the HUD.
@@ -80,6 +84,8 @@ class SystemLevelHudState {
       kind: kind,
       monitorId: monitorId,
       level: level,
+      muted: muted,
+      limitReached: limitReached,
       visible: visible ?? this.visible,
       revision: revision,
     );
@@ -100,6 +106,7 @@ class SystemLevelHudController extends Notifier<SystemLevelHudState?>
     _hideTimer = null;
     _revision = 0;
     _lastAudioLevel = null;
+    _lastAudioMuted = null;
     _buildGeneration = beginBuildGeneration();
     final generation = _buildGeneration;
     final brightnessSubscription = signals.brightness.listen(
@@ -123,6 +130,7 @@ class SystemLevelHudController extends Notifier<SystemLevelHudState?>
   Timer? _hideTimer;
   int _revision = 0;
   double? _lastAudioLevel;
+  bool? _lastAudioMuted;
 
   void _handleBrightnessState(DenialBrightnessState update, int generation) {
     if (!isBuildGenerationActive(generation) || update.completesRead) {
@@ -132,6 +140,8 @@ class SystemLevelHudController extends Notifier<SystemLevelHudState?>
       kind: SystemLevelHudKind.brightness,
       monitorId: update.monitorId,
       level: update.level,
+      muted: false,
+      limitReached: update.level <= 0 || update.level >= 1,
     );
   }
 
@@ -141,19 +151,32 @@ class SystemLevelHudController extends Notifier<SystemLevelHudState?>
     }
     final level = update.level.clamp(0.0, 1.0).toDouble();
     final previousLevel = _lastAudioLevel;
+    final previousMuted = _lastAudioMuted;
     _lastAudioLevel = level;
+    _lastAudioMuted = update.muted;
     final suppressed = _audioSuppression.consume(update.requestSerial);
     // PulseAudio republishes the sink level for stream lifecycle events.
     // Reconciliation reads establish the baseline without presenting the HUD.
-    if (update.completesRead || previousLevel == level || suppressed) {
+    if (update.completesRead ||
+        (previousLevel == level &&
+            previousMuted == update.muted &&
+            !update.limitReached) ||
+        suppressed) {
       return;
     }
-    _show(kind: SystemLevelHudKind.audio, level: level);
+    _show(
+      kind: SystemLevelHudKind.audio,
+      level: level,
+      muted: update.muted,
+      limitReached: update.limitReached,
+    );
   }
 
   void _show({
     required SystemLevelHudKind kind,
     required double level,
+    required bool muted,
+    required bool limitReached,
     int? monitorId,
   }) {
     _hideTimer?.cancel();
@@ -162,6 +185,8 @@ class SystemLevelHudController extends Notifier<SystemLevelHudState?>
       kind: kind,
       monitorId: monitorId,
       level: level.clamp(0.0, 1.0).toDouble(),
+      muted: muted,
+      limitReached: limitReached,
       visible: true,
       revision: _revision,
     );

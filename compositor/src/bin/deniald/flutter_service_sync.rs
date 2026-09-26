@@ -224,11 +224,15 @@ fn resolve_system_control_waits(
     let (kind, result) = match update {
         system_controls::SystemControlEvent::AudioLevel {
             level,
+            muted,
+            limit_reached,
             request_serial,
         } => (
             SystemControlWaitKind::AudioLevel,
             json!({
                 "level": level.clamp(0.0, 1.0),
+                "muted": muted,
+                "limit_reached": limit_reached,
                 "request_serial": request_serial,
             }),
         ),

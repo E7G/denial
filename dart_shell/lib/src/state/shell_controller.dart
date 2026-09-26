@@ -330,12 +330,21 @@ class ShellController extends Notifier<ShellState>
       return;
     }
 
-    final windows = snapshot.windows
-        .where((window) => !window.isLayerShell)
-        .toList(growable: false);
-    final layerSurfaces = snapshot.windows
-        .where((window) => window.isLayerShell)
-        .toList(growable: false);
+    final windows = <DenialWindow>[];
+    final layerSurfaces = <DenialWindow>[];
+    final foregroundId = state.foregroundObjectId;
+    final launchingId = state.launchingObjectId;
+    var foregroundStillVisible = false;
+    var launchingStillVisible = false;
+    for (final window in snapshot.windows) {
+      if (window.isLayerShell) {
+        layerSurfaces.add(window);
+      } else {
+        windows.add(window);
+        foregroundStillVisible |= window.objectId == foregroundId;
+        launchingStillVisible |= window.objectId == launchingId;
+      }
+    }
     if (_hasLoadedWindowSnapshot &&
         _sameWindowSnapshots(state.windows, windows) &&
         _sameWindowSnapshots(state.layerSurfaces, layerSurfaces)) {
@@ -346,12 +355,10 @@ class ShellController extends Notifier<ShellState>
     }
 
     _hasLoadedWindowSnapshot = true;
-    final stableWindows = List<DenialWindow>.unmodifiable(windows);
-    final stableLayerSurfaces = List<DenialWindow>.unmodifiable(layerSurfaces);
     final request = state.launchRequest;
     final launchWindow = request == null
         ? null
-        : _matchingLaunchWindow(stableWindows, request);
+        : _matchingLaunchWindow(windows, request);
 
     if (launchWindow != null) {
       final shouldActivate = state.launchingObjectId != launchWindow.objectId;
@@ -359,8 +366,8 @@ class ShellController extends Notifier<ShellState>
       _gestureLockOrigin = Offset.zero;
       _gestureAxis = _GestureAxis.undecided;
       state = state.copyWith(
-        windows: stableWindows,
-        layerSurfaces: stableLayerSurfaces,
+        windows: windows,
+        layerSurfaces: layerSurfaces,
         windowSnapshotSequence: snapshot.sequence,
         overviewVisible: false,
         gestureDrag: Offset.zero,
@@ -377,18 +384,9 @@ class ShellController extends Notifier<ShellState>
       return;
     }
 
-    final foregroundStillVisible = _hasWindow(
-      stableWindows,
-      state.foregroundObjectId,
-    );
-    final launchingStillVisible = _hasWindow(
-      stableWindows,
-      state.launchingObjectId,
-    );
-
     state = state.copyWith(
-      windows: stableWindows,
-      layerSurfaces: stableLayerSurfaces,
+      windows: windows,
+      layerSurfaces: layerSurfaces,
       windowSnapshotSequence: snapshot.sequence,
       clearForegroundObjectId: !foregroundStillVisible,
       clearLaunchingObjectId: !launchingStillVisible,
@@ -414,20 +412,6 @@ class ShellController extends Notifier<ShellState>
       }
     }
     return null;
-  }
-
-  bool _hasWindow(List<DenialWindow> windows, int? objectId) {
-    if (objectId == null) {
-      return false;
-    }
-
-    for (final window in windows) {
-      if (window.objectId == objectId) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   int? beginAppLaunch({

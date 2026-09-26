@@ -11,6 +11,52 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  for (final hasPendingRead in [false, true]) {
+    test(
+      'audio listener reads wait for a new response ($hasPendingRead)',
+      () async {
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        messenger.setMockMessageHandler('denial/audio', (_) async => null);
+        final bridge = DenialBridge();
+        final states = <DenialAudioState>[];
+        Future<double?>? listenerRead;
+        var listenerReadCompleted = false;
+        final subscription = bridge.audioStates.listen((state) {
+          states.add(state);
+          listenerRead ??= bridge.readAudioLevel().then((value) {
+            listenerReadCompleted = true;
+            return value;
+          });
+        });
+        try {
+          final initialRead = hasPendingRead ? bridge.readAudioLevel() : null;
+          await messenger.handlePlatformMessage(
+            'denial/audio_state',
+            ByteData(1)..setUint8(0, 25),
+            null,
+          );
+          await Future<void>.delayed(Duration.zero);
+          if (initialRead != null) expect(await initialRead, 0.25);
+          expect(states.single.completesRead, hasPendingRead);
+          expect(listenerReadCompleted, isFalse);
+
+          await messenger.handlePlatformMessage(
+            'denial/audio_state',
+            ByteData(1)..setUint8(0, 75),
+            null,
+          );
+          expect(await listenerRead, 0.75);
+          expect(states.last.completesRead, isTrue);
+        } finally {
+          await subscription.cancel();
+          bridge.dispose();
+          messenger.setMockMessageHandler('denial/audio', null);
+        }
+      },
+    );
+  }
+
   test(
     'atomic client cursor surface state crosses the native bridge',
     () async {

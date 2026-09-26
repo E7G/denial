@@ -1,4 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
+import 'package:collection/collection.dart';
+import 'package:meta/meta.dart';
 
 enum SystemTrayItemSource { statusNotifier, xEmbed }
 
@@ -56,7 +59,7 @@ class SystemTrayIconPixmap {
     return other is SystemTrayIconPixmap &&
         other.width == width &&
         other.height == height &&
-        listEquals(other.rgba, rgba);
+        const ListEquality<int>().equals(other.rgba, rgba);
   }
 
   @override

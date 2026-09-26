@@ -413,6 +413,7 @@ class _DesktopPopupSurfaceLayers extends StatelessWidget {
                         switching: switching,
                         offscreenMinimized: offscreenMinimized,
                         dragging: placement.dragging,
+                        resizing: placement.resizing,
                         layoutPreviewing: placement.layoutPreviewing,
                         pixelAlignmentInset: 0.0,
                         pixelGridScale: devicePixelRatio,

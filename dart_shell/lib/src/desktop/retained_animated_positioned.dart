@@ -60,13 +60,20 @@ class _RetainedAnimatedPositionedState
       _rect = RectTween(begin: origin, end: origin);
     }
     super.didUpdateWidget(oldWidget);
+    if (widget.duration == Duration.zero) {
+      // A pointer grab can interrupt an animation without changing its target.
+      // Finish that tween immediately, even when no new tween was started.
+      controller.value = 1.0;
+    }
   }
 
   @override
   void forEachTween(TweenVisitor<dynamic> visitor) {
-    _rect =
-        visitor(_rect, widget.rect, (value) => RectTween(begin: value as Rect))
-            as RectTween?;
+    _rect = visitor(
+      _rect,
+      widget.rect,
+      (value) => RectTween(begin: value as Rect),
+    ) as RectTween?;
   }
 
   @override
@@ -128,12 +135,10 @@ class _RetainedTransformBox extends SingleChildRenderObjectWidget {
 
 class _RenderRetainedTransformBox extends RenderProxyBox {
   _RenderRetainedTransformBox({
-    required Size retainedSize,
-    required Rect visualRect,
-    required Rect? globalClipRect,
-  }) : _retainedSize = retainedSize,
-       _visualRect = visualRect,
-       _globalClipRect = globalClipRect;
+    required this._retainedSize,
+    required this._visualRect,
+    required this._globalClipRect,
+  });
 
   Size _retainedSize;
 

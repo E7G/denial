@@ -5,10 +5,11 @@ import 'dart:math' as math;
 import 'package:dbus/dbus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/startup_environment.dart';
+import '../models/power_profile.dart';
 import 'lact_service.dart';
 import 'non_blocking_fifo.dart';
-import 'power_profile_service.dart';
-import '../config/startup_environment.dart';
+import 'power_profiles_client.dart';
 
 final desktopPowerModesServiceProvider = Provider<DesktopPowerModesService>((
   ref,
@@ -49,25 +50,13 @@ class DesktopPowerModesService {
        _lactService = lactService ?? LactService(),
        _environment = Map.unmodifiable(environment);
 
-  static const Duration _dbusTimeout = Duration(seconds: 3);
-  static const List<_PowerProfilesEndpoint> _powerProfileEndpoints = [
-    _PowerProfilesEndpoint(
-      busName: 'org.freedesktop.UPower.PowerProfiles',
-      objectPath: '/org/freedesktop/UPower/PowerProfiles',
-      interface: 'org.freedesktop.UPower.PowerProfiles',
-    ),
-    _PowerProfilesEndpoint(
-      busName: 'net.hadess.PowerProfiles',
-      objectPath: '/net/hadess/PowerProfiles',
-      interface: 'net.hadess.PowerProfiles',
-    ),
-  ];
-
   final DBusClient _systemBus;
   final LactService _lactService;
   final Map<String, String> _environment;
   NonBlockingFifoWriter? _fifoWriter;
-  _PowerProfilesEndpoint? _activeEndpoint;
+  late final PowerProfilesClient _powerProfiles = PowerProfilesClient(
+    _systemBus,
+  );
 
   String? get _pboRuntimeDirectory {
     final runtime = _environment['XDG_RUNTIME_DIR']?.trim();
@@ -87,12 +76,11 @@ class DesktopPowerModesService {
     // These sources are independent. Start all three before awaiting any of
     // them so a slow D-Bus endpoint cannot serialize the local PBO and LACT
     // reads behind it.
-    final systemProfileFuture = _readSystemProfile();
-    final pboFuture = _readPboSnapshot();
-    final gpuFuture = _lactService.readAmdPerformancePreset();
-    final systemProfile = await systemProfileFuture;
-    final pbo = await pboFuture;
-    final gpu = await gpuFuture;
+    final (systemProfile, pbo, gpu) = await (
+      _readSystemProfile(),
+      _readPboSnapshot(),
+      _lactService.readAmdPerformancePreset(),
+    ).wait;
     return DesktopPowerModesSnapshot(
       systemAvailable: systemProfile != null,
       systemProfile: systemProfile ?? PowerProfile.balanced,
@@ -109,7 +97,7 @@ class DesktopPowerModesService {
       throw ArgumentError.value(profile, 'profile', 'Profilo non valido');
     }
 
-    final endpoint = _activeEndpoint ?? await _resolvePowerProfilesEndpoint();
+    final endpoint = await _powerProfiles.resolve();
     if (endpoint == null) {
       throw StateError('Servizio dei profili energetici non disponibile');
     }
@@ -119,13 +107,7 @@ class DesktopPowerModesService {
         : normalized;
     final systemCommand = _systemCommand(normalized);
     try {
-      await _object(endpoint)
-          .setProperty(
-            endpoint.interface,
-            'ActiveProfile',
-            DBusString(desktopProfile),
-          )
-          .timeout(_dbusTimeout);
+      await endpoint.setActiveProfile(desktopProfile);
     } on Object catch (dbusError) {
       // Some amd_pstate kernels expose per-policy boost files that
       // power-profiles-daemon cannot restore (EINVAL). The already-running PBO
@@ -168,17 +150,7 @@ class DesktopPowerModesService {
       return cached;
     }
 
-    final endpoint = _activeEndpoint;
-    if (endpoint != null) {
-      final profile = await _tryReadSystemProfile(endpoint);
-      if (profile != null) {
-        return profile;
-      }
-      _activeEndpoint = null;
-    }
-
-    final resolved = await _resolvePowerProfilesEndpoint();
-    return resolved == null ? null : _tryReadSystemProfile(resolved);
+    return _powerProfiles.readActiveProfile();
   }
 
   String _systemCommand(String normalized) {
@@ -212,35 +184,6 @@ class DesktopPowerModesService {
       // The mode was still applied; this cache only keeps the UI coherent when
       // power-profiles-daemon cannot represent the direct fallback state.
     }
-  }
-
-  Future<_PowerProfilesEndpoint?> _resolvePowerProfilesEndpoint() async {
-    for (final endpoint in _powerProfileEndpoints) {
-      if (await _tryReadSystemProfile(endpoint) != null) {
-        _activeEndpoint = endpoint;
-        return endpoint;
-      }
-    }
-    return null;
-  }
-
-  Future<String?> _tryReadSystemProfile(_PowerProfilesEndpoint endpoint) async {
-    try {
-      final value = await _object(
-        endpoint,
-      ).getProperty(endpoint.interface, 'ActiveProfile').timeout(_dbusTimeout);
-      return value is DBusString ? PowerProfile.normalize(value.value) : null;
-    } on Object {
-      return null;
-    }
-  }
-
-  DBusRemoteObject _object(_PowerProfilesEndpoint endpoint) {
-    return DBusRemoteObject(
-      _systemBus,
-      name: endpoint.busName,
-      path: DBusObjectPath(endpoint.objectPath),
-    );
   }
 
   Future<_PboSnapshot> _readPboSnapshot() async {
@@ -325,18 +268,6 @@ const Map<String, (double, double, double)> _knownPboLimits = {
   DesktopPboProfile.balanced: (110, 80, 145),
   DesktopPboProfile.performance: (142, 95, 165),
 };
-
-class _PowerProfilesEndpoint {
-  const _PowerProfilesEndpoint({
-    required this.busName,
-    required this.objectPath,
-    required this.interface,
-  });
-
-  final String busName;
-  final String objectPath;
-  final String interface;
-}
 
 class _PboSnapshot {
   const _PboSnapshot({required this.available, required this.profile});

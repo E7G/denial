@@ -281,6 +281,11 @@ class DenialWindow {
   Iterable<DenialSurfaceLayer> get popupRoots =>
       surfaceLayers.where((layer) => layer.role == DenialSurfaceRole.popup);
 
+  /// Hit-test order without materializing a reversed copy of the popup list.
+  Iterable<DenialSurfaceLayer> get popupRootsFrontToBack => surfaceLayers
+      .reversed
+      .where((layer) => layer.role == DenialSurfaceRole.popup);
+
   /// Whether the root surface fully hides every pixel behind this window.
   bool get isOpaque =>
       !isLocalFlutter &&

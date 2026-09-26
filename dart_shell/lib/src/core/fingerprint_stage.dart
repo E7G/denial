@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+
 import '../state/fingerprint_scene.dart';
 
 /// Fingerprint pixels belong to the same Flutter scene and damage lifecycle
@@ -32,8 +33,9 @@ class _FingerprintStageState extends State<FingerprintStage> {
   void didUpdateWidget(covariant FingerprintStage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.scene.epoch != widget.scene.epoch ||
-        oldWidget.locked != widget.locked)
+        oldWidget.locked != widget.locked) {
       _update();
+    }
   }
 
   void _update() {
@@ -46,8 +48,9 @@ class _FingerprintStageState extends State<FingerprintStage> {
     // authentication reveals home with a fade.
     if (!scene.black && !scene.fading) _retainBlack = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.scene.epoch == scene.epoch)
+      if (mounted && widget.scene.epoch == scene.epoch) {
         widget.onLaidOut(scene.epoch);
+      }
     });
   }
 

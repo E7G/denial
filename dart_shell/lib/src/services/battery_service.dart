@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import '../models/battery_status.dart';
@@ -5,13 +6,18 @@ import 'system_io.dart';
 
 /// Reads and aggregates standard Linux battery power supplies from sysfs.
 class BatteryService {
-  const BatteryService({this.powerSupplyRoot = '/sys/class/power_supply'});
+  const BatteryService({
+    this.powerSupplyRoot = '/sys/class/power_supply',
+    this.readAttribute = readSysString,
+  });
 
   final String powerSupplyRoot;
 
+  /// Reads a trimmed attribute, returning null when it is absent or unreadable.
+  final Future<String?> Function(String path) readAttribute;
+
   Future<BatteryStatus> read() async {
-    final scan = await _readSamples();
-    final samples = scan.samples;
+    final samples = await _readSamples();
     if (samples.isEmpty) {
       return BatteryStatus.unknown;
     }
@@ -19,40 +25,34 @@ class BatteryService {
     // A real system battery normally publishes its full charge or energy.
     // If any such supplies exist, exclude incomplete firmware placeholders
     // rather than letting a made-up percentage distort the aggregate.
-    final measurable = samples
-        .where((sample) => sample.weight != null && sample.weightKind != null)
-        .toList();
-    final selected = measurable.isEmpty ? samples : measurable;
-    final weightKinds = selected
-        .map((sample) => sample.weightKind)
-        .whereType<_BatteryWeightKind>()
-        .toSet();
+    // This list is owned by the read, so filtering needs no second collection.
+    if (samples.any((sample) => sample.weight != null)) {
+      samples.removeWhere((sample) => sample.weight == null);
+    }
     // energy_full is measured in micro-watt-hours, while charge_full is
     // measured in micro-amp-hours. They are valid relative weights only
     // within their own dimension. If drivers expose a mixed set, retain all
     // measurable batteries and use an unweighted average rather than
     // combining incompatible units.
-    final weighted = weightKinds.length == 1;
-    final capacity = weighted
-        ? (selected.fold<double>(
-                    0,
-                    (sum, sample) => sum + sample.capacity * sample.weight!,
-                  ) /
-                  selected.fold<double>(
-                    0,
-                    (sum, sample) => sum + sample.weight!,
-                  ))
-              .round()
-        : (selected.fold<int>(0, (sum, sample) => sum + sample.capacity) /
-                  selected.length)
-              .round();
+    final kind = samples.first.weight?.kind;
+    final weighted =
+        kind != null && samples.every((sample) => sample.weight?.kind == kind);
+    var capacityTotal = 0.0;
+    var weightTotal = 0.0;
+    var charging = false;
+    for (final sample in samples) {
+      final weight = weighted ? sample.weight!.value : 1.0;
+      capacityTotal += sample.capacity * weight;
+      weightTotal += weight;
+      charging |= sample.charging;
+    }
     return BatteryStatus(
-      capacity: capacity.clamp(0, 100),
-      charging: selected.any((sample) => sample.charging),
+      capacity: (capacityTotal / weightTotal).round().clamp(0, 100),
+      charging: charging,
     );
   }
 
-  Future<_BatteryScan> _readSamples() async {
+  Future<List<_BatterySample>> _readSamples() async {
     try {
       final samples = <_BatterySample>[];
       await for (final entity in Directory(powerSupplyRoot).list()) {
@@ -60,64 +60,60 @@ class BatteryService {
           continue;
         }
         final path = entity.path;
-        if ((await readSysString('$path/type'))?.toLowerCase() != 'battery') {
+        if ((await readAttribute('$path/type'))?.toLowerCase() != 'battery') {
           continue;
         }
-        final present = await readSysInt('$path/present');
+        final present = await _readInt('$path/present');
         if (present == 0) {
           continue;
         }
-        final capacity = await readSysInt('$path/capacity');
+        final (capacity, weight, status) = await (
+          _readInt('$path/capacity'),
+          _readWeight(path),
+          readAttribute('$path/status'),
+        ).wait;
         if (capacity == null || capacity < 0 || capacity > 100) {
           continue;
         }
-        final energyFull = await readSysInt('$path/energy_full');
-        final chargeFull = await readSysInt('$path/charge_full');
-        final weight = switch ((energyFull, chargeFull)) {
-          (final value?, _) when value > 0 => value.toDouble(),
-          (_, final value?) when value > 0 => value.toDouble(),
-          _ => null,
-        };
-        final weightKind = switch ((energyFull, chargeFull)) {
-          (final value?, _) when value > 0 => _BatteryWeightKind.energy,
-          (_, final value?) when value > 0 => _BatteryWeightKind.charge,
-          _ => null,
-        };
-        final status = (await readSysString('$path/status'))?.toLowerCase();
         samples.add(
           _BatterySample(
             capacity: capacity,
-            charging: status == 'charging',
+            charging: status?.toLowerCase() == 'charging',
             weight: weight,
-            weightKind: weightKind,
           ),
         );
       }
-      return _BatteryScan(samples: samples);
+      return samples;
     } on FileSystemException {
-      return const _BatteryScan(samples: <_BatterySample>[]);
+      return const [];
     }
   }
-}
 
-class _BatteryScan {
-  const _BatteryScan({required this.samples});
+  Future<int?> _readInt(String path) async {
+    final value = await readAttribute(path);
+    return value == null ? null : int.tryParse(value);
+  }
 
-  final List<_BatterySample> samples;
+  Future<_BatteryWeight?> _readWeight(String path) async {
+    final energy = await _readInt('$path/energy_full');
+    if (energy != null && energy > 0) {
+      return (value: energy.toDouble(), kind: _BatteryWeightKind.energy);
+    }
+    // Charge is only a fallback; energy and charge use incompatible units.
+    final charge = await _readInt('$path/charge_full');
+    if (charge != null && charge > 0) {
+      return (value: charge.toDouble(), kind: _BatteryWeightKind.charge);
+    }
+    return null;
+  }
 }
 
 enum _BatteryWeightKind { energy, charge }
 
-class _BatterySample {
-  const _BatterySample({
-    required this.capacity,
-    required this.charging,
-    required this.weight,
-    required this.weightKind,
-  });
+typedef _BatteryWeight = ({double value, _BatteryWeightKind kind});
 
-  final int capacity;
-  final bool charging;
-  final double? weight;
-  final _BatteryWeightKind? weightKind;
-}
+class const _BatterySample({
+  required final int capacity,
+  required final bool charging,
+  required final _BatteryWeight? weight,
+});

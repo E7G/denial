@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/physics.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/motion.dart';

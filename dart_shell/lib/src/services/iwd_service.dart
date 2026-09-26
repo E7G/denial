@@ -2,24 +2,45 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dbus/dbus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 import 'network_backend.dart';
+import 'iwd_signal_protocol.dart';
 
 /// Direct iwd integration for systems that leave IP configuration to
 /// systemd-networkd. iwd owns association and saved Wi-Fi credentials;
 /// networkd is consulted only for the selected link's configured state.
 class IwdService implements NetworkBackend {
-  factory IwdService({DBusClient? client}) {
-    return IwdService._(client ?? DBusClient.system());
+  factory IwdService({
+    DBusClient? client,
+    DBusRemoteObjectManager? manager,
+    Stream<DBusSignal>? networkdSignals,
+  }) {
+    return IwdService._(
+      client ?? DBusClient.system(),
+      manager,
+      networkdSignals,
+    );
   }
 
-  IwdService._(this._client)
-    : _manager = DBusRemoteObjectManager(
-        _client,
-        name: serviceName,
-        path: DBusObjectPath.root,
-      ),
+  IwdService._(
+    this._client,
+    DBusRemoteObjectManager? manager,
+    Stream<DBusSignal>? networkdSignals,
+  ) : _manager =
+          manager ??
+          DBusRemoteObjectManager(
+            _client,
+            name: serviceName,
+            path: DBusObjectPath.root,
+          ),
+      _networkdEventStream =
+          networkdSignals ??
+          DBusSignalStream(
+            _client,
+            sender: _networkdService,
+            pathNamespace: DBusObjectPath(_networkdPath),
+          ),
       _agentManager = DBusRemoteObject(
         _client,
         name: serviceName,
@@ -54,9 +75,11 @@ class IwdService implements NetworkBackend {
   static const int _maxAdapters = 8;
   static const int _maxDevices = 16;
   static const int _maxNetworks = 128;
+  static const int _stationReadBatchSize = 4;
 
   final DBusClient _client;
   final DBusRemoteObjectManager _manager;
+  final Stream<DBusSignal> _networkdEventStream;
   final DBusRemoteObject _agentManager;
   final DBusRemoteObject _networkdManager;
   final IwdAgentEndpoint _agent;
@@ -104,11 +127,10 @@ class IwdService implements NetworkBackend {
       _handleIwdSignal,
       onError: (_) => _scheduleRefresh(),
     );
-    _networkdSignals = DBusSignalStream(
-      _client,
-      sender: _networkdService,
-      pathNamespace: DBusObjectPath(_networkdPath),
-    ).listen((_) => _scheduleRefresh(), onError: (_) => _scheduleRefresh());
+    _networkdSignals = _networkdEventStream.listen(
+      (_) => _scheduleRefresh(),
+      onError: (_) => _scheduleRefresh(),
+    );
     _ownerChanges = _client.nameOwnerChanged
         .where(
           (event) =>
@@ -123,10 +145,13 @@ class IwdService implements NetworkBackend {
   }
 
   void _handleIwdSignal(DBusSignal signal) {
+    if (!iwdSignalAffectsSnapshot(signal)) return;
     if (signal is DBusPropertiesChangedSignal &&
         signal.propertiesInterface == _stationInterface &&
         signal.path.value == _scanningStationPath) {
-      final scanning = signal.changedProperties['Scanning'];
+      final scanning = signal.values[1]
+          .asDict()[const DBusString('Scanning')]
+          ?.asVariant();
       if (scanning is DBusBoolean && !scanning.value) {
         _lastScan = _lastScan < 0 ? 0 : _lastScan + 1;
         _scanningStationPath = null;
@@ -188,12 +213,13 @@ class IwdService implements NetworkBackend {
     final owner =
         _iwdOwner ??
         await _client.getNameOwner(serviceName).timeout(_readTimeout);
-    if (owner == null) {
+    if (owner == null || _disposed) {
       return const NetworkSnapshot.unavailable();
     }
     _iwdOwner = owner;
 
     final managed = await _manager.getManagedObjects().timeout(_readTimeout);
+    if (_disposed) return const NetworkSnapshot.unavailable();
     final adapters = <_IwdAdapter>[];
     final devices = <_IwdDevice>[];
     for (final entry in managed.entries) {
@@ -258,6 +284,7 @@ class IwdService implements NetworkBackend {
     final fallbackDevicePath =
         primary?.path ?? (devices.isEmpty ? '' : devices.first.path);
     final candidates = await _readVisibleNetworks(managed, stationDevices);
+    if (_disposed) return const NetworkSnapshot.unavailable();
     final saved = _readKnownNetworks(managed);
     final networks = normalizeWifiNetworks(
       candidates,
@@ -294,64 +321,90 @@ class IwdService implements NetworkBackend {
     List<_IwdDevice> stations,
   ) async {
     final networks = <WifiNetwork>[];
-    for (final station in stations) {
-      if (!station.powered) {
+    final powered = stations
+        .where((station) => station.powered)
+        .toList(growable: false);
+    // Stations are independent. Bound concurrency while retaining their
+    // priority order in the combined result, regardless of completion order.
+    for (
+      var start = 0;
+      start < powered.length;
+      start += _stationReadBatchSize
+    ) {
+      if (_disposed) break;
+      final batch = await Future.wait([
+        for (
+          var index = start;
+          index < powered.length && index < start + _stationReadBatchSize;
+          index++
+        )
+          _readStationNetworks(managed, powered[index]),
+      ]);
+      for (final values in batch) {
+        networks.addAll(values);
+      }
+    }
+    return networks;
+  }
+
+  Future<List<WifiNetwork>> _readStationNetworks(
+    Map<DBusObjectPath, Map<String, Map<String, DBusValue>>> managed,
+    _IwdDevice station,
+  ) async {
+    final networks = <WifiNetwork>[];
+    if (_disposed) return networks;
+    late final DBusMethodSuccessResponse reply;
+    try {
+      reply = await _object(station.path)
+          .callMethod(
+            _stationInterface,
+            'GetOrderedNetworks',
+            const <DBusValue>[],
+            replySignature: DBusSignature('a(on)'),
+          )
+          .timeout(_readTimeout);
+    } on Object {
+      return networks;
+    }
+    final ordered = reply.returnValues.first;
+    if (ordered is! DBusArray) {
+      return networks;
+    }
+    for (final value in ordered.children.take(_maxNetworks)) {
+      if (value is! DBusStruct || value.children.length != 2) {
         continue;
       }
-      late final DBusMethodSuccessResponse reply;
-      try {
-        reply = await _object(station.path)
-            .callMethod(
-              _stationInterface,
-              'GetOrderedNetworks',
-              const <DBusValue>[],
-              replySignature: DBusSignature('a(on)'),
-            )
-            .timeout(_readTimeout);
-      } on Object {
+      final pathValue = value.children[0];
+      final signalValue = value.children[1];
+      if (pathValue is! DBusObjectPath || signalValue is! DBusInt16) {
         continue;
       }
-      final ordered = reply.returnValues.first;
-      if (ordered is! DBusArray) {
+      final properties = managed[pathValue]?[_networkInterface];
+      if (properties == null) {
         continue;
       }
-      for (final value in ordered.children.take(_maxNetworks)) {
-        if (value is! DBusStruct || value.children.length != 2) {
-          continue;
-        }
-        final pathValue = value.children[0];
-        final signalValue = value.children[1];
-        if (pathValue is! DBusObjectPath || signalValue is! DBusInt16) {
-          continue;
-        }
-        final properties = managed[pathValue]?[_networkInterface];
-        if (properties == null) {
-          continue;
-        }
-        final name = _string(properties, 'Name');
-        final ssidBytes = utf8.encode(name);
-        if (ssidBytes.isEmpty || ssidBytes.length > 32) {
-          continue;
-        }
-        final security = _iwdSecurity(_string(properties, 'Type'));
-        networks.add(
-          WifiNetwork(
-            ssid: name,
-            ssidBytes: ssidBytes,
-            security: security,
-            strength: _signalPercent(signalValue.value),
-            frequency: 0,
-            devicePath: _objectPath(properties, 'Device') ?? station.path,
-            networkPath: pathValue.value,
-            savedNetworkPath: _objectPath(properties, 'KnownNetwork'),
-            connected: _boolean(properties, 'Connected'),
-            available: true,
-            supported:
-                security != WifiSecurity.wep &&
-                security != WifiSecurity.unknown,
-          ),
-        );
+      final name = _string(properties, 'Name');
+      final ssidBytes = utf8.encode(name);
+      if (ssidBytes.isEmpty || ssidBytes.length > 32) {
+        continue;
       }
+      final security = _iwdSecurity(_string(properties, 'Type'));
+      networks.add(
+        WifiNetwork(
+          ssid: name,
+          ssidBytes: ssidBytes,
+          security: security,
+          strength: _signalPercent(signalValue.value),
+          frequency: 0,
+          devicePath: _objectPath(properties, 'Device') ?? station.path,
+          networkPath: pathValue.value,
+          savedNetworkPath: _objectPath(properties, 'KnownNetwork'),
+          connected: _boolean(properties, 'Connected'),
+          available: true,
+          supported:
+              security != WifiSecurity.wep && security != WifiSecurity.unknown,
+        ),
+      );
     }
     return networks;
   }
@@ -395,12 +448,9 @@ class IwdService implements NetworkBackend {
         return null;
       }
       final reply = await _networkdManager
-          .callMethod(
-            _networkdManagerInterface,
-            'GetLinkByName',
-            <DBusValue>[DBusString(interfaceName)],
-            replySignature: DBusSignature('io'),
-          )
+          .callMethod(_networkdManagerInterface, 'GetLinkByName', <DBusValue>[
+            DBusString(interfaceName),
+          ], replySignature: DBusSignature('io'))
           .timeout(_readTimeout);
       final link = DBusRemoteObject(
         _client,
@@ -538,12 +588,9 @@ class IwdService implements NetworkBackend {
     }
     try {
       await _agentManager
-          .callMethod(
-            _agentManagerInterface,
-            'RegisterAgent',
-            <DBusValue>[DBusObjectPath(_agentPath)],
-            replySignature: DBusSignature(''),
-          )
+          .callMethod(_agentManagerInterface, 'RegisterAgent', <DBusValue>[
+            DBusObjectPath(_agentPath),
+          ], replySignature: DBusSignature(''))
           .timeout(_readTimeout);
       _agentRegistered = true;
     } on DBusMethodResponseException catch (error) {
@@ -593,12 +640,9 @@ class IwdService implements NetworkBackend {
     if (_agentRegistered && _iwdOwner != null) {
       try {
         await _agentManager
-            .callMethod(
-              _agentManagerInterface,
-              'UnregisterAgent',
-              <DBusValue>[DBusObjectPath(_agentPath)],
-              replySignature: DBusSignature(''),
-            )
+            .callMethod(_agentManagerInterface, 'UnregisterAgent', <DBusValue>[
+              DBusObjectPath(_agentPath),
+            ], replySignature: DBusSignature(''))
             .timeout(_readTimeout);
       } on Object {
         // Closing the private connection also releases the iwd agent.
@@ -793,7 +837,7 @@ class IwdAgentEndpoint extends DBusObject {
 
   String? Function()? owner;
   String? Function(String networkPath)? passphraseFor;
-  VoidCallback? onReleased;
+  void Function()? onReleased;
 
   @override
   List<DBusIntrospectInterface> introspect() => <DBusIntrospectInterface>[

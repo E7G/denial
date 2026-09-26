@@ -29,17 +29,11 @@ final class ShellWorker {
   }
 }
 
-final class NvidiaGpuSample {
-  const NvidiaGpuSample({
-    required this.index,
-    required this.usage,
-    required this.temperatureC,
-  });
-
-  final int index;
-  final double usage;
-  final double? temperatureC;
-}
+final class const NvidiaGpuSample({
+  required final int index,
+  required final double usage,
+  required final double? temperatureC,
+});
 
 const int _readNvidiaGpuSamples = 1;
 
@@ -49,16 +43,8 @@ List<NvidiaGpuSample> _decodeNvidiaGpuSamples(Object? response) {
   }
   return <NvidiaGpuSample>[
     for (final row in response)
-      if (row is List<Object?> &&
-          row.length == 3 &&
-          row[0] is int &&
-          row[1] is double &&
-          (row[2] == null || row[2] is double))
-        NvidiaGpuSample(
-          index: row[0]! as int,
-          usage: row[1]! as double,
-          temperatureC: row[2] as double?,
-        )
+      if (row case [int index, double usage, double? temperatureC])
+        NvidiaGpuSample(index: index, usage: usage, temperatureC: temperatureC)
       else
         throw const FormatException('Invalid NVIDIA GPU sample'),
   ];

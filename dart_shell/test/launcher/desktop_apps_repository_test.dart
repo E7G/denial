@@ -174,6 +174,45 @@ void main() {
     expect(application.searchableText, contains('territory'));
     expect(application.searchableText, isNot(contains('default')));
   });
+
+  test('invalid UTF-8 in one desktop entry does not abort discovery', () async {
+    _writeFile(
+      dataDirectory,
+      'applications/broken.desktop',
+      '',
+    ).writeAsBytesSync([0xff, 0xfe]);
+    _writeFile(
+      dataDirectory,
+      'applications/valid.desktop',
+      '[Desktop Entry]\nName=Valid App\nExec=/usr/bin/valid\n',
+    );
+
+    final apps = await repository.loadApplications();
+    expect(apps.map((app) => app.id), contains('valid.desktop'));
+    expect(apps.map((app) => app.id), isNot(contains('broken.desktop')));
+  });
+
+  test(
+    'loads linked entries and ignores broken links and directories',
+    () async {
+      final target = _writeFile(
+        temporaryDirectory,
+        'exports/target.desktop',
+        '[Desktop Entry]\nName=Linked App\nExec=/usr/bin/linked\n',
+      );
+      final applications = Directory(p.join(dataDirectory.path, 'applications'))
+        ..createSync();
+      Link(p.join(applications.path, 'linked.desktop')).createSync(target.path);
+      Link(p.join(applications.path, 'broken.desktop'))
+          .createSync(p.join(temporaryDirectory.path, 'missing.desktop'));
+      Directory(p.join(applications.path, 'directory.desktop')).createSync();
+
+      final apps = await repository.loadApplications();
+      expect(apps.map((app) => app.id), contains('linked.desktop'));
+      expect(apps.map((app) => app.id), isNot(contains('broken.desktop')));
+      expect(apps.map((app) => app.id), isNot(contains('directory.desktop')));
+    },
+  );
 }
 
 File _writeFile(Directory root, String relativePath, String contents) {

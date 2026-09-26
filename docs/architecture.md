@@ -201,6 +201,15 @@ Content-bearing translucent panels enforce a palette-specific backing floor,
 so the user-controlled glass opacity cannot make semantic foregrounds
 illegible over an extreme wallpaper.
 
+Scrolling-layout swaps preserve each window's strip size by default when both
+windows occupy single-window columns in the same workspace and output. This
+applies to keyboard swaps and drag swaps (including previews): widths follow
+the windows on horizontal strips, and heights follow them on vertical strips.
+Split columns and swaps across workspaces or outputs retain their slot sizes.
+Disable **Keep window sizes when swapping** in Layout settings, or set
+`layout.scrollingLayoutPreserveSwapSizes` to `false` in `settings.json`, to
+retain slot sizes for every swap. Dwindle swaps are unaffected.
+
 Keyboard settings live in the native-owned `keyboard` section:
 
 ```json

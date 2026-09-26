@@ -216,6 +216,16 @@ generated.ShortcutActionKind _shortcutActionToWire(
       generated.ShortcutActionKind.OpenDashboard,
     DenialShortcutAction.openOverview =>
       generated.ShortcutActionKind.OpenOverview,
+    DenialShortcutAction.resizeGrowWidth =>
+      generated.ShortcutActionKind.ResizeGrowWidth,
+    DenialShortcutAction.resizeShrinkWidth =>
+      generated.ShortcutActionKind.ResizeShrinkWidth,
+    DenialShortcutAction.resizeGrowHeight =>
+      generated.ShortcutActionKind.ResizeGrowHeight,
+    DenialShortcutAction.resizeShrinkHeight =>
+      generated.ShortcutActionKind.ResizeShrinkHeight,
+    DenialShortcutAction.resetWindowHeight =>
+      generated.ShortcutActionKind.ResetWindowHeight,
     DenialShortcutAction.toggleVerticalMaximize =>
       generated.ShortcutActionKind.ToggleVerticalMaximize,
     DenialShortcutAction.windowSwitcher =>
@@ -318,6 +328,16 @@ DenialShortcutAction _shortcutActionFromWire(
       DenialShortcutAction.openDashboard,
     generated.ShortcutActionKind.OpenOverview =>
       DenialShortcutAction.openOverview,
+    generated.ShortcutActionKind.ResizeGrowWidth =>
+      DenialShortcutAction.resizeGrowWidth,
+    generated.ShortcutActionKind.ResizeShrinkWidth =>
+      DenialShortcutAction.resizeShrinkWidth,
+    generated.ShortcutActionKind.ResizeGrowHeight =>
+      DenialShortcutAction.resizeGrowHeight,
+    generated.ShortcutActionKind.ResizeShrinkHeight =>
+      DenialShortcutAction.resizeShrinkHeight,
+    generated.ShortcutActionKind.ResetWindowHeight =>
+      DenialShortcutAction.resetWindowHeight,
     generated.ShortcutActionKind.ToggleVerticalMaximize =>
       DenialShortcutAction.toggleVerticalMaximize,
     generated.ShortcutActionKind.WindowSwitcher =>
@@ -572,7 +592,7 @@ bool _validXkbOption(String value) {
   return _validXkbName(value.replaceAll(':', ''), emptyAllowed: false);
 }
 
-bool _finiteWindow(generated.Window window) {
+bool _finiteWindow(DenialWindow window) {
   return window.surfaceX.isFinite &&
       window.surfaceY.isFinite &&
       window.surfaceWidth.isFinite &&
@@ -592,11 +612,11 @@ bool _finiteWindow(generated.Window window) {
       window.opacity.isFinite &&
       window.opacity >= 0.0 &&
       window.opacity <= 1.0 &&
-      ((window.surfaces?.isEmpty ?? true) ||
+      (window.surfaceLayers.isEmpty ||
           (window.contentWidth > 0.0 && window.contentHeight > 0.0));
 }
 
-bool _validSurfaceLayer(generated.SurfaceLayer layer) {
+bool _validSurfaceLayer(DenialSurfaceLayer layer) {
   final hasTexture = layer.textureId > 0;
   return layer.surfaceId > 0 &&
       layer.surfaceX.isFinite &&

@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -36,37 +37,30 @@ class DenialUiDevelopmentProtocol {
     if (requestId <= 0 || requestId > 0xffffffff) {
       return null;
     }
-    final workspaceBytes = utf8.encode(workspace);
-    if (workspaceBytes.length > maxWorkspaceBytes ||
-        workspaceBytes.contains(0)) {
+    if ((command == DenialUiDevelopmentCommand.setWorkspace) !=
+            workspace.isNotEmpty ||
+        workspace.contains('\u0000') ||
+        (command != DenialUiDevelopmentCommand.setAutoReload && autoReload)) {
       return null;
     }
-    if (command == DenialUiDevelopmentCommand.setWorkspace &&
-        workspaceBytes.isEmpty) {
-      return null;
-    }
-    if (command != DenialUiDevelopmentCommand.setWorkspace &&
-        workspaceBytes.isNotEmpty) {
-      return null;
-    }
-    if (command != DenialUiDevelopmentCommand.setAutoReload && autoReload) {
-      return null;
-    }
+    // Most commands have no payload and need no temporary encoding buffer.
+    final workspaceBytes = workspace.isEmpty ? null : utf8.encode(workspace);
+    final workspaceLength = workspaceBytes?.length ?? 0;
+    if (workspaceLength > maxWorkspaceBytes) return null;
 
-    final packet = ByteData(_controlHeaderBytes + workspaceBytes.length)
+    final packet = ByteData(_controlHeaderBytes + workspaceLength)
       ..setUint8(0, version)
       ..setUint8(1, command.index)
       ..setUint8(2, autoReload ? 1 : 0)
       ..setUint8(3, 0)
       ..setUint32(4, requestId, Endian.little)
-      ..setUint16(8, workspaceBytes.length, Endian.little)
+      ..setUint16(8, workspaceLength, Endian.little)
       ..setUint16(10, 0, Endian.little);
-    packet.buffer.asUint8List().setRange(
-      _controlHeaderBytes,
-      packet.lengthInBytes,
-      workspaceBytes,
-    );
-    return packet.buffer.asUint8List();
+    final bytes = packet.buffer.asUint8List();
+    if (workspaceBytes != null) {
+      bytes.setRange(_controlHeaderBytes, bytes.length, workspaceBytes);
+    }
+    return bytes;
   }
 
   DenialUiDevelopmentState? decodeState(ByteData? packet) {
@@ -97,21 +91,28 @@ class DenialUiDevelopmentProtocol {
     if ((flags & ~0x01ff) != 0 ||
         (progressBasisPoints != 0xffff && progressBasisPoints > 10000) ||
         diagnosticCount > maxDiagnostics ||
+        workspaceLength > maxWorkspaceBytes ||
+        _stateHeaderBytes +
+                workspaceLength +
+                vmServiceLength +
+                statusLength +
+                errorLength +
+                diagnosticCount * 14 >
+            packet.lengthInBytes ||
         packet.getUint16(38, Endian.little) != 0) {
       return null;
     }
 
+    final bytes = Uint8List.sublistView(packet);
+    const decoder = Utf8Decoder();
     var offset = _stateHeaderBytes;
     String readString(int length) {
       if (length < 0 || offset + length > packet.lengthInBytes) {
         throw const FormatException('truncated UI development packet');
       }
-      final bytes = packet.buffer.asUint8List(
-        packet.offsetInBytes + offset,
-        length,
-      );
+      final start = offset;
       offset += length;
-      return utf8.decode(bytes, allowMalformed: false);
+      return length == 0 ? '' : decoder.convert(bytes, start, offset);
     }
 
     try {
@@ -119,8 +120,7 @@ class DenialUiDevelopmentProtocol {
       final vmServiceUri = readString(vmServiceLength);
       final status = readString(statusLength);
       final error = readString(errorLength);
-      if (workspaceLength > maxWorkspaceBytes ||
-          workspace.contains('\u0000') ||
+      if (workspace.contains('\u0000') ||
           (((flags & 0x0080) != 0) != vmServiceUri.isNotEmpty)) {
         return null;
       }
@@ -176,10 +176,10 @@ class DenialUiDevelopmentProtocol {
         vmServiceUri: vmServiceUri,
         status: status,
         error: error,
-        diagnostics: List<DenialUiDiagnostic>.unmodifiable(diagnostics),
+        diagnostics: UnmodifiableListView(diagnostics),
         progress: progressBasisPoints == 0xffff
             ? null
-            : progressBasisPoints.clamp(0, 10000) / 10000,
+            : progressBasisPoints / 10000,
       );
     } on FormatException {
       return null;

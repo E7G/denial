@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:ui' show Offset;
 
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/system_tray_item.dart';
 import '../platform/denial_bridge.dart';
 import '../services/status_notifier_service.dart';
+import '../services/system_tray_order.dart';
+import 'notifier_lifecycle.dart';
 import 'shell_controller.dart';
 
 final statusNotifierServiceProvider = Provider<StatusNotifierService>((ref) {
@@ -19,39 +22,44 @@ final systemTrayProvider =
       SystemTrayController.new,
     );
 
-class SystemTrayController extends Notifier<List<SystemTrayItem>> {
+class SystemTrayController extends Notifier<List<SystemTrayItem>>
+    with NotifierLifecycle<List<SystemTrayItem>> {
   @override
   List<SystemTrayItem> build() {
     _bridge = ref.watch(denialBridgeProvider);
-    _statusNotifier = ref.watch(statusNotifierServiceProvider);
-    _statusItems = const <SystemTrayItem>[];
+    final service = ref.watch(statusNotifierServiceProvider);
+    _statusNotifier = service;
+    final generation = beginBuildGeneration();
+    _statusItems = service.current;
     _xembedItems = Map<int, SystemTrayItem>.of(_bridge.xembedTrayItems);
-    _statusSubscription = _statusNotifier.snapshots.listen((items) {
-      if (ref.mounted) {
+    final statusSubscription = service.snapshots.listen((items) {
+      if (isBuildGenerationActive(generation)) {
         _statusItems = items;
         _publish();
       }
     });
-    _xembedSubscription = _bridge.xembedTrayEvents.listen((event) {
-      if (!ref.mounted) {
+    final xembedSubscription = _bridge.xembedTrayEvents.listen((event) {
+      if (!isBuildGenerationActive(generation)) {
         return;
       }
       if (event.kind == XEmbedTrayEventKind.removed) {
-        _xembedItems.remove(event.windowId);
+        if (_xembedItems.remove(event.windowId) == null) return;
       } else if (event.item case final item?) {
+        if (identical(_xembedItems[event.windowId], item)) return;
         _xembedItems[event.windowId] = item;
+      } else {
+        return;
       }
       _publish();
     });
-    ref.onDispose(() {
-      unawaited(_statusSubscription?.cancel());
-      unawaited(_xembedSubscription?.cancel());
-    });
+    cancelOnDispose(statusSubscription);
+    cancelOnDispose(xembedSubscription);
     scheduleMicrotask(() async {
+      if (!isBuildGenerationActive(generation)) return;
       try {
-        await _statusNotifier.start();
-        if (ref.mounted) {
-          _statusItems = _statusNotifier.current;
+        await service.start();
+        if (isBuildGenerationActive(generation)) {
+          _statusItems = service.current;
           _publish();
         }
       } on Object {
@@ -64,8 +72,6 @@ class SystemTrayController extends Notifier<List<SystemTrayItem>> {
 
   late DenialBridge _bridge;
   late StatusNotifierService _statusNotifier;
-  StreamSubscription<List<SystemTrayItem>>? _statusSubscription;
-  StreamSubscription<XEmbedTrayEvent>? _xembedSubscription;
   List<SystemTrayItem> _statusItems = const <SystemTrayItem>[];
   Map<int, SystemTrayItem> _xembedItems = <int, SystemTrayItem>{};
 
@@ -106,26 +112,12 @@ class SystemTrayController extends Notifier<List<SystemTrayItem>> {
   }
 
   void _publish() {
-    state = _combinedItems();
+    final next = _combinedItems();
+    if (!const ListEquality<SystemTrayItem>().equals(state, next)) {
+      state = next;
+    }
   }
 
-  List<SystemTrayItem> _combinedItems() {
-    final items = <SystemTrayItem>[..._statusItems, ..._xembedItems.values]
-      ..sort((left, right) {
-        final byStatus = _statusPriority(
-          left.status,
-        ).compareTo(_statusPriority(right.status));
-        if (byStatus != 0) {
-          return byStatus;
-        }
-        return left.title.toLowerCase().compareTo(right.title.toLowerCase());
-      });
-    return List<SystemTrayItem>.unmodifiable(items);
-  }
+  List<SystemTrayItem> _combinedItems() =>
+      combineSystemTrayItems(_statusItems, _xembedItems.values);
 }
-
-int _statusPriority(SystemTrayStatus status) => switch (status) {
-  SystemTrayStatus.needsAttention => 0,
-  SystemTrayStatus.active => 1,
-  SystemTrayStatus.passive => 2,
-};

@@ -165,7 +165,7 @@ class RenderWindowPlane extends RenderShiftedBox {
         ..textureTransform = geometry.transform
         ..filterQuality = geometry.filterQuality;
     }
-    layer.markNeedsAddToScene();
+    layer.invalidateScene();
     context.pushLayer(layer, super.paint, offset);
   }
 
@@ -291,6 +291,8 @@ class _WindowPlaneLayer extends ContainerLayer {
   Rect textureBounds = Rect.zero;
   Matrix4 textureTransform = Matrix4.identity();
   FilterQuality filterQuality = FilterQuality.none;
+
+  void invalidateScene() => markNeedsAddToScene();
 
   @override
   void addToScene(ui.SceneBuilder builder) {

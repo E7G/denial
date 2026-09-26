@@ -40,6 +40,7 @@ class OverviewCarousel extends StatefulWidget {
 class _OverviewCarouselState extends State<OverviewCarousel>
     with SingleTickerProviderStateMixin {
   late List<DenialWindow> _items;
+  final _itemIndices = <int, int>{};
   late final AnimationController _reflow;
   final _dismissRequested = <int>{};
   final _removing = <int>{};
@@ -54,6 +55,7 @@ class _OverviewCarouselState extends State<OverviewCarousel>
   void initState() {
     super.initState();
     _items = List.of(widget.windows);
+    _indexItems();
     _reflow =
         AnimationController(
           vsync: this,
@@ -76,9 +78,10 @@ class _OverviewCarouselState extends State<OverviewCarousel>
       if (_removing.isEmpty)
         for (final item in widget.windows)
           if (!_dismissRequested.contains(item.objectId) &&
-              !_items.any((old) => old.objectId == item.objectId))
+              !_itemIndices.containsKey(item.objectId))
             item,
     ];
+    _indexItems();
     _scheduleReconcile();
   }
 
@@ -191,6 +194,7 @@ class _OverviewCarouselState extends State<OverviewCarousel>
               !_removing.contains(item.objectId),
         ),
       );
+      _indexItems();
       _removing.clear();
       _targetIndices.clear();
     });
@@ -315,8 +319,12 @@ class _OverviewCarouselState extends State<OverviewCarousel>
     );
   }
 
-  int? _indexOf(int objectId) {
-    final index = _items.indexWhere((window) => window.objectId == objectId);
-    return index < 0 ? null : index;
+  void _indexItems() {
+    _itemIndices.clear();
+    for (final (index, window) in _items.indexed) {
+      _itemIndices.putIfAbsent(window.objectId, () => index);
+    }
   }
+
+  int? _indexOf(int objectId) => _itemIndices[objectId];
 }

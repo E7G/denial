@@ -6,6 +6,8 @@ import 'package:flutter/widgets.dart';
 
 import 'package:denial_wire_protocol/denial_denial.wire_generated.dart'
     as generated;
+
+import '../core/utf8_size.dart';
 import '../input/input_layout.dart';
 import '../models/display_layout.dart';
 import '../models/denial_drag_icon.dart';
@@ -54,25 +56,22 @@ const int _keyboardPressed = 1 << 1;
 const int _keyboardReleased = 1 << 2;
 const int _placementPacketBytes = 80;
 const int _dragIconPacketBytes = 128;
+const int _placementPacketMagic = 0x504e4544; // DENP, little-endian.
+const int _dragIconPacketMagic = 0x444e4544; // DEND, little-endian.
+const int _structuredPacketMagic = 0x574e4544; // DENW, little-endian.
 
 enum DenialKeyboardKeyPhase { tap, pressed, released }
 
 bool isDenialPlacementPacket(ByteData? data) {
   return data != null &&
       data.lengthInBytes >= 4 &&
-      data.getUint8(0) == 0x44 &&
-      data.getUint8(1) == 0x45 &&
-      data.getUint8(2) == 0x4e &&
-      data.getUint8(3) == 0x50;
+      data.getUint32(0, Endian.little) == _placementPacketMagic;
 }
 
 bool isDenialDragIconPacket(ByteData? data) {
   return data != null &&
       data.lengthInBytes >= 4 &&
-      data.getUint8(0) == 0x44 &&
-      data.getUint8(1) == 0x45 &&
-      data.getUint8(2) == 0x4e &&
-      data.getUint8(3) == 0x44;
+      data.getUint32(0, Endian.little) == _dragIconPacketMagic;
 }
 
 class DenialDecodedEnvelope {
@@ -627,7 +626,7 @@ class DenialWireCodec {
       final displayName = source.displayName ?? '';
       if (!_validXkbName(layout, emptyAllowed: false) ||
           !_validXkbName(variant, emptyAllowed: true) ||
-          utf8.encode(displayName).length > denialWireMaxStringLength) {
+          !fitsUtf8ByteLimit(displayName, denialWireMaxStringLength)) {
         rejectedStructuredMessages += 1;
         return null;
       }
@@ -786,7 +785,7 @@ class DenialWireCodec {
     if (invokesNamedAction) {
       if (actionKey == null ||
           actionKey.isEmpty ||
-          utf8.encode(actionKey).length > denialWireMaxStringLength) {
+          !fitsUtf8ByteLimit(actionKey, denialWireMaxStringLength)) {
         return null;
       }
     } else if (actionKey != null && actionKey.isNotEmpty) {
@@ -921,7 +920,7 @@ class DenialWireCodec {
     final layers = <DenialSurfaceLayer>[];
     var lastCompositionOrder = -1;
     for (var index = 0; index < sourceLayers.length; index += 1) {
-      final layer = sourceLayers[index];
+      final layer = _decodeSurfaceLayer(sourceLayers[index]);
       final isRoot = index == 0;
       if (!_validSurfaceLayer(layer) ||
           layer.transform > 7 ||
@@ -930,17 +929,17 @@ class DenialWireCodec {
           layer.popupRootSurfaceId != 0 ||
           layer.compositionOrder < lastCompositionOrder ||
           (isRoot &&
-              (layer.role != generated.SurfaceRole.Root ||
+              (layer.role != DenialSurfaceRole.root ||
                   layer.parentSurfaceId != 0)) ||
           (!isRoot &&
-              (layer.role != generated.SurfaceRole.Subsurface ||
+              (layer.role != DenialSurfaceRole.subsurface ||
                   layer.parentSurfaceId <= 0 ||
                   !identities.contains(layer.parentSurfaceId)))) {
         rejectedStructuredMessages += 1;
         return null;
       }
       lastCompositionOrder = layer.compositionOrder;
-      layers.add(_decodeSurfaceLayer(layer));
+      layers.add(layer);
     }
     return DenialCursorState(
       epoch: state.epoch,
@@ -964,20 +963,18 @@ class DenialWireCodec {
       data.offsetInBytes,
       data.lengthInBytes,
     );
-    if (bytes[4] != 0x44 ||
-        bytes[5] != 0x45 ||
-        bytes[6] != 0x4e ||
-        bytes[7] != 0x57) {
+    if (data.getUint32(4, Endian.little) != _structuredPacketMagic) {
       rejectedStructuredMessages += 1;
       return null;
     }
 
     try {
       final envelope = generated.Envelope(bytes);
+      final sequence = envelope.sequence;
       final payloadType = envelope.payloadType;
       final payload = envelope.payload;
       if (envelope.protocolVersion != denialWireVersion ||
-          envelope.sequence <= 0 ||
+          sequence <= 0 ||
           payloadType == null ||
           payloadType == generated.PayloadTypeId.NONE ||
           payload == null ||
@@ -986,7 +983,7 @@ class DenialWireCodec {
         return null;
       }
       return DenialDecodedEnvelope(
-        sequence: envelope.sequence,
+        sequence: sequence,
         requestId: envelope.requestId,
         payloadType: payloadType,
         payload: payload as Object,
@@ -1004,10 +1001,7 @@ class DenialWireCodec {
     }
 
     try {
-      if (data.getUint8(0) != 0x44 ||
-          data.getUint8(1) != 0x45 ||
-          data.getUint8(2) != 0x4e ||
-          data.getUint8(3) != 0x50 ||
+      if (!isDenialPlacementPacket(data) ||
           data.getUint16(4, Endian.little) != denialWireVersion ||
           data.getUint16(6, Endian.little) != 2 ||
           data.getUint32(8, Endian.little) != _placementPacketBytes ||
@@ -1064,10 +1058,7 @@ class DenialWireCodec {
     }
 
     try {
-      if (data.getUint8(0) != 0x44 ||
-          data.getUint8(1) != 0x45 ||
-          data.getUint8(2) != 0x4e ||
-          data.getUint8(3) != 0x44 ||
+      if (!isDenialDragIconPacket(data) ||
           data.getUint16(4, Endian.little) != denialWireVersion ||
           data.getUint16(6, Endian.little) != 3 ||
           data.getUint32(8, Endian.little) != _dragIconPacketBytes ||
@@ -1200,21 +1191,28 @@ class DenialWireCodec {
       rejectedStructuredMessages += 1;
       return null;
     }
-    final strings = <String>[
-      source.sender ?? '',
-      source.appName ?? '',
-      source.appIcon ?? '',
-      source.summary ?? '',
-      source.body ?? '',
-      source.category ?? '',
-      source.desktopEntry ?? '',
-      source.imagePath ?? '',
-      source.soundName ?? '',
-      source.soundFile ?? '',
-    ];
+    final sender = source.sender ?? '';
+    final appName = source.appName ?? '';
+    final appIcon = source.appIcon ?? '';
+    final summary = source.summary ?? '';
+    final body = source.body ?? '';
+    final category = source.category ?? '';
+    final desktopEntry = source.desktopEntry ?? '';
+    final imagePath = source.imagePath ?? '';
+    final soundName = source.soundName ?? '';
+    final soundFile = source.soundFile ?? '';
     final sourceActions =
         source.actions ?? const <generated.DesktopNotificationAction>[];
-    if (strings.any((value) => value.length > denialWireMaxStringLength) ||
+    if (sender.length > denialWireMaxStringLength ||
+        appName.length > denialWireMaxStringLength ||
+        appIcon.length > denialWireMaxStringLength ||
+        summary.length > denialWireMaxStringLength ||
+        body.length > denialWireMaxStringLength ||
+        category.length > denialWireMaxStringLength ||
+        desktopEntry.length > denialWireMaxStringLength ||
+        imagePath.length > denialWireMaxStringLength ||
+        soundName.length > denialWireMaxStringLength ||
+        soundFile.length > denialWireMaxStringLength ||
         sourceActions.length > denialWireMaxNotificationActions) {
       rejectedStructuredMessages += 1;
       return null;
@@ -1268,11 +1266,11 @@ class DenialWireCodec {
       closeReason: 0,
       notification: model.DesktopNotification(
         id: source.id,
-        sender: source.sender ?? '',
-        appName: source.appName ?? '',
-        appIcon: source.appIcon ?? '',
-        summary: source.summary ?? '',
-        body: source.body ?? '',
+        sender: sender,
+        appName: appName,
+        appIcon: appIcon,
+        summary: summary,
+        body: body,
         actions: List<model.DesktopNotificationAction>.unmodifiable(actions),
         urgency: switch (source.urgency) {
           generated.DesktopNotificationUrgency.Low =>
@@ -1282,16 +1280,16 @@ class DenialWireCodec {
           generated.DesktopNotificationUrgency.Critical =>
             model.DesktopNotificationUrgency.critical,
         },
-        category: source.category ?? '',
-        desktopEntry: source.desktopEntry ?? '',
-        imagePath: source.imagePath ?? '',
+        category: category,
+        desktopEntry: desktopEntry,
+        imagePath: imagePath,
         imageData: image,
         resident: source.resident,
         transient: source.transient,
         suppressSound: source.suppressSound,
         actionIcons: source.actionIcons,
-        soundName: source.soundName ?? '',
-        soundFile: source.soundFile ?? '',
+        soundName: soundName,
+        soundFile: soundFile,
         x: source.x,
         y: source.y,
         hasPosition: source.hasPosition,
@@ -1319,21 +1317,26 @@ class DenialWireCodec {
     final windowIds = <int>{};
     var surfaceCount = 0;
     for (final window in source) {
+      final objectId = window.objectId;
+      final surfaceId = window.surfaceId;
+      final windowId = window.windowId;
+      final width = window.width;
+      final height = window.height;
       final title = window.title ?? '';
       final appId = window.appId ?? '';
-      if (window.objectId <= 0 ||
-          window.surfaceId <= 0 ||
-          window.windowId <= 0 ||
-          !windowIds.add(window.windowId) ||
-          window.width <= 0 ||
-          window.height <= 0 ||
+      if (objectId <= 0 ||
+          surfaceId <= 0 ||
+          windowId <= 0 ||
+          !windowIds.add(windowId) ||
+          width <= 0 ||
+          height <= 0 ||
           title.length > denialWireMaxStringLength ||
-          appId.length > denialWireMaxStringLength ||
-          !_finiteWindow(window)) {
+          appId.length > denialWireMaxStringLength) {
         rejectedStructuredMessages += 1;
         return null;
       }
       final sourceLayers = window.surfaces ?? const <generated.SurfaceLayer>[];
+      final textureId = window.textureId;
       final contentKind = switch (window.contentKind) {
         generated.WindowContentKind.SurfaceTree =>
           DenialWindowContentKind.surfaceTree,
@@ -1351,7 +1354,7 @@ class DenialWireCodec {
           DenialWindowContentKind.popupSurface,
       };
       if (contentKind == DenialWindowContentKind.localFlutter &&
-          (window.textureId != 0 || sourceLayers.isNotEmpty)) {
+          (textureId != 0 || sourceLayers.isNotEmpty)) {
         rejectedStructuredMessages += 1;
         return null;
       }
@@ -1363,7 +1366,8 @@ class DenialWireCodec {
       final surfaceIds = <int>{};
       final layers = <DenialSurfaceLayer>[];
       var lastCompositionOrder = -1;
-      for (final layer in sourceLayers) {
+      for (final sourceLayer in sourceLayers) {
+        final layer = _decodeSurfaceLayer(sourceLayer);
         if (!_validSurfaceLayer(layer) ||
             !surfaceIds.add(layer.surfaceId) ||
             layer.compositionOrder < lastCompositionOrder) {
@@ -1371,96 +1375,71 @@ class DenialWireCodec {
           return null;
         }
         lastCompositionOrder = layer.compositionOrder;
-        layers.add(
-          DenialSurfaceLayer(
-            surfaceId: layer.surfaceId,
-            parentSurfaceId: layer.parentSurfaceId,
-            popupRootSurfaceId: layer.popupRootSurfaceId,
-            role: switch (layer.role) {
-              generated.SurfaceRole.Subsurface => DenialSurfaceRole.subsurface,
-              generated.SurfaceRole.Popup => DenialSurfaceRole.popup,
-              generated.SurfaceRole.Root => DenialSurfaceRole.root,
-            },
-            textureId: layer.textureId,
-            width: layer.width,
-            height: layer.height,
-            surfaceX: layer.surfaceX,
-            surfaceY: layer.surfaceY,
-            surfaceWidth: layer.surfaceWidth,
-            surfaceHeight: layer.surfaceHeight,
-            textureSourceX: layer.textureSourceX,
-            textureSourceY: layer.textureSourceY,
-            textureSourceWidth: layer.textureSourceWidth,
-            textureSourceHeight: layer.textureSourceHeight,
-            transform: layer.transform,
-            scale120: layer.scale120,
-            compositionOrder: layer.compositionOrder,
-            opacity: layer.opacity,
-            opaque: layer.opaque,
-          ),
-        );
+        layers.add(layer);
       }
-      windows.add(
-        DenialWindow(
-          objectId: window.objectId,
-          objectKind: window.objectKind == generated.ObjectKind.Surface
-              ? 'surface'
-              : 'root_surface',
-          surfaceId: window.surfaceId,
-          windowId: window.windowId,
-          textureId: window.textureId,
-          title: title,
-          appId: appId,
-          width: window.width,
-          height: window.height,
-          surfaceX: window.surfaceX,
-          surfaceY: window.surfaceY,
-          surfaceWidth: window.surfaceWidth,
-          surfaceHeight: window.surfaceHeight,
-          textureSourceX: window.textureSourceX,
-          textureSourceY: window.textureSourceY,
-          textureSourceWidth: window.textureSourceWidth,
-          textureSourceHeight: window.textureSourceHeight,
-          geometryX: window.geometryX,
-          geometryY: window.geometryY,
-          geometryWidth: window.geometryWidth,
-          geometryHeight: window.geometryHeight,
-          monitorId: window.monitorId,
-          workspaceId: window.workspaceId,
-          transientParentObjectId: window.transientParentId == 0
-              ? null
-              : window.transientParentId,
-          minimized: window.minimized,
-          fullscreen: window.fullscreen,
-          maximized: window.maximized,
-          transform: window.transform,
-          scale120: window.scale120,
-          pinned: window.pinned,
-          suppressAnimations: window.suppressAnimations,
-          restoredAcrossFlutterRestart: restoredWindowIds.contains(
-            window.windowId,
-          ),
-          serverSideDecorated: window.serverSideDecorated,
-          opacity: window.opacity,
-          statusColorArgb: window.hasStatusColor
-              ? window.statusColorArgb
-              : null,
-          contentX: window.contentX,
-          contentY: window.contentY,
-          contentWidth: window.contentWidth,
-          contentHeight: window.contentHeight,
-          surfaceLayers: List<DenialSurfaceLayer>.unmodifiable(layers),
-          contentKind: contentKind,
-          opacityClass: switch (window.opacityClass) {
-            generated.WindowOpacityClass.BorderAlphaOnly =>
-              DenialWindowOpacityClass.borderAlphaOnly,
-            generated.WindowOpacityClass.FullyOpaque =>
-              DenialWindowOpacityClass.fullyOpaque,
-            generated.WindowOpacityClass.ContentTranslucent =>
-              DenialWindowOpacityClass.contentTranslucent,
-          },
-        ),
+      final transientParentId = window.transientParentId;
+      final decoded = DenialWindow(
+        objectId: objectId,
+        objectKind: window.objectKind == generated.ObjectKind.Surface
+            ? 'surface'
+            : 'root_surface',
+        surfaceId: surfaceId,
+        windowId: windowId,
+        textureId: textureId,
+        title: title,
+        appId: appId,
+        width: width,
+        height: height,
+        surfaceX: window.surfaceX,
+        surfaceY: window.surfaceY,
+        surfaceWidth: window.surfaceWidth,
+        surfaceHeight: window.surfaceHeight,
+        textureSourceX: window.textureSourceX,
+        textureSourceY: window.textureSourceY,
+        textureSourceWidth: window.textureSourceWidth,
+        textureSourceHeight: window.textureSourceHeight,
+        geometryX: window.geometryX,
+        geometryY: window.geometryY,
+        geometryWidth: window.geometryWidth,
+        geometryHeight: window.geometryHeight,
+        monitorId: window.monitorId,
+        workspaceId: window.workspaceId,
+        transientParentObjectId: transientParentId == 0
+            ? null
+            : transientParentId,
+        minimized: window.minimized,
+        fullscreen: window.fullscreen,
+        maximized: window.maximized,
+        transform: window.transform,
+        scale120: window.scale120,
+        pinned: window.pinned,
+        suppressAnimations: window.suppressAnimations,
+        restoredAcrossFlutterRestart: restoredWindowIds.contains(windowId),
+        serverSideDecorated: window.serverSideDecorated,
+        opacity: window.opacity,
+        statusColorArgb: window.hasStatusColor ? window.statusColorArgb : null,
+        contentX: window.contentX,
+        contentY: window.contentY,
+        contentWidth: window.contentWidth,
+        contentHeight: window.contentHeight,
+        surfaceLayers: List<DenialSurfaceLayer>.unmodifiable(layers),
+        contentKind: contentKind,
+        opacityClass: switch (window.opacityClass) {
+          generated.WindowOpacityClass.BorderAlphaOnly =>
+            DenialWindowOpacityClass.borderAlphaOnly,
+          generated.WindowOpacityClass.FullyOpaque =>
+            DenialWindowOpacityClass.fullyOpaque,
+          generated.WindowOpacityClass.ContentTranslucent =>
+            DenialWindowOpacityClass.contentTranslucent,
+        },
       );
+      // FlatBuffers getters parse their field on each access. Validate the
+      // materialized snapshot so geometry and layer fields are read only once.
+      if (!_finiteWindow(decoded)) {
+        rejectedStructuredMessages += 1;
+        return null;
+      }
+      windows.add(decoded);
     }
     if (!windowIds.containsAll(restoredWindowIds)) {
       rejectedStructuredMessages += 1;

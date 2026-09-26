@@ -273,6 +273,7 @@ class _DesktopWindowFrame extends ConsumerWidget {
       desktopWidget: desktopWidget,
       offscreenMinimized: offscreenMinimized,
       dragging: placement.dragging,
+      resizing: placement.resizing,
       layoutPreviewing: placement.layoutPreviewing,
       pixelAlignmentInset: placement.frameBorder,
       pixelGridScale: devicePixelRatio,
@@ -506,6 +507,7 @@ class _DesktopAnimatedWindowPosition extends ConsumerStatefulWidget {
     this.desktopWidget = false,
     this.offscreenMinimized = false,
     required this.dragging,
+    required this.resizing,
     required this.layoutPreviewing,
     this.pixelAlignmentInset,
     this.pixelGridScale,
@@ -524,6 +526,7 @@ class _DesktopAnimatedWindowPosition extends ConsumerStatefulWidget {
   final bool desktopWidget;
   final bool offscreenMinimized;
   final bool dragging;
+  final bool resizing;
   final bool layoutPreviewing;
   final double? pixelAlignmentInset;
   final double? pixelGridScale;
@@ -543,6 +546,7 @@ class _DesktopAnimatedWindowPositionState
   late final ValueNotifier<bool> _overviewTransitionCompleted;
   bool _overviewTransitionActive = false;
   bool _layoutPreviewExitActive = false;
+  bool _resizeJustEnded = false;
   Rect? _dragReleaseAnimationOrigin;
 
   @override
@@ -561,6 +565,7 @@ class _DesktopAnimatedWindowPositionState
   @override
   void didUpdateWidget(covariant _DesktopAnimatedWindowPosition oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _resizeJustEnded = oldWidget.resizing && !widget.resizing;
     final layoutPreviewGeometryChanged =
         widget.rect != oldWidget.rect &&
         (widget.layoutPreviewing || oldWidget.layoutPreviewing);
@@ -643,7 +648,10 @@ class _DesktopAnimatedWindowPositionState
         .translationFor(widget.placementObjectId);
     final previewMotionActive =
         widget.layoutPreviewing || _layoutPreviewExitActive;
-    final positionDuration = widget.dragging
+    // Also commit the release rectangle immediately if the final pointer
+    // sample and transaction end arrive in the same Flutter frame.
+    final positionDuration =
+        widget.dragging || widget.resizing || _resizeJustEnded
         ? Duration.zero
         : previewMotionActive && widget.duration != Duration.zero
         ? Motion.layoutTileReflow

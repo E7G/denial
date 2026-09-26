@@ -48,6 +48,7 @@ const LAYOUT_DROP_HYSTERESIS_FRACTION: f64 = 0.04;
 pub(crate) enum LayoutDropMode {
     Swap,
     Split(LayoutDirection),
+    InsertColumn { before: bool },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -429,8 +430,27 @@ impl WaylandFrontend {
         let output = self
             .outputs
             .iter()
-            .find(|output| output.logical_geometry.contains(location))?
-            .id;
+            .find(|output| output.logical_geometry.contains(location))?;
+        let axis = self.scrolling_layout_axis_for_output(output);
+        let work_area = self.maximize_work_area(Some(&output.output), output.logical_geometry);
+        let output = output.id;
+        let space = LayoutSpace::new(output, self.active_workspace(output));
+        if let Some(window_id) = self.window_root_surface(window).map(|root| root.id())
+            && let Some((target, before)) = self.window_layout.column_insertion_target(
+                space,
+                &window_id,
+                work_area,
+                self.layout_gap(),
+                location,
+            )
+            && let Some(target) = self.window_for_layout_id(&target)
+            && !self.window_has_constrained_state(&target)
+        {
+            return Some(LayoutDropTarget {
+                window: target,
+                mode: LayoutDropMode::InsertColumn { before },
+            });
+        }
         let target = if let Some(target) = self.layout_window_at(location.to_f64()) {
             target
         } else {
@@ -462,6 +482,7 @@ impl WaylandFrontend {
             .map(|previous| previous.mode);
         let mode = layout_drop_mode_for_kind(
             self.window_layout.kind(),
+            axis,
             self.window_geometry_target(&target),
             location,
             previous_mode,
@@ -506,7 +527,14 @@ impl WaylandFrontend {
             .collect::<Vec<_>>();
         let mut preview = self.window_layout.snapshot();
         let changed = match target.mode() {
-            LayoutDropMode::Swap => preview.swap(&window_id, &target_id),
+            LayoutDropMode::InsertColumn { before } => {
+                preview.move_to_column(&window_id, &target_id, before)
+            }
+            LayoutDropMode::Swap => preview.swap(
+                &window_id,
+                &target_id,
+                self.settings.scrolling_layout_preserve_swap_sizes(),
+            ),
             LayoutDropMode::Split(direction) => {
                 let Some(space) = preview.space_for(&target_id) else {
                     return Vec::new();
@@ -594,12 +622,55 @@ impl WaylandFrontend {
         self.window_for_layout_id(&neighbor)
     }
 
+    #[cfg(feature = "flutter")]
+    pub(crate) fn resize_layout_window_from_keyboard(
+        &mut self,
+        window: &Window,
+        action: super::super::keyboard_resize::KeyboardResize,
+    ) -> Vec<(Window, Rectangle<i32, Logical>)> {
+        let step = self.settings.keyboard_resize_step();
+        self.refresh_layout_minimum_sizes();
+        self.prepare_layout_arrangement();
+        self.resize_layout_window_with(window, |layout, window, work_area, gap| {
+            let (axis, change) = action.layout_change(work_area, step);
+            layout.resize_from_keyboard(super::super::window_layout::LayoutKeyboardResizeRequest {
+                window,
+                work_area,
+                gap,
+                axis,
+                change,
+            })
+        })
+    }
+
     pub(crate) fn resize_layout_window(
         &mut self,
         window: &Window,
         edges: LayoutResizeEdges,
         delta_x: f64,
         delta_y: f64,
+    ) -> Vec<(Window, Rectangle<i32, Logical>)> {
+        self.resize_layout_window_with(window, |layout, window, work_area, gap| {
+            layout.resize(LayoutResizeRequest {
+                window,
+                work_area,
+                gap,
+                delta_x,
+                delta_y,
+                edges,
+            })
+        })
+    }
+
+    fn resize_layout_window_with(
+        &mut self,
+        window: &Window,
+        resize: impl FnOnce(
+            &mut dyn super::super::window_layout::WindowLayout<ObjectId>,
+            ObjectId,
+            Rectangle<i32, Logical>,
+            i32,
+        ) -> bool,
     ) -> Vec<(Window, Rectangle<i32, Logical>)> {
         let Some(window_id) = self.window_root_surface(window).map(|root| root.id()) else {
             return Vec::new();
@@ -623,14 +694,7 @@ impl WaylandFrontend {
             .into_iter()
             .map(|placement| (placement.window, placement.geometry))
             .collect::<HashMap<_, _>>();
-        if !self.window_layout.resize(LayoutResizeRequest {
-            window: window_id,
-            work_area,
-            gap,
-            delta_x,
-            delta_y,
-            edges,
-        }) {
+        if !resize(self.window_layout.as_mut(), window_id, work_area, gap) {
             return Vec::new();
         }
         self.arrange_layout_windows();
@@ -656,7 +720,11 @@ impl WaylandFrontend {
         let Some(second) = self.window_root_surface(second).map(|root| root.id()) else {
             return false;
         };
-        if !self.window_layout.swap(&first, &second) {
+        if !self.window_layout.swap(
+            &first,
+            &second,
+            self.settings.scrolling_layout_preserve_swap_sizes(),
+        ) {
             return false;
         }
         // A swap exchanges leaves, including across layout spaces. The
@@ -701,7 +769,14 @@ impl WaylandFrontend {
                 return true;
             };
             let changed = match target.mode {
-                LayoutDropMode::Swap => self.window_layout.swap(&window_id, &target_id),
+                LayoutDropMode::InsertColumn { before } => self
+                    .window_layout
+                    .move_to_column(&window_id, &target_id, before),
+                LayoutDropMode::Swap => self.window_layout.swap(
+                    &window_id,
+                    &target_id,
+                    self.settings.scrolling_layout_preserve_swap_sizes(),
+                ),
                 LayoutDropMode::Split(direction) => self
                     .window_layout
                     .move_beside(&window_id, &target_id, direction),
@@ -1428,17 +1503,34 @@ fn layout_drop_distance(geometry: Rectangle<i32, Logical>, location: Point<i32, 
 
 fn layout_drop_mode_for_kind(
     kind: WindowLayoutKind,
+    scrolling_axis: LayoutAxis,
     geometry: Rectangle<i32, Logical>,
     location: Point<i32, Logical>,
     previous: Option<LayoutDropMode>,
 ) -> LayoutDropMode {
-    if matches!(
-        kind,
-        WindowLayoutKind::Dwindle | WindowLayoutKind::Scrolling
-    ) {
-        layout_drop_mode(geometry, location, previous)
-    } else {
-        LayoutDropMode::Swap
+    match kind {
+        WindowLayoutKind::Dwindle => layout_drop_mode(geometry, location, previous),
+        WindowLayoutKind::Scrolling => {
+            // A drop can stack leaves across the strip, but never divide a
+            // column along the scrolling axis. Those edges are swap targets.
+            let allowed_mode = |mode| match (scrolling_axis, mode) {
+                (
+                    LayoutAxis::Horizontal,
+                    LayoutDropMode::Split(LayoutDirection::Left | LayoutDirection::Right),
+                )
+                | (
+                    LayoutAxis::Vertical,
+                    LayoutDropMode::Split(LayoutDirection::Up | LayoutDirection::Down),
+                ) => LayoutDropMode::Swap,
+                _ => mode,
+            };
+            allowed_mode(layout_drop_mode(
+                geometry,
+                location,
+                previous.map(allowed_mode),
+            ))
+        }
+        WindowLayoutKind::Stacking => LayoutDropMode::Swap,
     }
 }
 
@@ -1461,7 +1553,7 @@ fn layout_drop_mode(
 
     if let Some(previous) = previous {
         match previous {
-            LayoutDropMode::Swap => {
+            LayoutDropMode::Swap | LayoutDropMode::InsertColumn { .. } => {
                 let edge = LAYOUT_DROP_EDGE_FRACTION - LAYOUT_DROP_HYSTERESIS_FRACTION;
                 if x >= edge && x <= 1.0 - edge && y >= edge && y <= 1.0 - edge {
                     return LayoutDropMode::Swap;
@@ -1602,13 +1694,80 @@ mod tests {
         let geometry = rect(0, 0, 1000, 600);
         let top_edge = Point::from((500, 10));
         assert_eq!(
-            layout_drop_mode_for_kind(WindowLayoutKind::Scrolling, geometry, top_edge, None,),
+            layout_drop_mode_for_kind(
+                WindowLayoutKind::Scrolling,
+                LayoutAxis::Horizontal,
+                geometry,
+                top_edge,
+                None
+            ),
             LayoutDropMode::Split(LayoutDirection::Up),
         );
         assert_eq!(
-            layout_drop_mode_for_kind(WindowLayoutKind::Stacking, geometry, top_edge, None),
+            layout_drop_mode_for_kind(
+                WindowLayoutKind::Stacking,
+                LayoutAxis::Horizontal,
+                geometry,
+                top_edge,
+                None
+            ),
             LayoutDropMode::Swap,
         );
+    }
+
+    #[test]
+    fn scrolling_drop_swaps_on_the_strip_axis_and_splits_across_it() {
+        let geometry = rect(100, 200, 1000, 600);
+        for axis in [LayoutAxis::Horizontal, LayoutAxis::Vertical] {
+            for (point, direction, edge_axis) in [
+                ((110, 500), LayoutDirection::Left, LayoutAxis::Horizontal),
+                ((1090, 500), LayoutDirection::Right, LayoutAxis::Horizontal),
+                ((600, 210), LayoutDirection::Up, LayoutAxis::Vertical),
+                ((600, 790), LayoutDirection::Down, LayoutAxis::Vertical),
+            ] {
+                for previous in [
+                    None,
+                    Some(LayoutDropMode::Swap),
+                    Some(LayoutDropMode::Split(direction)),
+                    Some(LayoutDropMode::InsertColumn { before: true }),
+                ] {
+                    assert_eq!(
+                        layout_drop_mode_for_kind(
+                            WindowLayoutKind::Scrolling,
+                            axis,
+                            geometry,
+                            Point::from(point),
+                            previous
+                        ),
+                        if axis == edge_axis {
+                            LayoutDropMode::Swap
+                        } else {
+                            LayoutDropMode::Split(direction)
+                        },
+                    );
+                    assert_eq!(
+                        layout_drop_mode_for_kind(
+                            WindowLayoutKind::Dwindle,
+                            axis,
+                            geometry,
+                            Point::from(point),
+                            previous
+                        ),
+                        LayoutDropMode::Split(direction),
+                    );
+                }
+            }
+            assert_eq!(
+                layout_drop_mode_for_kind(
+                    WindowLayoutKind::Scrolling,
+                    axis,
+                    geometry,
+                    Point::from((600, 500)),
+                    None
+                ),
+                LayoutDropMode::Swap,
+            );
+        }
     }
 
     #[test]

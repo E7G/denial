@@ -56,10 +56,18 @@ pub(super) struct AudioDeviceState {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum SystemControlEvent {
-    AudioLevel { level: f64, request_serial: u32 },
+    AudioLevel {
+        level: f64,
+        muted: bool,
+        limit_reached: bool,
+        request_serial: u32,
+    },
     AudioStreams(Vec<AudioStreamState>),
     AudioDevices(Vec<AudioDeviceState>),
-    BrightnessLevel { monitor_id: i64, level: f64 },
+    BrightnessLevel {
+        monitor_id: i64,
+        level: f64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

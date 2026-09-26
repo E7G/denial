@@ -2,28 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/power_profile.dart';
 import 'system_io.dart';
 
-/// Canonical power-profile identifiers.
-abstract final class PowerProfile {
-  static const String powerSave = 'power-save';
-  static const String balanced = 'balanced';
-  static const String performance = 'performance';
-
-  /// Cycles power-save -> balanced -> performance -> power-save.
-  static String next(String current) => switch (current) {
-    powerSave => balanced,
-    balanced => performance,
-    _ => powerSave,
-  };
-
-  static String? normalize(String? value) => switch ((value ?? '').trim()) {
-    'power-save' || 'power-saver' || 'powersave' || 'power_save' => powerSave,
-    'performance' => performance,
-    'balanced' => balanced,
-    _ => null,
-  };
-}
+export '../models/power_profile.dart';
 
 final powerProfileServiceProvider = Provider<PowerProfileService>((ref) {
   return const PowerProfileService();
@@ -42,17 +24,19 @@ class PowerProfileService {
   }
 
   Future<void> write(String profile) async {
+    Socket? socket;
     try {
-      final socket = await Socket.connect(
+      socket = await Socket.connect(
         InternetAddress(_socketPath, type: InternetAddressType.unix),
         0,
         timeout: const Duration(milliseconds: 700),
       );
       socket.write('$profile\n');
       await socket.flush();
-      socket.destroy();
     } on Object {
       // Powerd may be absent during local runs.
+    } finally {
+      socket?.destroy();
     }
   }
 }

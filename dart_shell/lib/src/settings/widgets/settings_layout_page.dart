@@ -17,6 +17,7 @@ class SettingsLayoutPage extends StatelessWidget {
     required this.settings,
     required this.displayLayout,
     required this.onWindowLayoutChanged,
+    required this.onScrollingLayoutPreserveSwapSizesChanged,
     required this.onScrollingLayoutWheelSpeedChanged,
     required this.onScrollingLayoutWheelUpDirectionChanged,
     required this.onWorkspacesEnabledChanged,
@@ -35,6 +36,7 @@ class SettingsLayoutPage extends StatelessWidget {
   final ShellLayoutSettings settings;
   final DisplayLayout? displayLayout;
   final ValueChanged<DesktopWindowLayout> onWindowLayoutChanged;
+  final ValueChanged<bool> onScrollingLayoutPreserveSwapSizesChanged;
   final ValueChanged<double> onScrollingLayoutWheelSpeedChanged;
   final ValueChanged<ScrollingLayoutWheelUpDirection>
   onScrollingLayoutWheelUpDirectionChanged;
@@ -97,6 +99,17 @@ class SettingsLayoutPage extends StatelessWidget {
                 ],
               ),
             ),
+            if (settings.windowLayout == DesktopWindowLayout.scrolling)
+              SettingsSection(
+                title: l10n.settingsScrollingLayoutSwapTitle,
+                child: SettingsToggle(
+                  value: settings.scrollingLayoutPreserveSwapSizes,
+                  label: l10n.settingsScrollingLayoutPreserveSwapSizes,
+                  description:
+                      l10n.settingsScrollingLayoutPreserveSwapSizesDescription,
+                  onChanged: onScrollingLayoutPreserveSwapSizesChanged,
+                ),
+              ),
             if (settings.windowLayout == DesktopWindowLayout.scrolling)
               SettingsSection(
                 title: l10n.settingsScrollingLayoutWheelTitle,

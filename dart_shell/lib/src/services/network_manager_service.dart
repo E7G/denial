@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dbus/dbus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 import 'network_backend.dart';
 
@@ -59,7 +59,7 @@ class NetworkManagerService implements NetworkBackend {
   Timer? _refreshTimer;
   bool _started = false;
   bool _disposed = false;
-  bool _refreshing = false;
+  Completer<void>? _refreshCompletion;
   bool _refreshAgain = false;
   NetworkSnapshot _current = NetworkSnapshot.unavailable();
 
@@ -70,10 +70,9 @@ class NetworkManagerService implements NetworkBackend {
   NetworkSnapshot get currentSnapshot => _current;
 
   @override
-  Future<void> start() async {
-    if (_started || _disposed) {
-      return;
-    }
+  Future<void> start() {
+    if (_disposed) return Future<void>.value();
+    if (_started) return _refreshCompletion?.future ?? Future<void>.value();
     _started = true;
     _signalSubscription = DBusSignalStream(
       _client,
@@ -90,34 +89,39 @@ class NetworkManagerService implements NetworkBackend {
             _scheduleRefresh(immediate: true);
           }
         });
-    await refresh();
+    return refresh();
   }
 
   @override
-  Future<void> refresh() async {
-    if (_disposed) {
-      return;
-    }
-    if (_refreshing) {
-      _refreshAgain = true;
-      return;
-    }
-    _refreshing = true;
+  Future<void> refresh() {
+    if (_disposed) return Future<void>.value();
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _refreshAgain = true;
+    if (_refreshCompletion case final completion?) return completion.future;
+    final completion = _refreshCompletion = Completer<void>();
+    unawaited(_refreshSnapshots(completion));
+    return completion.future;
+  }
+
+  Future<void> _refreshSnapshots(Completer<void> completion) async {
     try {
-      final snapshot = await _readSnapshot();
-      if (!_disposed) {
-        _emit(snapshot);
-      }
-    } on Object {
-      if (!_disposed) {
-        _emit(NetworkSnapshot.unavailable());
-      }
-    } finally {
-      _refreshing = false;
-      if (_refreshAgain && !_disposed) {
+      while (_refreshAgain && !_disposed) {
         _refreshAgain = false;
-        _scheduleRefresh(immediate: true);
+        _refreshTimer?.cancel();
+        _refreshTimer = null;
+        try {
+          final snapshot = await _readSnapshot();
+          _emit(snapshot);
+        } on Object {
+          _emit(NetworkSnapshot.unavailable());
+        }
       }
+      completion.complete();
+    } on Object catch (error, stackTrace) {
+      completion.completeError(error, stackTrace);
+    } finally {
+      _refreshCompletion = null;
     }
   }
 
@@ -154,29 +158,23 @@ class NetworkManagerService implements NetworkBackend {
     final saved = network.savedNetworkPath;
     if (saved != null) {
       await _root
-          .callMethod(
-            _managerInterface,
-            'ActivateConnection',
-            <DBusValue>[DBusObjectPath(saved), device, accessPoint],
-            replySignature: DBusSignature('o'),
-          )
+          .callMethod(_managerInterface, 'ActivateConnection', <DBusValue>[
+            DBusObjectPath(saved),
+            device,
+            accessPoint,
+          ], replySignature: DBusSignature('o'))
           .timeout(_methodTimeout);
       return;
     }
 
     final settings = buildWifiConnectionSettings(network, password: password);
     await _root
-        .callMethod(
-          _managerInterface,
-          'AddAndActivateConnection2',
-          <DBusValue>[
-            settings,
-            device,
-            accessPoint,
-            DBusDict.stringVariant(const <String, DBusValue>{}),
-          ],
-          replySignature: DBusSignature('ooa{sv}'),
-        )
+        .callMethod(_managerInterface, 'AddAndActivateConnection2', <DBusValue>[
+          settings,
+          device,
+          accessPoint,
+          DBusDict.stringVariant(const <String, DBusValue>{}),
+        ], replySignature: DBusSignature('ooa{sv}'))
         .timeout(_methodTimeout);
   }
 
@@ -187,12 +185,9 @@ class NetworkManagerService implements NetworkBackend {
       return;
     }
     await _root
-        .callMethod(
-          _managerInterface,
-          'DeactivateConnection',
-          <DBusValue>[DBusObjectPath(activeConnection)],
-          replySignature: DBusSignature(''),
-        )
+        .callMethod(_managerInterface, 'DeactivateConnection', <DBusValue>[
+          DBusObjectPath(activeConnection),
+        ], replySignature: DBusSignature(''))
         .timeout(_methodTimeout);
   }
 
@@ -216,22 +211,26 @@ class NetworkManagerService implements NetworkBackend {
   }
 
   Future<NetworkSnapshot> _readSnapshot() async {
-    if (!await _client.nameHasOwner(_serviceName).timeout(_readTimeout)) {
+    if (!await _client.nameHasOwner(_serviceName).timeout(_readTimeout) ||
+        _disposed) {
       return NetworkSnapshot.unavailable();
     }
 
-    final rootProperties = await _root
-        .getAllProperties(_managerInterface)
-        .timeout(_readTimeout);
-    final permissions = await _readPermissions();
-    final deviceReply = await _root
-        .callMethod(
-          _managerInterface,
-          'GetDevices',
-          const <DBusValue>[],
-          replySignature: DBusSignature('ao'),
-        )
-        .timeout(_readTimeout);
+    // These independent reads share one round trip window. Device/AP reads
+    // remain bounded by the existing per-batch limit below.
+    final (rootProperties, permissions, deviceReply) = await (
+      _root.getAllProperties(_managerInterface).timeout(_readTimeout),
+      _readPermissions(),
+      _root
+          .callMethod(
+            _managerInterface,
+            'GetDevices',
+            const <DBusValue>[],
+            replySignature: DBusSignature('ao'),
+          )
+          .timeout(_readTimeout),
+    ).wait;
+    if (_disposed) return NetworkSnapshot.unavailable();
     final devicePaths = deviceReply.returnValues.first
         .asObjectPathArray()
         .take(_maxDevices)
@@ -262,6 +261,7 @@ class NetworkManagerService implements NetworkBackend {
     final wifiDevices = deviceSnapshots
         .whereType<_WifiDeviceSnapshot>()
         .toList();
+    if (_disposed) return NetworkSnapshot.unavailable();
 
     final wirelessEnabled = _boolean(rootProperties, 'WirelessEnabled');
     final hardwareEnabled = _boolean(rootProperties, 'WirelessHardwareEnabled');
@@ -288,49 +288,48 @@ class NetworkManagerService implements NetworkBackend {
       return rightActive.compareTo(leftActive);
     });
     final primaryDevice = wifiDevices.first;
-    final networkPaths = <String>[];
+    final accessPointDevices = <String, _WifiDeviceSnapshot>{};
     for (final device in wifiDevices) {
       for (final path in device.accessPoints) {
-        if (networkPaths.length == _maxAccessPoints) {
+        if (accessPointDevices.length == _maxAccessPoints) {
           break;
         }
-        if (!networkPaths.contains(path)) {
-          networkPaths.add(path);
-        }
+        accessPointDevices.putIfAbsent(path, () => device);
       }
     }
 
-    final candidates = (await _mapInBatches(networkPaths, _readBatchSize, (
-      path,
-    ) async {
-      final properties = await _tryGetAll(path, _accessPointInterface);
-      final ssidBytes = _bytes(properties, 'Ssid');
-      if (ssidBytes.isEmpty || ssidBytes.length > 32) {
-        return null;
-      }
-      final device = wifiDevices.firstWhere(
-        (candidate) => candidate.accessPoints.contains(path),
-        orElse: () => primaryDevice,
-      );
-      final security = classifyWifiSecurity(
-        flags: _uint32(properties, 'Flags'),
-        wpaFlags: _uint32(properties, 'WpaFlags'),
-        rsnFlags: _uint32(properties, 'RsnFlags'),
-      );
-      return WifiNetwork(
-        ssid: utf8.decode(ssidBytes, allowMalformed: true),
-        ssidBytes: ssidBytes,
-        security: security,
-        strength: _byte(properties, 'Strength'),
-        frequency: _uint32(properties, 'Frequency'),
-        devicePath: device.path,
-        networkPath: path,
-        savedNetworkPath: null,
-        connected: device.state == 100 && device.activeAccessPointPath == path,
-        available: true,
-      );
-    })).whereType<WifiNetwork>().toList(growable: false);
+    final candidates = (await _mapInBatches(
+      accessPointDevices.keys,
+      _readBatchSize,
+      (path) async {
+        final properties = await _tryGetAll(path, _accessPointInterface);
+        final ssidBytes = _bytes(properties, 'Ssid');
+        if (ssidBytes.isEmpty || ssidBytes.length > 32) {
+          return null;
+        }
+        final device = accessPointDevices[path]!;
+        final security = classifyWifiSecurity(
+          flags: _uint32(properties, 'Flags'),
+          wpaFlags: _uint32(properties, 'WpaFlags'),
+          rsnFlags: _uint32(properties, 'RsnFlags'),
+        );
+        return WifiNetwork(
+          ssid: utf8.decode(ssidBytes, allowMalformed: true),
+          ssidBytes: ssidBytes,
+          security: security,
+          strength: _byte(properties, 'Strength'),
+          frequency: _uint32(properties, 'Frequency'),
+          devicePath: device.path,
+          networkPath: path,
+          savedNetworkPath: null,
+          connected:
+              device.state == 100 && device.activeAccessPointPath == path,
+          available: true,
+        );
+      },
+    )).whereType<WifiNetwork>().toList(growable: false);
 
+    if (_disposed) return NetworkSnapshot.unavailable();
     final savedConnections = await _readSavedConnections();
     final networks = normalizeWifiNetworks(
       candidates,
@@ -467,10 +466,11 @@ class NetworkManagerService implements NetworkBackend {
     String path,
     String interface,
   ) async {
+    if (_disposed) return const {};
     try {
-      return await _object(
-        path,
-      ).getAllProperties(interface).timeout(_readTimeout);
+      return await _object(path)
+          .getAllProperties(interface)
+          .timeout(_readTimeout);
     } on Object {
       return const <String, DBusValue>{};
     }
@@ -491,7 +491,7 @@ class NetworkManagerService implements NetworkBackend {
   }
 
   void _emit(NetworkSnapshot snapshot) {
-    if (snapshot == _current) {
+    if (_disposed || snapshot == _current) {
       return;
     }
     _current = snapshot;
@@ -506,6 +506,7 @@ class NetworkManagerService implements NetworkBackend {
       return;
     }
     _disposed = true;
+    _refreshAgain = false;
     _refreshTimer?.cancel();
     await _signalSubscription?.cancel();
     await _ownerSubscription?.cancel();

@@ -212,6 +212,47 @@ void main() {
     });
   });
 
+  test('keyboard resize step survives layout switches and document saves', () {
+    expect(const ShellSettings().layout.keyboardResizeStep, '2%');
+    for (final step in ['2%', '0.5%', '16px', '32']) {
+      var settings = ShellSettings.fromJson(<String, Object?>{
+        'layout': <String, Object?>{
+          'windowLayout': 'scrolling',
+          'keyboardResizeStep': step,
+        },
+      });
+      for (final mode in DesktopWindowLayout.values) {
+        final next = settings.copyWith(
+          layout: settings.layout.copyWith(windowLayout: mode),
+        );
+        final document = next.toJson();
+        expect((document['layout'] as Map)['keyboardResizeStep'], step);
+        settings = ShellSettings.fromJson(document);
+        expect(settings.layout.keyboardResizeStep, step);
+        expect(settings.layout.windowLayout, mode);
+      }
+    }
+  });
+
+  test(
+    'keyboard resize step participates in settings equality and patches',
+    () {
+      const previous = ShellSettings();
+      final next = previous.copyWith(
+        layout: previous.layout.copyWith(keyboardResizeStep: '16px'),
+      );
+      expect(next.layout, isNot(previous.layout));
+      expect(next.differenceFrom(previous), <String, Object?>{
+        'layout': <String, Object?>{'keyboardResizeStep': '16px'},
+      });
+      expect(ShellSettings.fromJson(next.toJson()).layout, next.layout);
+      expect(
+        ShellSettings.fromJson(<String, Object?>{}).layout.keyboardResizeStep,
+        '2%',
+      );
+    },
+  );
+
   test('window layout persists and produces a typed patch', () {
     const previous = ShellSettings();
     final next = previous.copyWith(
@@ -264,6 +305,29 @@ void main() {
         'workspaceSwitchingOrientation': 'vertical',
       },
     });
+  });
+
+  test('scrolling swap sizes default on and persist in typed patches', () {
+    const previous = ShellSettings();
+    expect(previous.layout.scrollingLayoutPreserveSwapSizes, isTrue);
+    final next = previous.copyWith(
+      layout: previous.layout.copyWith(scrollingLayoutPreserveSwapSizes: false),
+    );
+    expect(next.layout, isNot(previous.layout));
+    expect(ShellSettings.fromJson(next.toJson()).layout, next.layout);
+    expect(next.differenceFrom(previous), <String, Object?>{
+      'layout': <String, Object?>{'scrollingLayoutPreserveSwapSizes': false},
+    });
+    for (final value in [null, 'false', 1]) {
+      expect(
+        ShellSettings.fromJson(<String, Object?>{
+          'layout': <String, Object?>{
+            'scrollingLayoutPreserveSwapSizes': value,
+          },
+        }).layout.scrollingLayoutPreserveSwapSizes,
+        isTrue,
+      );
+    }
   });
 
   test('scrolling layout wheel settings persist and produce a typed patch', () {

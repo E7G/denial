@@ -1182,6 +1182,172 @@ fn focused_window(state: &RuntimeState) -> Option<Window> {
 }
 
 #[cfg(feature = "flutter")]
+pub(super) fn resize_focused_toplevel(
+    state: &mut RuntimeState,
+    action: super::super::keyboard_resize::KeyboardResize,
+) -> bool {
+    let Some(frontend) = state.wayland.as_ref() else {
+        return false;
+    };
+    // Do not compete with an interactive grab or resize mobile full-output windows.
+    if frontend.mobile_shell
+        || frontend.compositor_pointer_grab_active
+        || frontend
+            .seat
+            .get_pointer()
+            .is_some_and(|pointer| pointer.is_grabbed())
+        || frontend
+            .seat
+            .get_touch()
+            .is_some_and(|touch| touch.is_grabbed())
+    {
+        return false;
+    }
+    if let Some(window_id) = focused_local_window(state) {
+        return resize_local_toplevel(state, window_id, action);
+    }
+    let Some(window) = focused_window(state) else {
+        return false;
+    };
+    let Some(managed) = ManagedWindow::new(&window) else {
+        return false;
+    };
+    let facts = managed.facts();
+    let presentation = frontend.managed_window_presentation(&window);
+    if facts.override_redirect
+        || facts.client_state.resizing
+        || presentation.fullscreen
+        || presentation.maximized
+        || frontend.window_geometry_locked(&window)
+    {
+        return false;
+    }
+    if frontend.window_is_layout_managed(&window) {
+        let changed = state
+            .wayland
+            .as_mut()
+            .expect("missing Wayland frontend")
+            .resize_layout_window_from_keyboard(&window, action);
+        if changed.is_empty() {
+            return false;
+        }
+        for (affected, geometry) in changed {
+            // Publish every sibling moved by the split, keeping layout geometry
+            // out of the floating-window placement/restore store.
+            queue_transient_window_placement(
+                state,
+                &affected,
+                geometry,
+                WindowPlacementPhase::End,
+                WindowPlacementChange::Resize,
+            );
+        }
+        state.scene_sync.mark_dirty();
+        return true;
+    }
+    if !managed_client_grab_allowed(state, &window) {
+        return false;
+    }
+    // Use the last requested geometry, so repeated keys accumulate even when a
+    // Wayland client has not yet acknowledged the preceding configure.
+    let current = frontend.window_geometry_target(&window);
+    let Some(output) = frontend.output_for_geometry(current) else {
+        return false;
+    };
+    let frame = frontend.maximize_work_area(Some(&output.output), output.logical_geometry);
+    let work_area = shell_content_geometry(frame, shell_draws_server_frame(&window));
+    let target = action.geometry(
+        current,
+        work_area,
+        facts.minimum_size,
+        facts.maximum_size,
+        frontend.settings.keyboard_resize_step(),
+    );
+    if target == current {
+        return false;
+    }
+    managed.prepare_shell_geometry(target);
+    let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
+    frontend.set_window_geometry_target_with_authority(
+        &window,
+        target,
+        WindowGeometryAuthority::Pending,
+    );
+    queue_window_placement(
+        state,
+        &window,
+        target,
+        WindowPlacementPhase::End,
+        WindowPlacementChange::Resize,
+    );
+    state.scene_sync.mark_dirty();
+    true
+}
+
+#[cfg(feature = "flutter")]
+fn resize_local_toplevel(
+    state: &mut RuntimeState,
+    window_id: u64,
+    action: super::super::keyboard_resize::KeyboardResize,
+) -> bool {
+    let frontend = state.wayland.as_ref().expect("missing Wayland frontend");
+    if frontend.input_layout.as_ref().is_some_and(|layout| {
+        layout
+            .windows
+            .iter()
+            .any(|region| region.window_id == window_id && region.geometry_locked())
+    }) {
+        return false;
+    }
+    let Some(geometry) = frontend.local_flutter_window_geometry(window_id) else {
+        return false;
+    };
+    let current = Rectangle::new(
+        Point::from((geometry.x.round() as i32, geometry.y.round() as i32)),
+        Size::from((
+            geometry.width.round() as i32,
+            geometry.height.round() as i32,
+        )),
+    );
+    let Some(output) = frontend.output_for_geometry(current) else {
+        return false;
+    };
+    let work_area = frontend.maximize_work_area(Some(&output.output), output.logical_geometry);
+    let target = action.geometry(
+        current,
+        work_area,
+        // Match the minimum used by LocalFlutterWindowGrab.
+        Size::from((64, 64)),
+        Size::from((0, 0)),
+        frontend.settings.keyboard_resize_step(),
+    );
+    if target == current {
+        return false;
+    }
+    state
+        .wayland
+        .as_mut()
+        .expect("missing Wayland frontend")
+        .set_local_flutter_window_global_geometry(
+            window_id,
+            WindowGeometry {
+                x: f64::from(target.loc.x),
+                y: f64::from(target.loc.y),
+                width: f64::from(target.size.w),
+                height: f64::from(target.size.h),
+            },
+        );
+    queue_local_flutter_window_placement(
+        state,
+        window_id,
+        WindowPlacementPhase::End,
+        WindowPlacementChange::Resize,
+    );
+    state.scene_sync.mark_dirty();
+    true
+}
+
+#[cfg(feature = "flutter")]
 pub(super) fn focus_toplevel_in_direction(
     state: &mut RuntimeState,
     direction: LayoutDirection,

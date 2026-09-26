@@ -152,9 +152,8 @@ class CursorThemeRepository {
           final relativePath =
               '${entry.key.name}/${index.toString().padLeft(3, '0')}.png';
           final png = await _normalizeCursorImage(cursor.images[index]);
-          await File(
-            p.join(temporary.path, relativePath),
-          ).writeAsBytes(png, flush: true);
+          await File(p.join(temporary.path, relativePath))
+              .writeAsBytes(png, flush: true);
           imagePaths[index] = relativePath;
         }
         manifestRoles[entry.key.name] = <String, Object>{
@@ -195,7 +194,7 @@ class CursorThemeRepository {
           rethrow;
         }
       }
-      return _loadManifest(destination);
+      return await _loadManifest(destination);
     } finally {
       if (await temporary.exists()) {
         await temporary.delete(recursive: true);

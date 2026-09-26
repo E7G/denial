@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -7,6 +8,17 @@ import 'app_localizations.dart';
 /// The translations for English (`en`).
 class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
+
+  @override
+  String get settingsScrollingLayoutSwapTitle => 'Scrolling swaps';
+
+  @override
+  String get settingsScrollingLayoutPreserveSwapSizes =>
+      'Keep window sizes when swapping';
+
+  @override
+  String get settingsScrollingLayoutPreserveSwapSizesDescription =>
+      'Keep each window’s width when swapping single-window columns on the same workspace and display. On vertical strips, keep height instead. Split columns keep their existing sizes.';
 
   @override
   String get homeResizeWidget => 'Resize widget';
@@ -3942,4 +3954,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String simPinRetries(int count) {
     return '$count attempts remaining';
   }
+
+  @override
+  String get settingsShortcutActionResizeGrowWidth => 'Grow window width';
+
+  @override
+  String get settingsShortcutActionResizeShrinkWidth => 'Shrink window width';
+
+  @override
+  String get settingsShortcutActionResizeGrowHeight => 'Grow window height';
+
+  @override
+  String get settingsShortcutActionResizeShrinkHeight => 'Shrink window height';
+
+  @override
+  String get settingsShortcutActionResetWindowHeight => 'Reset window height';
 }

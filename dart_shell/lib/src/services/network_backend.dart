@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:collection/collection.dart';
+import 'package:meta/meta.dart';
 
 enum NetworkConnectivityStatus {
   unavailable,
@@ -67,6 +68,23 @@ class WifiNetwork {
   }) : ssidBytes = List<int>.unmodifiable(ssidBytes),
        identity = identityFor(ssidBytes, security);
 
+  // Updates cannot change SSID or security, so retain their immutable data and
+  // encoded identity instead of copying and encoding them on every refresh.
+  WifiNetwork._updated(
+    WifiNetwork source, {
+    required this.devicePath,
+    required this.networkPath,
+    required this.savedNetworkPath,
+    required this.connected,
+    required this.available,
+    required this.supported,
+  }) : identity = source.identity,
+       ssid = source.ssid,
+       ssidBytes = source.ssidBytes,
+       security = source.security,
+       strength = source.strength,
+       frequency = source.frequency;
+
   final String identity;
   final String ssid;
   final List<int> ssidBytes;
@@ -93,7 +111,7 @@ class WifiNetwork {
       other is WifiNetwork &&
           other.identity == identity &&
           other.ssid == ssid &&
-          listEquals(other.ssidBytes, ssidBytes) &&
+          const ListEquality<int>().equals(other.ssidBytes, ssidBytes) &&
           other.security == security &&
           other.strength == strength &&
           other.frequency == frequency &&
@@ -128,12 +146,17 @@ class WifiNetwork {
     bool? available,
     bool? supported,
   }) {
-    return WifiNetwork(
-      ssid: ssid,
-      ssidBytes: ssidBytes,
-      security: security,
-      strength: strength,
-      frequency: frequency,
+    if ((devicePath == null || devicePath == this.devicePath) &&
+        (networkPath == null || networkPath == this.networkPath) &&
+        (savedNetworkPath == null ||
+            savedNetworkPath == this.savedNetworkPath) &&
+        (connected == null || connected == this.connected) &&
+        (available == null || available == this.available) &&
+        (supported == null || supported == this.supported)) {
+      return this;
+    }
+    return WifiNetwork._updated(
+      this,
       devicePath: devicePath ?? this.devicePath,
       networkPath: networkPath ?? this.networkPath,
       savedNetworkPath: savedNetworkPath ?? this.savedNetworkPath,
@@ -171,7 +194,7 @@ class SavedWifiConnectionInfo {
       other is SavedWifiConnectionInfo &&
           other.objectPath == objectPath &&
           other.name == name &&
-          listEquals(other.ssidBytes, ssidBytes) &&
+          const ListEquality<int>().equals(other.ssidBytes, ssidBytes) &&
           other.security == security &&
           other.identity == identity;
 
@@ -247,7 +270,7 @@ class NetworkSnapshot {
           other.wirelessHardwareEnabled == wirelessHardwareEnabled &&
           other.wirelessEnabled == wirelessEnabled &&
           other.status == status &&
-          listEquals(other.networks, networks) &&
+          const ListEquality<WifiNetwork>().equals(other.networks, networks) &&
           other.activeNetworkPath == activeNetworkPath &&
           other.devicePath == devicePath &&
           other.lastScan == lastScan &&
@@ -315,7 +338,7 @@ List<WifiNetwork> normalizeWifiNetworks(
   for (final saved in savedConnections) {
     savedByIdentity.putIfAbsent(saved.identity, () => saved);
   }
-  for (final entry in visible.entries.toList(growable: false)) {
+  for (final entry in visible.entries) {
     final saved = savedByIdentity.remove(entry.key);
     if (saved != null) {
       visible[entry.key] = entry.value.copyWith(
@@ -338,7 +361,12 @@ List<WifiNetwork> normalizeWifiNetworks(
     );
   }
 
-  final networks = visible.values.toList(growable: false)
+  // Most comparisons are decided before the name tie-breaker. Only normalize
+  // names that actually participate in a tie, at most once per distinct SSID.
+  final names = <String, String>{};
+  String sortName(WifiNetwork network) =>
+      names[network.ssid] ??= network.ssid.toLowerCase();
+  final networks = visible.values.toList()
     ..sort((left, right) {
       var result = _trueFirst(left.connected, right.connected);
       if (result != 0) {
@@ -353,11 +381,11 @@ List<WifiNetwork> normalizeWifiNetworks(
         return result;
       }
       result = right.strength.compareTo(left.strength);
-      return result != 0
-          ? result
-          : left.ssid.toLowerCase().compareTo(right.ssid.toLowerCase());
+      return result != 0 ? result : sortName(left).compareTo(sortName(right));
     });
-  return List<WifiNetwork>.unmodifiable(networks.take(maximum));
+  RangeError.checkNotNegative(maximum, 'maximum');
+  if (networks.length > maximum) networks.length = maximum;
+  return UnmodifiableListView(networks);
 }
 
 int _trueFirst(bool left, bool right) {

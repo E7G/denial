@@ -473,11 +473,15 @@ impl FlutterRuntime {
         match event {
             crate::system_controls::SystemControlEvent::AudioLevel {
                 level,
+                muted,
+                limit_reached,
                 request_serial,
             } => {
-                let mut packet = [0u8; 5];
+                let mut packet = [0u8; 7];
                 packet[0] = (level.clamp(0.0, 1.0) * 100.0).round() as u8;
-                packet[1..].copy_from_slice(&request_serial.to_le_bytes());
+                packet[1..5].copy_from_slice(&request_serial.to_le_bytes());
+                packet[5] = u8::from(*muted);
+                packet[6] = u8::from(*limit_reached);
                 self.host()
                     .engine()
                     .send_platform_message(AUDIO_STATE_CHANNEL, &packet)?;

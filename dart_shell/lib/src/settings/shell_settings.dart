@@ -1,8 +1,8 @@
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/utf8_size.dart';
 import '../models/display_layout.dart';
 import '../models/power_button_action.dart';
 import '../models/shell_popup_placement.dart';
@@ -267,6 +267,8 @@ class ShellAnimationSettings {
 class ShellLayoutSettings {
   const ShellLayoutSettings({
     this.windowLayout = DesktopWindowLayout.stacking,
+    this.keyboardResizeStep = '2%',
+    this.scrollingLayoutPreserveSwapSizes = true,
     this.scrollingLayoutWheelSpeed = scrollingLayoutWheelSpeedDefault,
     this.scrollingLayoutWheelUpDirection = ScrollingLayoutWheelUpDirection.left,
     this.workspacesEnabled = false,
@@ -283,6 +285,10 @@ class ShellLayoutSettings {
   });
 
   final DesktopWindowLayout windowLayout;
+
+  /// Native-validated pixel or percentage amount, preserved across UI saves.
+  final String keyboardResizeStep;
+  final bool scrollingLayoutPreserveSwapSizes;
   final double scrollingLayoutWheelSpeed;
   final ScrollingLayoutWheelUpDirection scrollingLayoutWheelUpDirection;
   final bool workspacesEnabled;
@@ -298,6 +304,8 @@ class ShellLayoutSettings {
 
   ShellLayoutSettings copyWith({
     DesktopWindowLayout? windowLayout,
+    String? keyboardResizeStep,
+    bool? scrollingLayoutPreserveSwapSizes,
     double? scrollingLayoutWheelSpeed,
     ScrollingLayoutWheelUpDirection? scrollingLayoutWheelUpDirection,
     bool? workspacesEnabled,
@@ -314,6 +322,10 @@ class ShellLayoutSettings {
   }) {
     return ShellLayoutSettings(
       windowLayout: windowLayout ?? this.windowLayout,
+      keyboardResizeStep: keyboardResizeStep ?? this.keyboardResizeStep,
+      scrollingLayoutPreserveSwapSizes:
+          scrollingLayoutPreserveSwapSizes ??
+          this.scrollingLayoutPreserveSwapSizes,
       scrollingLayoutWheelSpeed:
           scrollingLayoutWheelSpeed ?? this.scrollingLayoutWheelSpeed,
       scrollingLayoutWheelUpDirection:
@@ -342,6 +354,9 @@ class ShellLayoutSettings {
   bool operator ==(Object other) {
     return other is ShellLayoutSettings &&
         other.windowLayout == windowLayout &&
+        other.keyboardResizeStep == keyboardResizeStep &&
+        other.scrollingLayoutPreserveSwapSizes ==
+            scrollingLayoutPreserveSwapSizes &&
         other.scrollingLayoutWheelSpeed == scrollingLayoutWheelSpeed &&
         other.scrollingLayoutWheelUpDirection ==
             scrollingLayoutWheelUpDirection &&
@@ -360,6 +375,8 @@ class ShellLayoutSettings {
   @override
   int get hashCode => Object.hash(
     windowLayout,
+    keyboardResizeStep,
+    scrollingLayoutPreserveSwapSizes,
     scrollingLayoutWheelSpeed,
     scrollingLayoutWheelUpDirection,
     workspacesEnabled,
@@ -585,8 +602,7 @@ const int applicationEnvironmentMaximumValueBytes = 16 * 1024;
 const int applicationEnvironmentMaximumDesktopFileIdBytes = 4096;
 
 bool isValidApplicationEnvironmentVariableName(String name) {
-  if (name.isEmpty ||
-      utf8.encode(name).length > applicationEnvironmentMaximumNameBytes) {
+  if (name.isEmpty || name.length > applicationEnvironmentMaximumNameBytes) {
     return false;
   }
   final first = name.codeUnitAt(0);
@@ -612,8 +628,10 @@ bool isValidApplicationEnvironmentDesktopFileId(String desktopFileId) {
       desktopFileId.endsWith('.desktop') &&
       !desktopFileId.contains('/') &&
       !desktopFileId.contains('\u0000') &&
-      utf8.encode(desktopFileId).length <=
-          applicationEnvironmentMaximumDesktopFileIdBytes;
+      fitsUtf8ByteLimit(
+        desktopFileId,
+        applicationEnvironmentMaximumDesktopFileIdBytes,
+      );
 }
 
 @immutable
@@ -643,7 +661,7 @@ class ShellApplicationEnvironmentSettings {
       throw ArgumentError.value(name, 'name', 'invalid environment variable');
     }
     if (value != null &&
-        utf8.encode(value).length > applicationEnvironmentMaximumValueBytes) {
+        !fitsUtf8ByteLimit(value, applicationEnvironmentMaximumValueBytes)) {
       throw ArgumentError.value(
         value,
         'value',
@@ -796,8 +814,10 @@ Map<String, String?> _parseApplicationEnvironmentVariables(Object? value) {
         (entry.value == null || entry.value is String)) {
       final stringValue = entry.value as String?;
       if (stringValue == null ||
-          utf8.encode(stringValue).length <=
-              applicationEnvironmentMaximumValueBytes) {
+          fitsUtf8ByteLimit(
+            stringValue,
+            applicationEnvironmentMaximumValueBytes,
+          )) {
         variables[entry.key] = stringValue;
       }
     }
@@ -965,8 +985,16 @@ class ShellSettings {
     if (layout != previous.layout) {
       final before = previous.layout;
       final section = <String, Object?>{};
+      if (layout.keyboardResizeStep != before.keyboardResizeStep) {
+        section['keyboardResizeStep'] = layout.keyboardResizeStep;
+      }
       if (layout.windowLayout != before.windowLayout) {
         section['windowLayout'] = layout.windowLayout.name;
+      }
+      if (layout.scrollingLayoutPreserveSwapSizes !=
+          before.scrollingLayoutPreserveSwapSizes) {
+        section['scrollingLayoutPreserveSwapSizes'] =
+            layout.scrollingLayoutPreserveSwapSizes;
       }
       if (layout.scrollingLayoutWheelSpeed !=
           before.scrollingLayoutWheelSpeed) {
@@ -1139,6 +1167,9 @@ class ShellSettings {
       },
       'layout': <String, Object?>{
         'windowLayout': layout.windowLayout.name,
+        'keyboardResizeStep': layout.keyboardResizeStep,
+        'scrollingLayoutPreserveSwapSizes':
+            layout.scrollingLayoutPreserveSwapSizes,
         'scrollingLayoutWheelSpeed': layout.scrollingLayoutWheelSpeed,
         'scrollingLayoutWheelUpDirection':
             layout.scrollingLayoutWheelUpDirection.name,
@@ -1369,6 +1400,9 @@ class ShellSettings {
             : defaults.appearance.allowClientCursorSurfaces,
       ),
       layout: ShellLayoutSettings(
+        keyboardResizeStep: layoutJson['keyboardResizeStep'] is String
+            ? layoutJson['keyboardResizeStep'] as String
+            : defaults.layout.keyboardResizeStep,
         windowLayout: _enumValue(
           DesktopWindowLayout.values,
           layoutJson['windowLayout'],
@@ -1385,6 +1419,10 @@ class ShellSettings {
           layoutJson['scrollingLayoutWheelUpDirection'],
           defaults.layout.scrollingLayoutWheelUpDirection,
         ),
+        scrollingLayoutPreserveSwapSizes:
+            layoutJson['scrollingLayoutPreserveSwapSizes'] is bool
+            ? layoutJson['scrollingLayoutPreserveSwapSizes'] as bool
+            : defaults.layout.scrollingLayoutPreserveSwapSizes,
         workspacesEnabled: layoutJson['workspacesEnabled'] is bool
             ? layoutJson['workspacesEnabled'] as bool
             : defaults.layout.workspacesEnabled,

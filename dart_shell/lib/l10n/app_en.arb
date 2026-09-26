@@ -1,4 +1,16 @@
 {
+  "settingsScrollingLayoutSwapTitle": "Scrolling swaps",
+  "@settingsScrollingLayoutSwapTitle": {
+    "description": "Scrolling layout swap setting."
+  },
+  "settingsScrollingLayoutPreserveSwapSizes": "Keep window sizes when swapping",
+  "@settingsScrollingLayoutPreserveSwapSizes": {
+    "description": "Scrolling layout swap setting."
+  },
+  "settingsScrollingLayoutPreserveSwapSizesDescription": "Keep each window’s width when swapping single-window columns on the same workspace and display. On vertical strips, keep height instead. Split columns keep their existing sizes.",
+  "@settingsScrollingLayoutPreserveSwapSizesDescription": {
+    "description": "Scrolling layout swap setting."
+  },
   "@@locale": "en",
   "homeResizeWidget": "Resize widget",
   "@homeResizeWidget": {
@@ -5331,5 +5343,25 @@
   },
   "@simLocked": {
     "description": "Mobile connectivity and SIM authentication UI."
+  },
+  "settingsShortcutActionResizeGrowWidth": "Grow window width",
+  "@settingsShortcutActionResizeGrowWidth": {
+    "description": "Shortcut action label: grow window width."
+  },
+  "settingsShortcutActionResizeShrinkWidth": "Shrink window width",
+  "@settingsShortcutActionResizeShrinkWidth": {
+    "description": "Shortcut action label: shrink window width."
+  },
+  "settingsShortcutActionResizeGrowHeight": "Grow window height",
+  "@settingsShortcutActionResizeGrowHeight": {
+    "description": "Shortcut action label: grow window height."
+  },
+  "settingsShortcutActionResizeShrinkHeight": "Shrink window height",
+  "@settingsShortcutActionResizeShrinkHeight": {
+    "description": "Shortcut action label: shrink window height."
+  },
+  "settingsShortcutActionResetWindowHeight": "Reset window height",
+  "@settingsShortcutActionResetWindowHeight": {
+    "description": "Shortcut action label: reset window height."
   }
 }

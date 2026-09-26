@@ -114,12 +114,6 @@ SystemTrayStatus _status(String value) => switch (value.toLowerCase()) {
   _ => SystemTrayStatus.active,
 };
 
-int _statusPriority(SystemTrayStatus status) => switch (status) {
-  SystemTrayStatus.needsAttention => 0,
-  SystemTrayStatus.active => 1,
-  SystemTrayStatus.passive => 2,
-};
-
 SystemTrayIconPixmap? _bestPixmap(DBusValue? value) {
   if (value == null || value.signature != DBusSignature('a(iiay)')) {
     return null;

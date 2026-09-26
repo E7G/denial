@@ -1,15 +1,26 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../desktop/window_switcher_order.dart';
+
 enum DesktopWindowSwitcherPhase { pending, expanded, quickExit, expandedExit }
 
 enum DesktopWindowSwitcherDirection { next, previous }
 
 @immutable
 class DesktopWindowSwitcherState {
-  const DesktopWindowSwitcherState({
+  DesktopWindowSwitcherState({
     required this.sessionId,
-    required this.objectIds,
+    required List<int> objectIds,
+    required this.sourceObjectId,
+    required this.usesDesktopMotion,
+    required this.selectedIndex,
+    required this.phase,
+  }) : _order = WindowSwitcherOrder(objectIds);
+
+  const DesktopWindowSwitcherState._({
+    required this.sessionId,
+    required this._order,
     required this.sourceObjectId,
     required this.usesDesktopMotion,
     required this.selectedIndex,
@@ -17,7 +28,13 @@ class DesktopWindowSwitcherState {
   });
 
   final int sessionId;
-  final List<int> objectIds;
+  final WindowSwitcherOrder _order;
+
+  List<int> get objectIds => _order.objectIds;
+
+  bool contains(int objectId) => _order.contains(objectId);
+
+  int indexOf(int objectId) => _order.indexOf(objectId);
 
   /// The non-minimized window the switch begins from.
   ///
@@ -55,9 +72,11 @@ class DesktopWindowSwitcherState {
     int? selectedIndex,
     DesktopWindowSwitcherPhase? phase,
   }) {
-    return DesktopWindowSwitcherState(
+    return DesktopWindowSwitcherState._(
       sessionId: sessionId,
-      objectIds: objectIds ?? this.objectIds,
+      order: objectIds == null || identical(objectIds, this.objectIds)
+          ? _order
+          : WindowSwitcherOrder(objectIds),
       sourceObjectId: clearSourceObjectId
           ? null
           : sourceObjectId ?? this.sourceObjectId,
@@ -122,7 +141,9 @@ class DesktopWindowSwitcherController
       final nextIndex =
           ((selectedIndex < 0 ? 0 : selectedIndex) + step) % reconciled.length;
       state = current.copyWith(
-        objectIds: List<int>.unmodifiable(reconciled),
+        objectIds: listEquals(reconciled, current.objectIds)
+            ? current.objectIds
+            : reconciled,
         sourceObjectId: reconciledSource,
         clearSourceObjectId: reconciledSource == null,
         usesDesktopMotion: current.usesDesktopMotion || usesDesktopMotion,
@@ -138,7 +159,7 @@ class DesktopWindowSwitcherController
     }
     state = DesktopWindowSwitcherState(
       sessionId: _nextSessionId++,
-      objectIds: List<int>.unmodifiable(uniqueIds),
+      objectIds: uniqueIds,
       sourceObjectId: sourceObjectId,
       usesDesktopMotion: usesDesktopMotion,
       selectedIndex: switch ((sourceObjectId, direction)) {

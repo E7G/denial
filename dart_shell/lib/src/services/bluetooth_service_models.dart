@@ -1,4 +1,4 @@
-part of 'bluetooth_service.dart';
+part of 'bluetooth_backend.dart';
 
 enum BluetoothPairingRequestKind {
   pinCode,
@@ -155,7 +155,10 @@ class BluetoothSnapshot {
           other.powered == powered &&
           other.discovering == discovering &&
           other.pairable == pairable &&
-          listEquals(other.devices, devices);
+          const ListEquality<BluetoothDeviceInfo>().equals(
+            other.devices,
+            devices,
+          );
 
   @override
   int get hashCode => Object.hash(

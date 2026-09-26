@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../desktop/desktop_workspace.dart';
+import '../desktop/window_switcher_order.dart';
 import '../input/shell_interaction_registry.dart';
 import '../localization/denial_localizations.dart';
 import '../models/denial_window.dart';
@@ -23,7 +24,7 @@ const _windowSwitcherColors = ShellColorScheme.dark;
 /// frame returned here to that widget, exactly as it does for the overview.
 abstract final class DesktopWindowSwitcherLayout {
   static bool contains(DesktopWindowSwitcherState? switcher, int objectId) {
-    return switcher?.objectIds.contains(objectId) ?? false;
+    return switcher?.contains(objectId) ?? false;
   }
 
   static bool isSelected(DesktopWindowSwitcherState? switcher, int objectId) {
@@ -133,8 +134,8 @@ abstract final class DesktopWindowSwitcherLayout {
       return desktopOrder;
     }
 
-    final leftIndex = switcher.objectIds.indexOf(left.objectId);
-    final rightIndex = switcher.objectIds.indexOf(right.objectId);
+    final leftIndex = switcher.indexOf(left.objectId);
+    final rightIndex = switcher.indexOf(right.objectId);
     final leftParticipates = leftIndex >= 0;
     final rightParticipates = rightIndex >= 0;
     if (leftParticipates != rightParticipates) {
@@ -182,12 +183,12 @@ abstract final class DesktopWindowSwitcherLayout {
     required DesktopWindowSwitcherState switcher,
     required int desktopOrder,
   }) {
-    final leftDistance = _signedDistance(
+    final leftDistance = windowSwitcherSignedDistance(
       index: leftIndex,
       selectedIndex: switcher.selectedIndex,
       length: switcher.objectIds.length,
     ).abs();
-    final rightDistance = _signedDistance(
+    final rightDistance = windowSwitcherSignedDistance(
       index: rightIndex,
       selectedIndex: switcher.selectedIndex,
       length: switcher.objectIds.length,
@@ -241,8 +242,8 @@ abstract final class DesktopWindowSwitcherLayout {
       return source;
     }
 
-    final index = switcher.objectIds.indexOf(placement.objectId);
-    final distance = _signedDistance(
+    final index = switcher.indexOf(placement.objectId);
+    final distance = windowSwitcherSignedDistance(
       index: index,
       selectedIndex: switcher.selectedIndex,
       length: switcher.objectIds.length,
@@ -264,27 +265,11 @@ abstract final class DesktopWindowSwitcherLayout {
       );
     }
 
-    final sameSideDistances =
-        <int>[
-            for (
-              var candidateIndex = 0;
-              candidateIndex < switcher.objectIds.length;
-              candidateIndex += 1
-            )
-              _signedDistance(
-                index: candidateIndex,
-                selectedIndex: switcher.selectedIndex,
-                length: switcher.objectIds.length,
-              ),
-          ]
-          ..removeWhere(
-            (candidateDistance) =>
-                candidateDistance == 0 ||
-                candidateDistance.isNegative != distance.isNegative,
-          )
-          ..sort((left, right) => left.abs().compareTo(right.abs()));
-    final railIndex = sameSideDistances.indexOf(distance);
-    final railCount = math.max(1, sameSideDistances.length);
+    final (index: railIndex, count: railCount) = windowSwitcherRail(
+      distance: distance,
+      selectedIndex: switcher.selectedIndex,
+      length: switcher.objectIds.length,
+    );
     final railSpacing =
         available.height *
         (railCount <= 2 ? 0.36 : 0.82 / railCount.toDouble());
@@ -318,21 +303,6 @@ abstract final class DesktopWindowSwitcherLayout {
       return 2;
     }
     return 1;
-  }
-
-  static int _signedDistance({
-    required int index,
-    required int selectedIndex,
-    required int length,
-  }) {
-    var distance = index - selectedIndex;
-    final half = length / 2.0;
-    if (distance > half) {
-      distance -= length;
-    } else if (distance < -half) {
-      distance += length;
-    }
-    return distance;
   }
 
   static double _centeredRailOffset(int index, int count) {

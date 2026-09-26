@@ -6,6 +6,8 @@ import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utf8_size.dart';
+
 /// Discovery never queries enrolled fingerprints or claims the reader.
 final fingerprintDeviceProvider = StreamProvider.autoDispose<bool>((
   ref,
@@ -81,7 +83,7 @@ class FingerprintSettingsSession extends ChangeNotifier {
   Future<void> authenticate(String password) async {
     if (_disposed || authenticating || authorized) return;
     if (password.isEmpty ||
-        utf8.encode(password).length > 4000 ||
+        !fitsUtf8ByteLimit(password, 4000) ||
         password.contains(RegExp(r'[\n\r\x00]'))) {
       status = 'authentication-failed';
       notifyListeners();

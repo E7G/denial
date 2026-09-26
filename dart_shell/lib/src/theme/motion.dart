@@ -55,6 +55,7 @@ class Motion {
   static const Duration windowSwitcherCollapse = Duration(milliseconds: 280);
   static const Duration systemLevelHud = Duration(milliseconds: 220);
   static const Duration systemLevelHudValue = Duration(milliseconds: 260);
+  static const Duration systemLevelHudLimit = Duration(milliseconds: 260);
   static const Duration notificationBanner = Duration(milliseconds: 260);
   static const Duration mobileNotificationBanner = Duration(milliseconds: 400);
   static const Duration notificationHistorySlide = Duration(milliseconds: 350);

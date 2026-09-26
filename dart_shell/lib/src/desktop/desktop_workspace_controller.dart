@@ -490,13 +490,12 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
     if (placement == null) {
       return;
     }
-    final familyRoot = _transientFamilyRoot(objectId);
-    final family = state.placements.values
-        .where(
-          (candidate) =>
-              _transientDepthBelow(candidate.objectId, familyRoot) != null,
-        )
-        .toList(growable: false);
+    final family = orderTransientFamily(
+      activatedObjectId: objectId,
+      placements: state.placements,
+      parentIds: _transientParentObjectIds,
+      zOrder: (placement) => placement.z,
+    );
     final topVisibleZ = state.placements.values
         .where((candidate) => !candidate.minimized)
         .fold<int>(0, (top, candidate) => math.max(top, candidate.z));
@@ -507,33 +506,11 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
       return;
     }
 
-    // Raise the complete transient family as one unit. Within it, ancestors
-    // remain below their descendants, while the explicitly activated branch
-    // becomes the topmost sibling branch.
-    final orderedFamily = family.toList()
-      ..sort((left, right) {
-        final leftInActivatedBranch =
-            _transientDepthBelow(left.objectId, objectId) != null;
-        final rightInActivatedBranch =
-            _transientDepthBelow(right.objectId, objectId) != null;
-        if (leftInActivatedBranch != rightInActivatedBranch) {
-          return leftInActivatedBranch ? 1 : -1;
-        }
-        final depthOrder = _transientDepthBelow(
-          left.objectId,
-          familyRoot,
-        )!.compareTo(_transientDepthBelow(right.objectId, familyRoot)!);
-        if (depthOrder != 0) {
-          return depthOrder;
-        }
-        final zOrder = left.z.compareTo(right.z);
-        return zOrder != 0 ? zOrder : left.objectId.compareTo(right.objectId);
-      });
-
     final next = Map<int, DesktopWindowPlacement>.of(state.placements);
     var nextZ = state.nextZ;
-    for (final member in orderedFamily) {
-      final activated = member.objectId == objectId;
+    for (final memberId in family) {
+      final member = state.placements[memberId]!;
+      final activated = memberId == objectId;
       next[member.objectId] = member.copyWith(
         z: nextZ++,
         minimized: activated ? false : member.minimized,
@@ -547,36 +524,6 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
       nextZ: nextZ,
       clearOverview: state.overviewActive,
     );
-  }
-
-  int _transientFamilyRoot(int objectId) {
-    var current = objectId;
-    final visited = <int>{};
-    while (visited.add(current)) {
-      final parent = _transientParentObjectIds[current];
-      if (parent == null || !state.placements.containsKey(parent)) {
-        return current;
-      }
-      current = parent;
-    }
-    // Malformed cycles are isolated to the activated window rather than
-    // making family traversal or sorting unbounded.
-    return objectId;
-  }
-
-  int? _transientDepthBelow(int objectId, int ancestorId) {
-    var current = objectId;
-    for (var depth = 0; depth <= _transientParentObjectIds.length; depth++) {
-      if (current == ancestorId) {
-        return depth;
-      }
-      final parent = _transientParentObjectIds[current];
-      if (parent == null || parent == current) {
-        return null;
-      }
-      current = parent;
-    }
-    return null;
   }
 
   void toggleOverview({
@@ -941,6 +888,12 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
                   DenialWindowPlacementPhase.end => false,
                 }
         : placement.dragging;
+    // Sibling tiles receive resize updates without a begin packet. Every
+    // affected tile must bypass easing until its native transaction ends.
+    final resizing = geometryIsNew && !layoutPreview
+        ? event.change == DenialWindowPlacementChange.resize &&
+              event.phase != DenialWindowPlacementPhase.end
+        : placement.resizing;
 
     if (placement.fullscreen) {
       final fullscreenFrame = event.contentRect.intersect(
@@ -950,12 +903,12 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
         return false;
       }
       final delta = fullscreenFrame.topLeft - placement.frame.topLeft;
-      final next = Map<int, DesktopWindowPlacement>.of(state.placements);
-      next[objectId] = placement.copyWith(
+      final updated = placement.copyWith(
         frame: geometryIsNew ? fullscreenFrame : placement.frame,
         monitorId: metadataIsNew ? event.monitorId : placement.monitorId,
         workspaceId: metadataIsNew ? event.workspaceId : placement.workspaceId,
         dragging: dragging,
+        resizing: resizing,
         layoutPreviewing: geometryIsNew
             ? layoutPreview
                   ? event.phase != DenialWindowPlacementPhase.end
@@ -971,7 +924,7 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
       if (metadataIsNew) {
         revisions.metadata = event.sequence;
       }
-      state = state.copyWith(placements: next);
+      state = state._replacePlacement(updated);
       return true;
     }
 
@@ -986,8 +939,7 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
                 placement.maximized && !placement.serverFrameWhileMaximized,
           )
         : placement.frame;
-    final next = Map<int, DesktopWindowPlacement>.of(state.placements);
-    next[objectId] = placement.copyWith(
+    final updated = placement.copyWith(
       frame: frame,
       monitorId: metadataIsNew ? event.monitorId : placement.monitorId,
       workspaceId: metadataIsNew ? event.workspaceId : placement.workspaceId,
@@ -1000,6 +952,7 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
           : placement.maximized,
       fullscreen: metadataIsNew ? false : placement.fullscreen,
       dragging: dragging,
+      resizing: resizing,
       layoutPreviewing: geometryIsNew
           ? layoutPreview
                 ? event.phase != DenialWindowPlacementPhase.end
@@ -1017,7 +970,7 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
     if (metadataIsNew) {
       revisions.metadata = event.sequence;
     }
-    state = state.copyWith(placements: next);
+    state = state._replacePlacement(updated);
     return true;
   }
 
@@ -1274,12 +1227,12 @@ class DesktopWorkspaceController extends Notifier<DesktopWorkspaceState> {
     final workBottom = _snapToPixel(workArea.bottom);
     final width = _snapToPixel(math.min(frame.width, workRight - workLeft));
     final height = _snapToPixel(math.min(frame.height, workBottom - workTop));
-    final left = _snapToPixel(
-      frame.left,
-    ).clamp(workLeft, math.max(workLeft, workRight - width)).toDouble();
-    final top = _snapToPixel(
-      frame.top,
-    ).clamp(workTop, math.max(workTop, workBottom - height)).toDouble();
+    final left = _snapToPixel(frame.left)
+        .clamp(workLeft, math.max(workLeft, workRight - width))
+        .toDouble();
+    final top = _snapToPixel(frame.top)
+        .clamp(workTop, math.max(workTop, workBottom - height))
+        .toDouble();
     return Rect.fromLTWH(left, top, width, height);
   }
 

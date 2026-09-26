@@ -203,8 +203,11 @@ bool _sameWireRect(Rect left, Rect right) {
 }
 
 bool _sameWireCoordinate(double left, double right) {
+  if (left == right) {
+    return true;
+  }
   if (!left.isFinite || !right.isFinite) {
-    return left == right;
+    return false;
   }
   return (left * 1000).round() == (right * 1000).round();
 }

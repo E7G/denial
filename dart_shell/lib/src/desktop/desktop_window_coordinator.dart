@@ -1,55 +1,20 @@
 import 'dart:async';
-import 'dart:collection';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/deferred_event_dispatcher.dart';
 import '../models/denial_window_event.dart';
 import '../models/display_layout.dart';
 import '../state/display_layout.dart';
 import '../state/shell_controller.dart';
 import 'desktop_workspace.dart';
+import 'desktop_live_window_placements.dart';
+
+export 'desktop_live_window_placements.dart';
 
 const int _maxDeferredWindowEvents = 4096;
-
-@visibleForTesting
-class DesktopWindowEventBacklog {
-  DesktopWindowEventBacklog({this.capacity = _maxDeferredWindowEvents})
-    : assert(capacity >= 0);
-
-  final int capacity;
-  final ListQueue<DenialWindowEvent> _events = ListQueue<DenialWindowEvent>();
-
-  int get length => _events.length;
-
-  void add(DenialWindowEvent event) {
-    if (capacity <= 0) {
-      return;
-    }
-    if (_events.length >= capacity) {
-      _events.removeFirst();
-    }
-    _events.addLast(event);
-  }
-
-  List<DenialWindowEvent> takeReady(
-    bool Function(DenialWindowEvent event) isReady,
-  ) {
-    final ready = <DenialWindowEvent>[];
-    final pending = _events.length;
-    for (var index = 0; index < pending; index += 1) {
-      final event = _events.removeFirst();
-      if (isReady(event)) {
-        ready.add(event);
-      } else {
-        _events.addLast(event);
-      }
-    }
-    return ready;
-  }
-}
 
 /// Retains only the newest in-progress native placement for each window.
 ///
@@ -84,138 +49,13 @@ class DesktopWindowPlacementFrameBatch {
   void clear() => _updates.clear();
 }
 
-enum DesktopLivePlacementUpdateResult { applied, inactive, stale, incompatible }
-
-class _DesktopLivePlacementSession {
-  _DesktopLivePlacementSession(this.baselineContentRect, this.latestSequence);
-
-  final Rect baselineContentRect;
-  int latestSequence;
-  DenialWindowPlacementEvent? latestEvent;
-}
-
-/// Publishes pure native move deltas without invalidating workspace state.
-///
-/// Rust owns input routing and window geometry for the duration of its grab.
-/// Flutter therefore only needs a retained paint translation between the
-/// authoritative begin and end packets. Resize remains on the workspace path
-/// because it changes layout and texture sampling.
-@visibleForTesting
-class DesktopLiveWindowPlacements {
-  final Map<int, ValueNotifier<Offset>> _translations =
-      <int, ValueNotifier<Offset>>{};
-  final Map<int, _DesktopLivePlacementSession> _sessions =
-      <int, _DesktopLivePlacementSession>{};
-  final Map<int, Offset> _settleTranslations = <int, Offset>{};
-
-  ValueListenable<Offset> translationFor(int objectId) {
-    return _translations.putIfAbsent(
-      objectId,
-      () => ValueNotifier<Offset>(Offset.zero),
-    );
-  }
-
-  void start(int objectId, DenialWindowPlacementEvent event) {
-    assert(event.change == DenialWindowPlacementChange.move);
-    _settleTranslations.remove(objectId);
-    _sessions[objectId] = _DesktopLivePlacementSession(
-      event.contentRect,
-      event.sequence,
-    );
-    _setTranslation(objectId, Offset.zero);
-  }
-
-  bool isStaleBoundary(int objectId, int sequence) {
-    final session = _sessions[objectId];
-    return session != null && sequence <= session.latestSequence;
-  }
-
-  DesktopLivePlacementUpdateResult update(
-    int objectId,
-    DenialWindowPlacementEvent event,
-  ) {
-    assert(event.phase == DenialWindowPlacementPhase.update);
-    final session = _sessions[objectId];
-    if (session == null) {
-      return DesktopLivePlacementUpdateResult.inactive;
-    }
-    if (event.sequence <= session.latestSequence) {
-      return DesktopLivePlacementUpdateResult.stale;
-    }
-    if (event.change != DenialWindowPlacementChange.move ||
-        event.contentRect.size != session.baselineContentRect.size) {
-      return DesktopLivePlacementUpdateResult.incompatible;
-    }
-    session
-      ..latestSequence = event.sequence
-      ..latestEvent = event;
-    _setTranslation(
-      objectId,
-      event.contentRect.topLeft - session.baselineContentRect.topLeft,
-    );
-    return DesktopLivePlacementUpdateResult.applied;
-  }
-
-  /// Ends a live session and returns its last uncommitted placement, if any.
-  DenialWindowPlacementEvent? finish(int objectId) {
-    final session = _sessions.remove(objectId);
-    final translation = _translations[objectId]?.value ?? Offset.zero;
-    if (session != null && translation != Offset.zero) {
-      // Retain the paint offset after clearing the live render transform. The
-      // keyed position widget consumes it as the origin of its settle tween,
-      // preserving exact visual continuity across the release frame.
-      _settleTranslations[objectId] = translation;
-    } else {
-      _settleTranslations.remove(objectId);
-    }
-    _setTranslation(objectId, Offset.zero);
-    return session?.latestEvent;
-  }
-
-  Offset? settleTranslationFor(int objectId) => _settleTranslations[objectId];
-
-  void clear() {
-    _sessions.clear();
-    _settleTranslations.clear();
-    for (final translation in _translations.values) {
-      translation.value = Offset.zero;
-    }
-  }
-
-  void dispose() {
-    for (final translation in _translations.values) {
-      translation.dispose();
-    }
-    _translations.clear();
-    _sessions.clear();
-    _settleTranslations.clear();
-  }
-
-  void _setTranslation(int objectId, Offset value) {
-    final translation = _translations.putIfAbsent(
-      objectId,
-      () => ValueNotifier<Offset>(Offset.zero),
-    );
-    translation.value = value;
-  }
-}
-
-final desktopLiveWindowPlacementsProvider =
-    Provider<DesktopLiveWindowPlacements>((ref) {
-      final placements = DesktopLiveWindowPlacements();
-      ref.onDispose(placements.dispose);
-      return placements;
-    });
-
 // Own the native-event subscription outside the widget tree's rendering
 // logic. Semantic boundaries and resizes reduce into DesktopWindowPlacement;
 // pure in-progress moves update a retained paint translation instead.
 final desktopWindowCoordinatorProvider = Provider<void>((ref) {
   ref.read(shellControllerProvider);
   final livePlacements = ref.read(desktopLiveWindowPlacementsProvider);
-  final backlog = DesktopWindowEventBacklog();
   final placementFrameBatch = DesktopWindowPlacementFrameBatch();
-  var drainingBacklog = false;
   int? placementFrameCallbackId;
   var disposed = false;
 
@@ -343,37 +183,16 @@ final desktopWindowCoordinatorProvider = Provider<void>((ref) {
     }
   }
 
-  void drainDeferredBacklog() {
-    if (drainingBacklog) {
-      return;
-    }
-    drainingBacklog = true;
-    try {
-      for (final event in backlog.takeReady(eventIsReady)) {
-        dispatchWindowEvent(event);
-      }
-    } finally {
-      drainingBacklog = false;
-    }
-  }
-
-  void handleWindowEvent(DenialWindowEvent event) {
-    // Native can publish placement/state immediately after the metadata
-    // snapshot, one Flutter frame before DesktopWorkspace has materialized
-    // the corresponding placement. Retain that ordered prefix instead of
-    // interpreting restored geometry as a brand-new maximize operation.
-    backlog.add(event);
-    drainDeferredBacklog();
-  }
-
-  ref.listen(
-    shellControllerProvider,
-    (previous, next) => drainDeferredBacklog(),
+  // Native may send placement before the corresponding workspace exists.
+  // The dispatcher retains those events and skips queue allocation once ready.
+  final events = DeferredEventDispatcher<DenialWindowEvent>(
+    capacity: _maxDeferredWindowEvents,
+    isReady: eventIsReady,
+    dispatch: dispatchWindowEvent,
   );
-  ref.listen(
-    desktopWorkspaceProvider,
-    (previous, next) => drainDeferredBacklog(),
-  );
+
+  ref.listen(shellControllerProvider, (previous, next) => events.drain());
+  ref.listen(desktopWorkspaceProvider, (previous, next) => events.drain());
   ref.listen<DisplayLayout?>(
     displayLayoutProvider,
     (previous, next) => ref
@@ -384,12 +203,13 @@ final desktopWindowCoordinatorProvider = Provider<void>((ref) {
   final subscription = ref
       .read(denialBridgeProvider)
       .windowEvents
-      .listen(handleWindowEvent);
+      .listen(events.add);
   ref.onDispose(() {
     disposed = true;
     if (placementFrameCallbackId case final callbackId?) {
       SchedulerBinding.instance.cancelFrameCallbackWithId(callbackId);
     }
+    events.clear();
     placementFrameBatch.clear();
     livePlacements.clear();
     unawaited(subscription.cancel());

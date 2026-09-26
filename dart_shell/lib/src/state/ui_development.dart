@@ -27,8 +27,8 @@ abstract interface class UiWorkspaceSetupService {
 
 class SystemUiWorkspaceSetupService implements UiWorkspaceSetupService {
   const SystemUiWorkspaceSetupService({
-    Map<String, String> environment = const <String, String>{},
-  }) : _environment = environment;
+    this._environment = const <String, String>{},
+  });
 
   final Map<String, String> _environment;
 

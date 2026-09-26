@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
@@ -9,11 +10,17 @@ import 'tokens.dart';
 class ShellFontCatalog {
   const ShellFontCatalog();
 
-  Future<List<String>> discover() {
-    return Future<List<String>>(_discover);
+  Future<List<String>> discover() async {
+    try {
+      // A scheduled Future still performs Fontconfig's blocking scan on the
+      // UI isolate. Keep native handles entirely inside this short-lived worker.
+      return await Isolate.run(_discover, debugName: 'denial-font-catalog');
+    } on Object {
+      return normalizeShellFontFamilies(const <String>[]);
+    }
   }
 
-  List<String> _discover() {
+  static List<String> _discover() {
     try {
       final library = DynamicLibrary.open('libfontconfig.so.1');
       final initialize = library
