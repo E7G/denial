@@ -2,6 +2,7 @@ import 'package:denial_dart_shell/denial.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../config/render_diagnostics.dart';
 import '../../desktop/desktop_shell.dart';
 import '../../desktop/desktop_workspace.dart';
 import '../../diagnostics/glass_benchmark.dart';
@@ -37,7 +38,9 @@ class DenialShellApp extends StatelessWidget {
       ),
       desktop: DenialShellScene(
         content: DesktopShell(),
-        overlays: <Widget>[SystemLevelHudLayer(), NotificationBannerLayer()],
+        overlays: desktopWindowsOnly
+            ? <Widget>[]
+            : <Widget>[SystemLevelHudLayer(), NotificationBannerLayer()],
       ),
       pairingSurfaceBuilder: _buildPairingSurface,
       onLocked: _closeFeatureSurfaces,

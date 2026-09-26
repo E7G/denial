@@ -63,7 +63,6 @@ class _DesktopClosingWindowFrame extends StatelessWidget {
     final drawsServerFrame =
         !closing.fullscreen && closing.window.serverSideDecorated;
     final radius = drawsServerFrame ? ShellTheme.of(context).windowRadius : 0.0;
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final frameColor = context.shellColors.windowFrameSurface;
     Widget result = DesktopWindowCloseAnimation(
       effect: closing.effect,
@@ -83,35 +82,14 @@ class _DesktopClosingWindowFrame extends StatelessWidget {
                 ),
               ),
             ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(math.max(0.0, radius - 1.0)),
-            child: Padding(
-              padding: drawsServerFrame
-                  ? const EdgeInsets.all(DesktopMetrics.frameBorder)
-                  : EdgeInsets.zero,
-              child: SizedBox.expand(
-                child: _DesktopWindowContent(
-                  window: closing.window,
-                  smooth: false,
-                  active: false,
-                  borderRadius: BorderRadius.circular(
-                    math.max(0.0, radius - DesktopMetrics.frameBorder),
-                  ),
-                ),
-              ),
-            ),
+          _DesktopWindowContent(
+            window: closing.window,
+            smooth: false,
+            active: false,
+            borderRadius: BorderRadius.circular(radius),
+            frameWidth: drawsServerFrame ? DesktopMetrics.frameBorder : 0,
+            frameColor: frameColor,
           ),
-          if (drawsServerFrame)
-            IgnorePointer(
-              child: CustomPaint(
-                painter: DesktopWindowFramePainter(
-                  windowId: closing.window.objectId,
-                  devicePixelRatio: devicePixelRatio,
-                  radius: radius,
-                  frameColor: frameColor,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -373,43 +351,35 @@ class _DesktopWindowFrame extends ConsumerWidget {
                         onDragCancel: onOverviewDragCancel,
                         child: Builder(
                           builder: (context) {
-                            final client = ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                math.max(0.0, windowRadius - 1.0),
-                              ),
-                              child: Padding(
-                                // The native client keeps its real geometry
-                                // during overview; only its live texture scales.
-                                padding: drawsServerFrame
-                                    ? const EdgeInsets.all(
-                                        DesktopMetrics.frameBorder,
-                                      )
-                                    : EdgeInsets.zero,
-                                child: SizedBox.expand(
-                                  child: _DesktopWindowContent(
-                                    window: window,
-                                    smooth: transformed || resizing,
-                                    active: active && !minimized,
-                                    borderRadius: BorderRadius.circular(
-                                      math.max(
-                                        0.0,
-                                        windowRadius -
-                                            DesktopMetrics.frameBorder,
-                                      ),
-                                    ),
-                                    localLayoutSize: window.isLocalFlutter
-                                        ? placement.contentRect.size
-                                        : null,
-                                    presentationScale: devicePixelRatio,
-                                    pixelGridOrigin: pixelGridOrigin,
-                                  ),
+                            final client = _DesktopWindowContent(
+                              window: window,
+                              smooth: transformed || resizing,
+                              active: active && !minimized,
+                              borderRadius: BorderRadius.circular(windowRadius),
+                              frameWidth: drawsServerFrame
+                                  ? DesktopMetrics.frameBorder
+                                  : 0,
+                              frameColor: Color.alphaBlend(
+                                desktopWindowBorderColor(
+                                  pinned: window.pinned,
+                                  active: active,
+                                  theme: theme,
+                                  inactiveColor:
+                                      context.shellColors.hairlineWindow,
                                 ),
+                                context.shellColors.windowFrameSurface,
                               ),
+                              localLayoutSize: window.isLocalFlutter
+                                  ? placement.contentRect.size
+                                  : null,
+                              presentationScale: devicePixelRatio,
+                              pixelGridOrigin: pixelGridOrigin,
                             );
                             if (!drawsServerFrame) {
                               return client;
                             }
                             return DesktopWindowFrameLayers(
+                              drawFrame: false,
                               windowId: window.objectId,
                               devicePixelRatio: devicePixelRatio,
                               radius: windowRadius,
@@ -719,12 +689,21 @@ class _DesktopSurfaceTexture extends StatefulWidget {
     required this.smooth,
     required this.presentationScale,
     required this.pixelGridOrigin,
+    required this.radius,
+    required this.frameWidth,
+    required this.frameColor,
+    required this.backdrop,
   });
 
   final DenialWindow window;
   final bool smooth;
   final double presentationScale;
   final Offset pixelGridOrigin;
+
+  final double radius;
+  final double frameWidth;
+  final Color frameColor;
+  final ImageFilterConfig? backdrop;
 
   @override
   State<_DesktopSurfaceTexture> createState() => _DesktopSurfaceTextureState();
@@ -736,6 +715,8 @@ class _DesktopWindowContent extends ConsumerWidget {
     required this.smooth,
     required this.active,
     required this.borderRadius,
+    this.frameWidth = 0,
+    this.frameColor = const Color(0x00000000),
     this.localLayoutSize,
     this.presentationScale,
     this.pixelGridOrigin = Offset.zero,
@@ -745,6 +726,8 @@ class _DesktopWindowContent extends ConsumerWidget {
   final bool smooth;
   final bool active;
   final BorderRadius borderRadius;
+  final double frameWidth;
+  final Color frameColor;
   final Size? localLayoutSize;
   final double? presentationScale;
   final Offset pixelGridOrigin;
@@ -755,22 +738,50 @@ class _DesktopWindowContent extends ConsumerWidget {
     final windowOpacity = active
         ? theme.focusedWindowOpacity
         : theme.unfocusedWindowOpacity;
-    final content = _buildContent(context);
     final localApplication = window.isLocalFlutter
         ? ref.watch(localFlutterApplicationRegistryProvider)[window.appId]
         : null;
-    final singleWindowSurface =
-        !window.isLocalFlutter && window.mainVisibleSurfaceIds.length == 1;
-    return ShellBackdropBlur(
-      blur: desktopWindowNeedsBackdropTexture(
-        window: window,
-        shellOpacity: windowOpacity,
-        localContentTranslucent: localApplication?.translucent ?? false,
-      ),
-      useWindowAlphaThreshold: true,
-      singleWindowSurface: singleWindowSurface,
-      borderRadius: borderRadius,
-      child: content,
+    final wantsBackdrop = desktopWindowNeedsBackdropTexture(
+      window: window,
+      shellOpacity: windowOpacity,
+      localContentTranslucent: localApplication?.translucent ?? false,
+    );
+    final available =
+        wantsBackdrop &&
+        theme.backdropBlurEnabled &&
+        (theme.transparencyMode == ShellTransparencyMode.glass ||
+            theme.backdropBlurSigma > 0) &&
+        theme.backdropBlurOpacityThreshold < 1;
+    final backdrop = available
+        ? theme.backdropFilterConfigAt(
+            1,
+            borderRadius: BorderRadius.circular(
+              math.max(0, borderRadius.topLeft.x - frameWidth),
+            ),
+            useWindowAlphaThreshold: true,
+            singleWindowSurface:
+                false, // The primitive selects its input plan explicitly.
+          )
+        : null;
+    if (window.isLocalFlutter) {
+      return WindowPlane.child(
+        radius: borderRadius.topLeft.x,
+        frameWidth: frameWidth,
+        frameColor: frameColor,
+        backdrop: backdrop,
+        child: _buildContent(context),
+      );
+    }
+    return _DesktopSurfaceTexture(
+      window: window,
+      smooth: smooth,
+      presentationScale:
+          presentationScale ?? MediaQuery.devicePixelRatioOf(context),
+      pixelGridOrigin: pixelGridOrigin,
+      radius: borderRadius.topLeft.x,
+      frameWidth: frameWidth,
+      frameColor: frameColor,
+      backdrop: backdrop,
     );
   }
 
@@ -797,13 +808,7 @@ class _DesktopWindowContent extends ConsumerWidget {
         ),
       );
     }
-    return _DesktopSurfaceTexture(
-      window: window,
-      smooth: smooth,
-      presentationScale:
-          presentationScale ?? MediaQuery.devicePixelRatioOf(context),
-      pixelGridOrigin: pixelGridOrigin,
-    );
+    throw StateError('Only local Flutter content uses the child window input');
   }
 }
 
@@ -843,11 +848,30 @@ class _DesktopSurfaceTextureState extends State<_DesktopSurfaceTexture> {
   @override
   Widget build(BuildContext context) {
     final filterQuality = _smooth ? FilterQuality.medium : FilterQuality.none;
-    return WindowSurfaceTree(
-      window: widget.window,
-      filterQuality: filterQuality,
-      presentationScale: widget.presentationScale,
-      pixelGridOrigin: widget.pixelGridOrigin,
+    final texture = singleWindowPlaneTexture(widget.window);
+    if (texture != null) {
+      return WindowPlane.texture(
+        texture: texture,
+        radius: widget.radius,
+        frameWidth: widget.frameWidth,
+        frameColor: widget.frameColor,
+        backdrop: widget.backdrop,
+        filterQuality: filterQuality,
+        presentationScale: widget.presentationScale,
+        pixelGridOrigin: widget.pixelGridOrigin,
+      );
+    }
+    return WindowPlane.child(
+      radius: widget.radius,
+      frameWidth: widget.frameWidth,
+      frameColor: widget.frameColor,
+      backdrop: widget.backdrop,
+      child: WindowSurfaceTree(
+        window: widget.window,
+        filterQuality: filterQuality,
+        presentationScale: widget.presentationScale,
+        pixelGridOrigin: widget.pixelGridOrigin,
+      ),
     );
   }
 }

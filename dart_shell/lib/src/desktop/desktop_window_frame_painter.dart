@@ -37,6 +37,7 @@ class DesktopWindowFrameLayers extends StatelessWidget {
     required this.frameColor,
     required this.borderColor,
     required this.child,
+    this.drawFrame = true,
     super.key,
   });
 
@@ -46,6 +47,7 @@ class DesktopWindowFrameLayers extends StatelessWidget {
   final Color frameColor;
   final Color borderColor;
   final Widget child;
+  final bool drawFrame;
 
   @override
   Widget build(BuildContext context) {
@@ -68,17 +70,18 @@ class DesktopWindowFrameLayers extends StatelessWidget {
           ),
         ),
         child,
-        IgnorePointer(
-          child: CustomPaint(
-            painter: DesktopWindowFramePainter(
-              windowId: windowId,
-              devicePixelRatio: devicePixelRatio,
-              radius: radius,
-              frameColor: frameColor,
-              borderColor: borderColor,
+        if (drawFrame)
+          IgnorePointer(
+            child: CustomPaint(
+              painter: DesktopWindowFramePainter(
+                windowId: windowId,
+                devicePixelRatio: devicePixelRatio,
+                radius: radius,
+                frameColor: frameColor,
+                borderColor: borderColor,
+              ),
             ),
           ),
-        ),
       ],
     );
   }

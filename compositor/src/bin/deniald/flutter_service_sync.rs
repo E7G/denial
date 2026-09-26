@@ -8,6 +8,15 @@ pub(super) fn synchronize_fingerprint_display_wake(
     scheduler: &output_scheduler::OutputScheduler,
     events: &mut RuntimeState,
 ) {
+    // Do not scan outputs or acquire the authentication mutex on unrelated
+    // client/KMS wakes. Keep servicing every active unlock until it settles.
+    if !events
+        .authentication
+        .as_ref()
+        .is_some_and(|auth| auth.fingerprint_unlock_pending())
+    {
+        return;
+    }
     let outputs_ready = !scanouts.is_empty()
         && scanouts.iter().all(|scanout| {
             scanout.powered

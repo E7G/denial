@@ -749,6 +749,7 @@ struct SharedAuthentication {
     locked: AtomicBool,
     security_gate_locked: AtomicBool,
     events_pending: AtomicBool,
+    fingerprint_unlock_pending: AtomicBool,
     state: Mutex<AuthenticationState>,
     condition: Condvar,
     events: Mutex<VecDeque<AuthenticationEvent>>,
@@ -802,6 +803,7 @@ impl AuthenticationController {
             locked: AtomicBool::new(start_locked),
             security_gate_locked: AtomicBool::new(start_locked),
             events_pending: AtomicBool::new(false),
+            fingerprint_unlock_pending: AtomicBool::new(false),
             state: Mutex::new(AuthenticationState {
                 stopping: false,
                 busy: false,
@@ -864,6 +866,12 @@ impl AuthenticationController {
         fingerprint::advance_pending_unlock(&self.shared, now, outputs_ready)
     }
 
+    pub(super) fn fingerprint_unlock_pending(&self) -> bool {
+        self.shared
+            .fingerprint_unlock_pending
+            .load(Ordering::Acquire)
+    }
+
     pub(super) fn security_gate_locked(&self) -> bool {
         self.locked() || self.shared.security_gate_locked.load(Ordering::Acquire)
     }
@@ -906,6 +914,9 @@ impl AuthenticationController {
             let mut state = lock_unpoisoned(&self.shared.state);
             state.lock_epoch = state.lock_epoch.wrapping_add(1);
             state.fingerprint_unlock = None;
+            self.shared
+                .fingerprint_unlock_pending
+                .store(false, Ordering::Release);
             self.shared.locked.store(true, Ordering::Release);
             self.shared
                 .security_gate_locked

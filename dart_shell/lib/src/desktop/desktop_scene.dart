@@ -825,6 +825,21 @@ class _DesktopSceneState extends ConsumerState<_DesktopScene> {
               placement.minimized || desktop.isPlacementPresented(placement),
         )
         .toList(growable: false);
+    final topZ = placements
+        .where(
+          (placement) =>
+              !placement.minimized &&
+              desktop.isPlacementOnActiveWorkspace(placement),
+        )
+        .fold<int>(0, (value, placement) => math.max(value, placement.z));
+    if (desktopWindowsOnly) {
+      return _buildWindowsOnlyScene(
+        placements: placements,
+        windowsById: windowsById,
+        popupSurfaces: popupSurfaces,
+        topZ: topZ,
+      );
+    }
     final homeSlots = ref.watch(
       homeGridControllerProvider.select((state) => state.asData?.value.slots),
     );
@@ -835,13 +850,6 @@ class _DesktopSceneState extends ConsumerState<_DesktopScene> {
       placements: placements,
       homeSlots: homeSlots,
     );
-    final topZ = placements
-        .where(
-          (placement) =>
-              !placement.minimized &&
-              desktop.isPlacementOnActiveWorkspace(placement),
-        )
-        .fold<int>(0, (value, placement) => math.max(value, placement.z));
     final systemBars = _systemBarGeometries(viewSize, displayLayout);
     // True fullscreen owns the complete output, so the bar yields instead of
     // floating above the fullscreen surface.

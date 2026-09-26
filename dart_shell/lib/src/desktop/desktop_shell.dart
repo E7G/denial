@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/startup_environment.dart';
+import '../config/render_diagnostics.dart';
 import '../launcher/controllers/application_recents_controller.dart';
 import '../launcher/controllers/home_grid_controller.dart';
 import '../launcher/models/desktop_app.dart';
@@ -62,6 +63,7 @@ import '../widgets/shell_frame_time_overlay.dart';
 import '../widgets/shell_surface_host.dart';
 import '../widgets/shell_wallpaper.dart';
 import '../widgets/window_surface_tree.dart';
+import '../widgets/window_plane.dart';
 import '../widgets/shade/range_bar.dart';
 import '../wallpaper/state/wallpaper_controller.dart';
 import '../wallpaper/widgets/wallpaper_selector_surface.dart';
@@ -95,6 +97,7 @@ part 'desktop_panel_overlay.dart';
 part 'desktop_scene.dart';
 part 'desktop_scene_layers.dart';
 part 'desktop_window_frame.dart';
+part 'desktop_windows_only_scene.dart';
 
 const desktopApplicationSuggestionsRowKey = ValueKey<String>(
   'desktop-application-suggestions-row',

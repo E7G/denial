@@ -143,6 +143,7 @@ fn synchronize_software_dimming(
     scanouts: &[Scanout],
     events: &mut RuntimeState,
     flutter: &mut Option<flutter_runtime::FlutterRuntime>,
+    known_topology: &mut Option<Vec<(OutputId, crtc::Handle)>>,
 ) -> Result<(), Box<dyn Error>> {
     let requests = flutter
         .as_mut()
@@ -152,6 +153,32 @@ fn synchronize_software_dimming(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let topology_changed = gamma_topology_changed(
+        known_topology.as_deref(),
+        scanouts
+            .iter()
+            .map(|scanout| (scanout.output.id, scanout.output.crtc)),
+    );
+    let external_changes_pending = events
+        .wayland
+        .as_ref()
+        .is_some_and(wayland_frontend::WaylandFrontend::has_pending_gamma_changes);
+    if !gamma_work_pending(
+        topology_changed,
+        !requests.is_empty() || !events.pending_software_dimming.is_empty(),
+        external_changes_pending,
+        events.gamma_reapply_requested || events.scanout_rebased,
+    ) {
+        return Ok(());
+    }
+    if topology_changed {
+        *known_topology = Some(
+            scanouts
+                .iter()
+                .map(|scanout| (scanout.output.id, scanout.output.crtc))
+                .collect(),
+        );
+    }
     let gamma_reapply_requested = std::mem::take(&mut events.gamma_reapply_requested);
     let force_gamma_reapply = events.scanout_rebased || gamma_reapply_requested;
     let states = gamma_control::synchronize_gamma_control(
@@ -167,6 +194,22 @@ fn synchronize_software_dimming(
         }
     }
     Ok(())
+}
+
+fn gamma_topology_changed<T: Copy + PartialEq>(
+    known: Option<&[T]>,
+    current: impl ExactSizeIterator<Item = T>,
+) -> bool {
+    known.is_none_or(|known| known.len() != current.len() || known.iter().copied().ne(current))
+}
+
+fn gamma_work_pending(
+    topology_changed: bool,
+    internal_request: bool,
+    external_request: bool,
+    force_reapply: bool,
+) -> bool {
+    topology_changed || internal_request || external_request || force_reapply
 }
 
 fn handle_ui_development_requests(
@@ -1758,6 +1801,7 @@ fn publish_completed_flutter_frames(
     // wakeup and transfer the finished batch before the timeline decision.
     runtime.observe_frame_ready_events(&mut events.flutter_events);
     submit_ready_frames(runtime, scheduler, swapchain, scanouts, events)?;
+    let mut published = false;
     loop {
         let Some(ready) =
             runtime.take_ready_frame(|output| scheduler.ready_handoff_available(output))
@@ -1771,6 +1815,12 @@ fn publish_completed_flutter_frames(
         }
         frame_scheduler.complete_render(output, dirty_serial);
         *raster_frames = raster_frames.saturating_add(1);
+        published = true;
+    }
+    // A freshly published frame may be ready for handoff immediately. Keep
+    // that submission on this wake even when no output timeline tick is due.
+    if published {
+        submit_ready_frames(runtime, scheduler, swapchain, scanouts, events)?;
     }
     Ok(())
 }
@@ -1840,7 +1890,6 @@ fn dispatch_output_ticks(
     events: &mut RuntimeState,
     frame_scheduler: &frame_scheduler::FrameScheduler,
 ) -> Result<(), Box<dyn Error>> {
-    submit_ready_frames(runtime, scheduler, swapchain, scanouts, events)?;
     for tick in frame_scheduler.output_ticks().iter().copied() {
         if let Some(frontend) = events.wayland.as_mut() {
             frontend.frame_tick(tick)?;
@@ -2474,6 +2523,7 @@ pub(super) fn run_flutter_event_loop(
     let mut pending_sensor_rotation = output_configuration.sensor_rotation;
     let mut outputs_disconnected = false;
     let mut operation_cadence = OperationCadence::new(Instant::now());
+    let mut gamma_topology = None;
 
     // Any native helper inadvertently created by an elevated Flutter thread
     // is normalized before the compositor itself becomes realtime.
@@ -2492,7 +2542,7 @@ pub(super) fn run_flutter_event_loop(
         )? {
             continue;
         }
-        synchronize_software_dimming(drm, scanouts, &mut events, flutter)?;
+        synchronize_software_dimming(drm, scanouts, &mut events, flutter, &mut gamma_topology)?;
         let iteration_now = Instant::now();
         if events.dpms_topology.service_deadline(iteration_now) {
             events.topology_dirty = true;
@@ -2618,26 +2668,31 @@ pub(super) fn run_flutter_event_loop(
                 &mut raster_frames,
             )?;
 
-            schedule_next_flutter_frame(
-                runtime,
-                &scheduler,
-                topology,
-                ready_output_apply.is_some(),
-                frame_limit,
-                raster_frames,
-                &mut delivered_vsyncs,
-                &mut frame_scheduler,
-                &mut events,
-            )?;
+            // The output timeline is driven by its own dispatch deadline.
+            // An unrelated Wayland, input, or acquire-fence wake cannot
+            // produce a tick, and frame readiness remains latched until one.
+            if frame_scheduler.output_tick_due(Instant::now()) {
+                schedule_next_flutter_frame(
+                    runtime,
+                    &scheduler,
+                    topology,
+                    ready_output_apply.is_some(),
+                    frame_limit,
+                    raster_frames,
+                    &mut delivered_vsyncs,
+                    &mut frame_scheduler,
+                    &mut events,
+                )?;
 
-            dispatch_output_ticks(
-                runtime,
-                &mut scheduler,
-                swapchain,
-                scanouts,
-                &mut events,
-                &frame_scheduler,
-            )?;
+                dispatch_output_ticks(
+                    runtime,
+                    &mut scheduler,
+                    swapchain,
+                    scanouts,
+                    &mut events,
+                    &frame_scheduler,
+                )?;
+            }
 
             // Freeze a tagged output batch as soon as its page-flip completion
             // makes it visible, before another frame can replace it.
@@ -2936,9 +2991,23 @@ pub(super) fn run_flutter_event_loop(
 #[cfg(test)]
 mod tests {
     use super::{
-        RuntimeState, output_control_publication_became_dirty, output_control_publication_deferred,
+        RuntimeState, gamma_topology_changed, gamma_work_pending,
+        output_control_publication_became_dirty, output_control_publication_deferred,
         output_transaction_waiting,
     };
+
+    #[test]
+    fn gamma_gate_runs_at_initialization_and_only_for_new_work() {
+        assert!(gamma_topology_changed::<u8>(None, [].into_iter()));
+        assert!(!gamma_topology_changed(Some(&[1, 2]), [1, 2].into_iter()));
+        assert!(gamma_topology_changed(Some(&[1, 2]), [2, 1].into_iter()));
+        assert!(gamma_topology_changed(Some(&[1, 2]), [1, 3].into_iter()));
+        assert!(!gamma_work_pending(false, false, false, false));
+        assert!(gamma_work_pending(false, true, false, false));
+        assert!(gamma_work_pending(false, false, true, false));
+        assert!(gamma_work_pending(false, false, false, true));
+        assert!(gamma_work_pending(true, false, false, false));
+    }
 
     #[test]
     fn resident_geometry_rollback_stops_frame_production_while_targets_drain() {

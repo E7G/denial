@@ -2,6 +2,51 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/denial_window.dart';
+import 'window_plane.dart';
+
+/// Selects the primitive's explicit imported-image contract. Multiple main
+/// surfaces remain one composed window input; popups remain scene siblings.
+WindowPlaneTexture? singleWindowPlaneTexture(DenialWindow window) {
+  if (window.surfaceLayers.isEmpty) {
+    return WindowPlaneTexture(
+      id: window.textureId > 0 ? window.textureId : 0,
+      bufferSize: Size(window.width.toDouble(), window.height.toDouble()),
+      source: Rect.fromLTWH(
+        window.textureSourceX,
+        window.textureSourceY,
+        window.textureSourceWidth,
+        window.textureSourceHeight,
+      ),
+      transform: window.transform,
+      opacity: window.opacity,
+    );
+  }
+  final layers = window.mainSurfaceLayers
+      .where((layer) => layer.textureId > 0)
+      .toList();
+  if (layers.length > 1) return null;
+  if (layers.isEmpty) {
+    return const WindowPlaneTexture(
+      id: 0,
+      bufferSize: Size.zero,
+      source: Rect.zero,
+    );
+  }
+  final layer = layers.single;
+  return WindowPlaneTexture(
+    id: layer.textureId,
+    bufferSize: Size(layer.width.toDouble(), layer.height.toDouble()),
+    source: Rect.fromLTWH(
+      layer.textureSourceX,
+      layer.textureSourceY,
+      layer.textureSourceWidth,
+      layer.textureSourceHeight,
+    ),
+    destination: window.mapSurfaceRect(layer, const Rect.fromLTWH(0, 0, 1, 1)),
+    transform: layer.transform,
+    opacity: layer.opacity,
+  );
+}
 
 const double _nativePixelTolerance = 1.0;
 const double _coverageTolerance = 0.001;

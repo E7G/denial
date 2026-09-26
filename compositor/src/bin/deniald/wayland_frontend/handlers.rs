@@ -435,18 +435,51 @@ fn cancel_unsynchronized_surface_commit(surface: &WlSurface) {
 }
 
 #[cfg(feature = "flutter")]
+#[derive(Clone)]
+struct PendingFrameDeadline {
+    blocker: frame_timeline::FrameDeadlineBlocker,
+    token: Option<RegistrationToken>,
+}
+
+#[cfg(feature = "flutter")]
+impl PendingFrameDeadline {
+    fn cancel<Data>(&mut self, loop_handle: &LoopHandle<'_, Data>) -> Option<bool> {
+        if !self.blocker.cancel_if_pending() {
+            return None;
+        }
+        if let Some(token) = self.token.take() {
+            loop_handle.remove(token);
+        }
+        Some(false)
+    }
+
+    fn release_if_on_time<Data>(
+        &mut self,
+        loop_handle: &LoopHandle<'_, Data>,
+        now: Instant,
+    ) -> Option<bool> {
+        let ready = self.blocker.release_if_on_time(now)?;
+        if let Some(token) = self.token.take() {
+            loop_handle.remove(token);
+        }
+        Some(ready)
+    }
+}
+
+#[cfg(feature = "flutter")]
 fn install_frame_deadline_blocker(
     loop_handle: &LoopHandle<'static, RuntimeState>,
     surface: &WlSurface,
     client: &Client,
     target: frame_timeline::FrameTargetReservation,
     blocker: frame_timeline::FrameDeadlineBlocker,
-) -> Option<frame_timeline::FrameDeadlineBlocker> {
+) -> Option<PendingFrameDeadline> {
     let deadline_blocker = blocker.clone();
     let deadline_client = client.clone();
     let deadline_surface = surface.id();
-    if let Err(error) =
-        loop_handle.insert_source(Timer::from_deadline(target.deadline), move |_, _, state| {
+    let token = match loop_handle.insert_source(
+        Timer::from_deadline(target.deadline),
+        move |_, _, state| {
             if deadline_blocker.cancel_if_pending() {
                 state
                     .wayland
@@ -464,17 +497,23 @@ fn install_frame_deadline_blocker(
                     .blocker_cleared(state, &display_handle);
             }
             TimeoutAction::Drop
-        })
-    {
-        error!(
-            ?error,
-            surface_id = ?surface.id(),
-            "could not arm exact frame latch deadline"
-        );
-        return None;
-    }
+        },
+    ) {
+        Ok(token) => token,
+        Err(error) => {
+            error!(
+                ?error,
+                surface_id = ?surface.id(),
+                "could not arm exact frame latch deadline"
+            );
+            return None;
+        }
+    };
     add_blocker(surface, blocker.clone());
-    Some(blocker)
+    Some(PendingFrameDeadline {
+        blocker,
+        token: Some(token),
+    })
 }
 
 fn install_surface_readiness_hook(surface: &WlSurface) {
@@ -563,77 +602,8 @@ fn install_surface_readiness_hook(surface: &WlSurface) {
         };
 
         if let Some(acquire_point) = acquire_point {
-            match acquire_point.generate_blocker() {
-                Ok((blocker, source)) => {
-                    #[cfg(feature = "flutter")]
-                    let frame_deadline_blocker = if let Some(target) = frame_target {
-                        let deadline_blocker = state
-                            .wayland
-                            .as_ref()
-                            .expect("missing Wayland frontend")
-                            .frame_target_blocker(target);
-                        let Some(blocker) = install_frame_deadline_blocker(
-                            &loop_handle,
-                            surface,
-                            &client,
-                            target,
-                            deadline_blocker,
-                        ) else {
-                            state
-                                .wayland
-                                .as_mut()
-                                .expect("missing Wayland frontend")
-                                .frame_target_missed(target, surface.id());
-                            cancel_unsynchronized_surface_commit(surface);
-                            return;
-                        };
-                        Some(blocker)
-                    } else {
-                        None
-                    };
-                    let source_client = client.clone();
-                    #[cfg(feature = "flutter")]
-                    let source_surface = surface.id();
-                    match loop_handle.insert_source(source, move |_, _, state| {
-                        #[cfg(feature = "flutter")]
-                        if let (Some(blocker), Some(target)) =
-                            (frame_deadline_blocker.as_ref(), frame_target)
-                            && let Some(ready) = blocker.release_if_on_time(Instant::now())
-                        {
-                            let frontend =
-                                state.wayland.as_mut().expect("missing Wayland frontend");
-                            if ready {
-                                frontend.frame_target_ready(target, source_surface.clone());
-                            } else {
-                                frontend.frame_target_missed(target, source_surface.clone());
-                            }
-                        }
-                        let display_handle = state
-                            .wayland
-                            .as_ref()
-                            .expect("missing Wayland frontend")
-                            .display_handle
-                            .clone();
-                        state
-                            .client_compositor_state(&source_client)
-                            .blocker_cleared(state, &display_handle);
-                        Ok(())
-                    }) {
-                        Ok(_) => {
-                            add_blocker(surface, blocker);
-                            return;
-                        }
-                        Err(error) => {
-                            error!(
-                                ?error,
-                                surface_id = ?surface.id(),
-                                "could not monitor explicit DMA-BUF acquire point"
-                            );
-                            cancel_unsynchronized_surface_commit(surface);
-                            return;
-                        }
-                    }
-                }
+            let (blocker, source) = match acquire_point.generate_blocker() {
+                Ok(pair) => pair,
                 Err(error) => {
                     error!(
                         %error,
@@ -648,6 +618,88 @@ fn install_surface_readiness_hook(surface: &WlSurface) {
                             .expect("missing Wayland frontend")
                             .frame_target_missed(target, surface.id());
                     }
+                    cancel_unsynchronized_surface_commit(surface);
+                    return;
+                }
+            };
+            #[cfg(feature = "flutter")]
+            let mut frame_deadline_blocker = if let Some(target) = frame_target {
+                let deadline_blocker = state
+                    .wayland
+                    .as_ref()
+                    .expect("missing Wayland frontend")
+                    .frame_target_blocker(target);
+                let Some(blocker) = install_frame_deadline_blocker(
+                    &loop_handle,
+                    surface,
+                    &client,
+                    target,
+                    deadline_blocker,
+                ) else {
+                    state
+                        .wayland
+                        .as_mut()
+                        .expect("missing Wayland frontend")
+                        .frame_target_missed(target, surface.id());
+                    cancel_unsynchronized_surface_commit(surface);
+                    return;
+                };
+                Some(blocker)
+            } else {
+                None
+            };
+            let source_client = client.clone();
+            #[cfg(feature = "flutter")]
+            let deadline_handle = loop_handle.clone();
+            #[cfg(feature = "flutter")]
+            let source_surface = surface.id();
+            #[cfg(feature = "flutter")]
+            let mut failed_deadline = frame_deadline_blocker.clone();
+            match loop_handle.insert_source(source, move |_, _, state| {
+                #[cfg(feature = "flutter")]
+                if let (Some(deadline), Some(target)) =
+                    (frame_deadline_blocker.as_mut(), frame_target)
+                    && let Some(ready) =
+                        deadline.release_if_on_time(&deadline_handle, Instant::now())
+                {
+                    let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
+                    if ready {
+                        frontend.frame_target_ready(target, source_surface.clone());
+                    } else {
+                        frontend.frame_target_missed(target, source_surface.clone());
+                    }
+                }
+                let display_handle = state
+                    .wayland
+                    .as_ref()
+                    .expect("missing Wayland frontend")
+                    .display_handle
+                    .clone();
+                state
+                    .client_compositor_state(&source_client)
+                    .blocker_cleared(state, &display_handle);
+                Ok(())
+            }) {
+                Ok(_) => {
+                    add_blocker(surface, blocker);
+                    return;
+                }
+                Err(error) => {
+                    #[cfg(feature = "flutter")]
+                    if let (Some(deadline), Some(target)) = (failed_deadline.as_mut(), frame_target)
+                        && deadline.cancel(&loop_handle).is_some()
+                    {
+                        state
+                            .wayland
+                            .as_mut()
+                            .expect("missing Wayland frontend")
+                            .frame_target_missed(target, surface.id());
+                    }
+                    error!(
+                        ?error,
+                        surface_id = ?surface.id(),
+                        "could not monitor explicit DMA-BUF acquire point"
+                    );
                     cancel_unsynchronized_surface_commit(surface);
                     return;
                 }
@@ -670,7 +722,7 @@ fn install_surface_readiness_hook(surface: &WlSurface) {
             return;
         };
         #[cfg(feature = "flutter")]
-        let frame_deadline_blocker = if let Some(target) = frame_target {
+        let mut frame_deadline_blocker = if let Some(target) = frame_target {
             let deadline_blocker = state
                 .wayland
                 .as_ref()
@@ -697,11 +749,13 @@ fn install_surface_readiness_hook(surface: &WlSurface) {
         };
         let source_client = client.clone();
         #[cfg(feature = "flutter")]
+        let deadline_handle = loop_handle.clone();
+        #[cfg(feature = "flutter")]
         let source_surface = surface.id();
         match loop_handle.insert_source(source, move |_, _, state| {
             #[cfg(feature = "flutter")]
-            if let (Some(blocker), Some(target)) = (frame_deadline_blocker.as_ref(), frame_target)
-                && let Some(ready) = blocker.release_if_on_time(Instant::now())
+            if let (Some(deadline), Some(target)) = (frame_deadline_blocker.as_mut(), frame_target)
+                && let Some(ready) = deadline.release_if_on_time(&deadline_handle, Instant::now())
             {
                 let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
                 if ready {
@@ -912,6 +966,113 @@ fn install_layer_surface_unmap_compatibility_hooks(surface: &WlSurface) {
             "preserved layer-shell client state across surface unmap"
         );
     });
+}
+
+#[cfg(all(test, feature = "flutter"))]
+mod frame_deadline_source_tests {
+    use super::*;
+    use smithay::reexports::calloop::EventLoop;
+    use std::sync::atomic::AtomicU64;
+
+    #[test]
+    fn acquire_callback_removes_queued_deadline_source() {
+        let mut event_loop = EventLoop::<Vec<&'static str>>::try_new().unwrap();
+        let handle = event_loop.handle();
+        let now = Instant::now();
+        let blocker = frame_timeline::FrameDeadlineBlocker::new(
+            now + Duration::from_millis(50),
+            Arc::new(AtomicU64::new(1)),
+            1,
+        );
+        let deadline_blocker = blocker.clone();
+        let token = handle
+            .insert_source(
+                Timer::from_deadline(now + Duration::from_millis(50)),
+                move |_, _, events| {
+                    deadline_blocker.cancel_if_pending();
+                    events.push("deadline");
+                    TimeoutAction::Drop
+                },
+            )
+            .unwrap();
+        let mut pending = PendingFrameDeadline {
+            blocker: blocker.clone(),
+            token: Some(token),
+        };
+        let handle_for_acquire = handle.clone();
+        handle
+            .insert_source(Timer::immediate(), move |_, _, events| {
+                events.push("acquire");
+                assert_eq!(
+                    pending.release_if_on_time(&handle_for_acquire, Instant::now()),
+                    Some(true)
+                );
+                TimeoutAction::Drop
+            })
+            .unwrap();
+
+        let mut events = Vec::new();
+        event_loop
+            .dispatch(Some(Duration::ZERO), &mut events)
+            .unwrap();
+        event_loop
+            .dispatch(Some(Duration::from_millis(60)), &mut events)
+            .unwrap();
+        assert_eq!(events, ["acquire"]);
+        assert_eq!(blocker.state(), BlockerState::Released);
+    }
+
+    #[test]
+    fn already_dispatched_deadline_is_not_removed_by_acquire() {
+        let mut event_loop = EventLoop::<Vec<&'static str>>::try_new().unwrap();
+        let handle = event_loop.handle();
+        let blocker = frame_timeline::FrameDeadlineBlocker::new(
+            Instant::now(),
+            Arc::new(AtomicU64::new(1)),
+            1,
+        );
+        let deadline_blocker = blocker.clone();
+        let handle_for_deadline = handle.clone();
+        let token = handle
+            .insert_source(Timer::immediate(), move |_, _, events| {
+                assert!(deadline_blocker.cancel_if_pending());
+                events.push("deadline");
+                handle_for_deadline
+                    .insert_source(Timer::immediate(), |_, _, events| {
+                        events.push("unrelated");
+                        TimeoutAction::Drop
+                    })
+                    .unwrap();
+                TimeoutAction::Drop
+            })
+            .unwrap();
+        let mut pending = PendingFrameDeadline {
+            blocker: blocker.clone(),
+            token: Some(token),
+        };
+        let handle_for_acquire = handle.clone();
+        handle
+            .insert_source(Timer::immediate(), move |_, _, events| {
+                events.push("acquire");
+                assert_eq!(
+                    pending.release_if_on_time(&handle_for_acquire, Instant::now()),
+                    None
+                );
+                assert_eq!(pending.cancel(&handle_for_acquire), None);
+                TimeoutAction::Drop
+            })
+            .unwrap();
+
+        let mut events = Vec::new();
+        event_loop
+            .dispatch(Some(Duration::ZERO), &mut events)
+            .unwrap();
+        event_loop
+            .dispatch(Some(Duration::ZERO), &mut events)
+            .unwrap();
+        assert_eq!(events, ["deadline", "acquire", "unrelated"]);
+        assert_eq!(blocker.state(), BlockerState::Cancelled);
+    }
 }
 
 #[cfg(test)]
