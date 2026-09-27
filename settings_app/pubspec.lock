@@ -105,6 +105,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
+  cupertino_ui:
+    dependency: transitive
+    description:
+      name: cupertino_ui
+      sha256: c23816577a1280cff409e989541767887011f8f1d8c1863a794ed308af46f2a9
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   dbus:
     dependency: transitive
     description:
@@ -117,6 +125,34 @@ packages:
     dependency: "direct main"
     description:
       path: "../dart_shell"
+      relative: true
+    source: path
+    version: "0.0.0"
+  denial_flutter_sdk:
+    dependency: transitive
+    description:
+      path: "../packages/denial_flutter_sdk"
+      relative: true
+    source: path
+    version: "0.0.0"
+  denial_sdk:
+    dependency: transitive
+    description:
+      path: "../packages/denial_sdk"
+      relative: true
+    source: path
+    version: "0.0.0"
+  denial_taskbar:
+    dependency: transitive
+    description:
+      path: "../../denial_taskbar_plugin"
+      relative: true
+    source: path
+    version: "0.0.0"
+  denial_top_bar:
+    dependency: transitive
+    description:
+      path: "../plugins/denial_top_bar"
       relative: true
     source: path
     version: "0.0.0"
@@ -326,6 +362,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  material_ui:
+    dependency: transitive
+    description:
+      name: material_ui
+      sha256: "134ab2f0843545c4e661e4ba2753fe1bcf0753cb690d5a9ee4870638a40411e9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.0"
   meta:
     dependency: transitive
     description:

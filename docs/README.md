@@ -23,6 +23,12 @@ Project-level release documents live at the repository root:
 - [Keyboard window resizing](keyboard-shortcuts.md)
 - [Live Flutter UI development](UI_DEVELOPMENT.md)
 - [Custom Flutter shells](CUSTOM_SHELLS.md)
+- [Plugin system: accepted agent implementation contract](PLUGIN_SYSTEM.md)
+- [Plugin Manager: Git distribution and backend contract](PLUGIN_MANAGER.md)
+- [Plugin SDK package and validation](../packages/denial_sdk/README.md)
+- [Flutter plugin contracts](../packages/denial_flutter_sdk/README.md)
+- [Original top-bar plugin](../plugins/denial_top_bar/README.md)
+- [Windows-style taskbar and manual composition](../../denial_taskbar_plugin/README.md)
 - [Screenshots and screen sharing](SCREEN_CAPTURE.md)
 - [Window rendering diagnostics](RENDER_AUDIT.md)
 

@@ -8,7 +8,10 @@
 }:
 
 let
-  pubspecLock = lib.importJSON ./dart_shell-pubspec-lock.json;
+  pubspecLock = lib.recursiveUpdate (lib.importJSON ./dart_shell-pubspec-lock.json) {
+    # The generated Nix source vendors the external development checkout.
+    packages.denial_taskbar.description.path = "../plugins/denial_taskbar";
+  };
   targetPlatform =
     if stdenv.hostPlatform.system == "x86_64-linux" then
       "linux-x64"

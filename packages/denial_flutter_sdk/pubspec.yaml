@@ -1,0 +1,15 @@
+name: denial_flutter_sdk
+description: Flutter contracts and shared presentation primitives for Denial plugins.
+publish_to: none
+version: 0.0.0
+environment:
+  sdk: ^3.13.0
+  flutter: 3.47.5
+dependencies:
+  denial_sdk:
+    path: ../denial_sdk
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.3.2
+dev_dependencies:
+  flutter_lints: ^6.0.0

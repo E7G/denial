@@ -1234,6 +1234,9 @@ fn build_ui_workspace_template(
         "LICENSE",
         "README.md",
         "dart_shell",
+        "packages/denial_sdk",
+        "packages/denial_flutter_sdk",
+        "plugins/denial_top_bar",
         "docs/UI_DEVELOPMENT.md",
         "protocol/generated/dart",
     ]);
@@ -1275,9 +1278,40 @@ fn build_ui_workspace_template(
         ));
     }
 
+    // The selected development plugin is a sibling checkout. Vendor only its
+    // package sources into the generated snapshot, never its Git/cache state.
+    let taskbar_source = paths.repository.join("../denial_taskbar_plugin");
+    let taskbar_destination = destination.join("plugins/denial_taskbar");
+    copy_package_source(&taskbar_source, &taskbar_destination)?;
+    copy_runtime_tree(
+        &taskbar_source.join("README.md"),
+        &taskbar_destination.join("README.md"),
+    )?;
+    for manifest in ["dart_shell/pubspec.yaml", "dart_shell/pubspec.lock"] {
+        let path = destination.join(manifest);
+        let text = fs::read_to_string(&path).map_err(ToolError::io)?;
+        fs::write(
+            path,
+            text.replace("../../denial_taskbar_plugin", "../plugins/denial_taskbar"),
+        )
+        .map_err(ToolError::io)?;
+    }
+    let path = taskbar_destination.join("pubspec.yaml");
+    let text = fs::read_to_string(&path).map_err(ToolError::io)?;
+    fs::write(path, text.replace("../denial/packages/", "../../packages/"))
+        .map_err(ToolError::io)?;
+
     for required in [
         destination.join("dart_shell/pubspec.yaml"),
         destination.join("dart_shell/lib/main.dart"),
+        destination.join("packages/denial_sdk/pubspec.yaml"),
+        destination.join("packages/denial_sdk/lib/denial_sdk.dart"),
+        destination.join("packages/denial_flutter_sdk/pubspec.yaml"),
+        destination.join("packages/denial_flutter_sdk/lib/panels.dart"),
+        destination.join("plugins/denial_top_bar/pubspec.yaml"),
+        destination.join("plugins/denial_taskbar/pubspec.yaml"),
+        destination.join("plugins/denial_top_bar/lib/denial_top_bar.dart"),
+        destination.join("plugins/denial_taskbar/lib/denial_taskbar.dart"),
         destination.join("protocol/generated/dart/pubspec.yaml"),
         destination.join("dart_shell/.vscode/launch.json"),
         destination.join("dart_shell/.vscode/settings.json"),
@@ -1520,6 +1554,18 @@ fn validate_package_inputs(paths: &BuildPaths) -> Result<(), ToolError> {
             .join("pub-cache")
             .join(PUB_CACHE_GENERATION_MARKER),
         paths.ui_workspace_template.join("dart_shell/pubspec.yaml"),
+        paths
+            .ui_workspace_template
+            .join("packages/denial_sdk/pubspec.yaml"),
+        paths
+            .ui_workspace_template
+            .join("packages/denial_flutter_sdk/pubspec.yaml"),
+        paths
+            .ui_workspace_template
+            .join("plugins/denial_top_bar/pubspec.yaml"),
+        paths
+            .ui_workspace_template
+            .join("plugins/denial_taskbar/pubspec.yaml"),
         paths
             .ui_workspace_template
             .join("protocol/generated/dart/pubspec.yaml"),
@@ -1815,6 +1861,14 @@ fn validate_package(
         "usr/share/denial/ui-development/workspace/dart_shell/.vscode/settings.json",
         "usr/share/denial/ui-development/workspace/dart_shell/pubspec.yaml",
         "usr/share/denial/ui-development/workspace/dart_shell/lib/main.dart",
+        "usr/share/denial/ui-development/workspace/packages/denial_sdk/pubspec.yaml",
+        "usr/share/denial/ui-development/workspace/packages/denial_sdk/lib/denial_sdk.dart",
+        "usr/share/denial/ui-development/workspace/packages/denial_flutter_sdk/pubspec.yaml",
+        "usr/share/denial/ui-development/workspace/packages/denial_flutter_sdk/lib/panels.dart",
+        "usr/share/denial/ui-development/workspace/plugins/denial_top_bar/pubspec.yaml",
+        "usr/share/denial/ui-development/workspace/plugins/denial_taskbar/pubspec.yaml",
+        "usr/share/denial/ui-development/workspace/plugins/denial_top_bar/lib/denial_top_bar.dart",
+        "usr/share/denial/ui-development/workspace/plugins/denial_taskbar/lib/denial_taskbar.dart",
         "usr/share/denial/ui-development/workspace/protocol/generated/dart/pubspec.yaml",
         "usr/share/doc/denial-ui-development/BUILD_INFO.md",
         "usr/share/doc/denial-ui-development/FLUTTER_TOOL_BUILD_INFO.md",
@@ -1884,6 +1938,14 @@ fn validate_package(
         "usr/share/denial/ui-development/workspace/.git",
         "usr/share/denial/ui-development/workspace/dart_shell/.dart_tool",
         "usr/share/denial/ui-development/workspace/dart_shell/build",
+        "usr/share/denial/ui-development/workspace/packages/denial_sdk/.dart_tool",
+        "usr/share/denial/ui-development/workspace/packages/denial_sdk/build",
+        "usr/share/denial/ui-development/workspace/packages/denial_flutter_sdk/.dart_tool",
+        "usr/share/denial/ui-development/workspace/packages/denial_flutter_sdk/build",
+        "usr/share/denial/ui-development/workspace/plugins/denial_top_bar/.dart_tool",
+        "usr/share/denial/ui-development/workspace/plugins/denial_taskbar/.dart_tool",
+        "usr/share/denial/ui-development/workspace/plugins/denial_top_bar/build",
+        "usr/share/denial/ui-development/workspace/plugins/denial_taskbar/build",
     ] {
         let path = root.join(forbidden);
         if fs::symlink_metadata(&path).is_ok() {

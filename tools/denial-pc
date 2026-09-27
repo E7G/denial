@@ -165,7 +165,9 @@ Commands:
   native-packages   Build Debian-family and Fedora packages from one payload
   flutter-test      Run lock-matched Flutter shell tests; forwards remaining arguments
   compositor-test   Run compositor and Rust embedder tests without a debug engine
-  test              Run compositor and lock-matched Flutter shell tests
+  sdk-test          Analyze and test the Dart-only plugin SDK; forwards test arguments
+  plugin-check      Analyze the Flutter SDK and first-party plugins without a development engine
+  test              Run SDK, compositor, and lock-matched Flutter shell tests
   session           Run the real DRM session (normally invoked by a display manager)
   engine-test-build Build only the local release engine and stage an isolated test bundle
   engine-test-check Verify the staged engine ABI and AOT bundle without starting Denial
@@ -818,7 +820,34 @@ test_flutter() {
         "$ROOT/tools/denial-flutter-engine" flutter-test -- "$@"
 }
 
+test_sdk() (
+    prepare_flutter_toolchain
+    local dart="$FLUTTER_SDK_ROOT/bin/cache/dart-sdk/bin/dart"
+    require_file "$dart"
+    cd -- "$ROOT/packages/denial_sdk"
+    "$dart" pub get --enforce-lockfile
+    "$dart" format --output=none --set-exit-if-changed lib example test
+    "$dart" analyze --fatal-infos
+    "$dart" test "$@"
+)
+
+check_plugins() (
+    prepare_flutter_toolchain
+    local dart="$FLUTTER_SDK_ROOT/bin/cache/dart-sdk/bin/dart"
+    local package
+    for package in packages/denial_flutter_sdk plugins/denial_top_bar ../denial_taskbar_plugin; do
+        (
+            cd -- "$ROOT/$package"
+            "$FLUTTER" pub get --enforce-lockfile
+            "$dart" format --output=none --set-exit-if-changed lib
+            "$dart" analyze --fatal-infos
+        )
+    done
+)
+
 test_all() {
+    test_sdk
+    check_plugins
     test_compositor
     test_flutter
 }
@@ -1360,6 +1389,11 @@ case "${1:-}" in
         test_flutter "$@"
         ;;
     compositor-test) test_compositor ;;
+    plugin-check) check_plugins ;;
+    sdk-test)
+        shift
+        test_sdk "$@"
+        ;;
     test) test_all ;;
     session) run_display_manager_session ;;
     engine-test-build) stage_engine_test ;;

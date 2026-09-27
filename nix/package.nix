@@ -14,6 +14,8 @@
   gnused,
   util-linux,
   src,
+  runCommand,
+  taskbarSrc ? null,
   version ? "0.0.0+unknown",
   buildIdentity ? "nix.unknown",
   sourceRevision ? "unknown",
@@ -37,9 +39,39 @@ let
     ];
     inherit version buildIdentity;
   };
+  # Local taskbar development uses a separate checkout. Require that source as
+  # an explicit Nix input; never depend on an undeclared path outside the source.
+  uiSourceFor = roots:
+    assert lib.assertMsg (taskbarSrc != null) ''
+      This composition uses the standalone denial_taskbar_plugin checkout.
+      Supply taskbarSrc through denial.override when building with Nix.
+    '';
+    runCommand "source" { } ''
+      mkdir -p $out/plugins
+      cp -R ${sourceFor roots}/. $out/
+      cp -R ${lib.cleanSourceWith {
+        src = taskbarSrc;
+        filter = path: type:
+          !(type == "directory" && builtins.elem (baseNameOf (toString path)) [
+            ".git" ".dart_tool" "build"
+          ]);
+      }} $out/plugins/denial_taskbar
+      chmod -R u+w $out
+      for app in dart_shell settings_app; do
+        if [ -d "$out/$app" ]; then
+          sed -i 's|../../denial_taskbar_plugin|../plugins/denial_taskbar|g' \
+            "$out/$app/pubspec.yaml" "$out/$app/pubspec.lock"
+        fi
+      done
+      sed -i 's|../denial/packages/|../../packages/|g' \
+        $out/plugins/denial_taskbar/pubspec.yaml
+    '';
   dartShell = callPackage ./dart-shell.nix {
-    src = sourceFor [
+    src = uiSourceFor [
       "dart_shell"
+      "packages/denial_sdk"
+      "packages/denial_flutter_sdk"
+      "plugins/denial_top_bar"
       "protocol"
     ];
     sourceLockHash = builtins.hashFile "sha256" (src.origSrc + "/dart_shell/pubspec.lock");
@@ -48,8 +80,11 @@ let
     version = "0.0.0";
   };
   settingsApp = callPackage ./settings-app.nix {
-    src = sourceFor [
+    src = uiSourceFor [
       "dart_shell"
+      "packages/denial_sdk"
+      "packages/denial_flutter_sdk"
+      "plugins/denial_top_bar"
       "protocol"
       "settings_app"
     ];

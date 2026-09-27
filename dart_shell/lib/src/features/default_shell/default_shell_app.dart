@@ -14,6 +14,7 @@ import '../../widgets/notification_banner.dart';
 import '../../widgets/system_level_hud.dart';
 import '../mobile/mobile_application_scene.dart';
 import '../mobile/mobile_frame_timing_overlay.dart';
+import 'panel_composition.dart';
 
 /// The product shell assembled from Denial's reusable host and stock features.
 ///
@@ -24,8 +25,9 @@ class DenialShellApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const DenialShell(
-      mobile: DenialShellScene(
+    return DenialShell(
+      desktopPanelPlacement: selectedDesktopPanel.placement,
+      mobile: const DenialShellScene(
         content: MobileApplicationScene(),
         chrome: MobileShellChrome(),
         overlays: <Widget>[
@@ -36,7 +38,7 @@ class DenialShellApp extends StatelessWidget {
           GlassBenchmarkLayer(),
         ],
       ),
-      desktop: DenialShellScene(
+      desktop: const DenialShellScene(
         content: DesktopShell(),
         overlays: desktopWindowsOnly
             ? <Widget>[]

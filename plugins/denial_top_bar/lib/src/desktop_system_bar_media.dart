@@ -5,12 +5,12 @@ class _MediaStatusProviderModule extends ConsumerWidget {
   const _MediaStatusProviderModule({required this.accent, required this.side});
 
   final WallpaperAccent accent;
-  final SystemBarSide side;
+  final PanelEdge side;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(
-      mediaPlaybackProvider.select((media) {
+      context.shellServices.media.select((media) {
         final playback = media.value;
         return (
           available: playback?.available ?? false,
@@ -38,7 +38,7 @@ class _BatteryStatusCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _BatteryActionCard(
       accent: accent,
-      status: ref.watch(batteryProvider),
+      status: ref.watch(context.shellServices.battery),
       onPressed: onPressed,
     );
   }
@@ -58,7 +58,7 @@ class _GpuStatusCards extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gpus = ref.watch(gpuUsageProvider);
+    final gpus = ref.watch(context.shellServices.gpus);
     return Flex(
       direction: horizontal ? Axis.horizontal : Axis.vertical,
       mainAxisSize: MainAxisSize.min,
@@ -70,8 +70,12 @@ class _GpuStatusCards extends ConsumerWidget {
             horizontal: horizontal,
             child: Padding(
               padding: horizontal
-                  ? const EdgeInsets.only(right: DesktopSystemBar._cardGap)
-                  : const EdgeInsets.only(bottom: DesktopSystemBar._cardGap),
+                  ? const EdgeInsets.only(
+                      right: _DesktopSystemBarContent._cardGap,
+                    )
+                  : const EdgeInsets.only(
+                      bottom: _DesktopSystemBarContent._cardGap,
+                    ),
               child: _SystemBarCard(
                 accent: accent,
                 child: _MeterModule(
@@ -102,14 +106,14 @@ class _CpuStatusCard extends ConsumerWidget {
       horizontal: horizontal,
       child: Padding(
         padding: horizontal
-            ? const EdgeInsets.only(right: DesktopSystemBar._cardGap)
-            : const EdgeInsets.only(bottom: DesktopSystemBar._cardGap),
+            ? const EdgeInsets.only(right: _DesktopSystemBarContent._cardGap)
+            : const EdgeInsets.only(bottom: _DesktopSystemBarContent._cardGap),
         child: _SystemBarCard(
           accent: accent,
           child: _MeterModule(
             accent: accent,
-            label: context.l10n.metricCpu,
-            series: ref.watch(cpuUsageProvider),
+            label: context.pluginStrings.metricCpu,
+            series: ref.watch(context.shellServices.cpu),
           ),
         ),
       ),
@@ -125,7 +129,7 @@ class _ClockStatusModule extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final now = ref.watch(clockProvider).value ?? DateTime.now();
+    final now = ref.watch(context.shellServices.clock).value ?? DateTime.now();
     return _ClockModule(accent: accent, now: now);
   }
 }
@@ -139,7 +143,7 @@ class _MediaStatusModule extends ConsumerStatefulWidget {
   });
 
   final WallpaperAccent accent;
-  final SystemBarSide side;
+  final PanelEdge side;
   final bool available;
   final bool playing;
 
@@ -256,11 +260,11 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
 
   Widget _animatePopup(Widget child) {
     final (entryOffset, scaleAlignment) = switch (widget.side) {
-      SystemBarSide.top => (const Offset(0, -10), Alignment.topCenter),
-      SystemBarSide.bottom => (const Offset(0, 10), Alignment.bottomCenter),
-      SystemBarSide.left => (const Offset(-10, 0), Alignment.centerLeft),
-      SystemBarSide.right ||
-      SystemBarSide.hidden => (const Offset(10, 0), Alignment.centerRight),
+      PanelEdge.top => (const Offset(0, -10), Alignment.topCenter),
+      PanelEdge.bottom => (const Offset(0, 10), Alignment.bottomCenter),
+      PanelEdge.left => (const Offset(-10, 0), Alignment.centerLeft),
+      PanelEdge.right ||
+      PanelEdge.hidden => (const Offset(10, 0), Alignment.centerRight),
     };
     return AnimatedBuilder(
       animation: _popupCurve,
@@ -282,7 +286,7 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
   Widget _buildPopup(
     BuildContext context,
     OverlayChildLayoutInfo layout,
-    MediaPlayerService service,
+    MediaCommands service,
     MprisPlaybackState playback,
   ) {
     if (layout.childPaintTransform.determinant() == 0) {
@@ -298,23 +302,23 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
     );
     late final Offset preferredOrigin;
     switch (widget.side) {
-      case SystemBarSide.top:
+      case PanelEdge.top:
         preferredOrigin = Offset(
           anchor.center.dx - popupSize.width / 2,
           anchor.bottom + _popupGap,
         );
-      case SystemBarSide.bottom:
+      case PanelEdge.bottom:
         preferredOrigin = Offset(
           anchor.center.dx - popupSize.width / 2,
           anchor.top - popupSize.height - _popupGap,
         );
-      case SystemBarSide.left:
+      case PanelEdge.left:
         preferredOrigin = Offset(
           anchor.right + _popupGap,
           anchor.center.dy - popupSize.height / 2,
         );
-      case SystemBarSide.right:
-      case SystemBarSide.hidden:
+      case PanelEdge.right:
+      case PanelEdge.hidden:
         preferredOrigin = Offset(
           anchor.left - popupSize.width - _popupGap,
           anchor.center.dy - popupSize.height / 2,
@@ -358,9 +362,9 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
 
   @override
   Widget build(BuildContext context) {
-    final service = ref.read(mediaPlayerServiceProvider);
+    final service = ref.read(context.shellServices.mediaCommands);
     final playback = _portal.isShowing
-        ? ref.watch(mediaPlaybackProvider).value ?? service.current
+        ? ref.watch(context.shellServices.media).value ?? service.current
         : service.current;
     return ShellInputRegion(
       debugLabel: 'System bar media control',
@@ -370,9 +374,9 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
             _buildPopup(context, layout, service, playback),
         child: Semantics(
           button: true,
-          label: context.l10n.mediaControls,
+          label: context.pluginStrings.mediaControls,
           child: MouseRegion(
-            cursor: ShellMouseCursors.link,
+            cursor: context.shellServices.linkCursor,
             onEnter: (_) => _show(),
             onExit: (_) => _scheduleClose(),
             child: GestureDetector(
@@ -484,7 +488,7 @@ class _MediaPlaybackPopup extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          context.l10n.mediaNowPlaying.toUpperCase(),
+                          context.pluginStrings.mediaNowPlaying.toUpperCase(),
                           style: ShellText.systemBarCaption.copyWith(
                             color: context.shellTheme.accent,
                             letterSpacing: 1.05,
@@ -548,7 +552,7 @@ class _MediaPlaybackPopup extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _MediaControlButton(
-                          label: context.l10n.mediaPrevious,
+                          label: context.pluginStrings.mediaPrevious,
                           icon: Icons.skip_previous_rounded,
                           enabled: playback.canGoPrevious,
                           onPressed: onPrevious,
@@ -556,8 +560,8 @@ class _MediaPlaybackPopup extends StatelessWidget {
                         const SizedBox(width: 8),
                         _MediaControlButton(
                           label: playback.playing
-                              ? context.l10n.mediaPause
-                              : context.l10n.mediaPlay,
+                              ? context.pluginStrings.mediaPause
+                              : context.pluginStrings.mediaPlay,
                           icon: playback.playing
                               ? Icons.pause_rounded
                               : Icons.play_arrow_rounded,
@@ -569,7 +573,7 @@ class _MediaPlaybackPopup extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         _MediaControlButton(
-                          label: context.l10n.mediaNext,
+                          label: context.pluginStrings.mediaNext,
                           icon: Icons.skip_next_rounded,
                           enabled: playback.canGoNext,
                           onPressed: onNext,
@@ -621,8 +625,8 @@ class _MediaControlButtonState extends State<_MediaControlButton> {
         label: widget.label,
         child: MouseRegion(
           cursor: widget.enabled
-              ? ShellMouseCursors.link
-              : ShellMouseCursors.normal,
+              ? context.shellServices.linkCursor
+              : context.shellServices.normalCursor,
           onEnter: widget.enabled
               ? (_) => setState(() => _hovered = true)
               : null,
@@ -684,7 +688,7 @@ class _MediaArtwork extends ConsumerWidget {
         path = null;
       }
       if (path != null) {
-        final bytes = ref.watch(notificationStaticImageProvider(path)).value;
+        final bytes = ref.watch(context.shellServices.imageBytes(path)).value;
         if (bytes != null) {
           artwork = Image.memory(
             bytes,

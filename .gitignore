@@ -6,6 +6,10 @@
 /dart_shell/build/
 /dart_shell/.flutter-plugins
 /dart_shell/.flutter-plugins-dependencies
+/packages/*/.dart_tool/
+/packages/*/build/
+/plugins/*/.dart_tool/
+/plugins/*/build/
 /.denial-ui-source.json
 
 # Local credentials and environment overrides.

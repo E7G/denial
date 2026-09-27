@@ -264,6 +264,15 @@ jobs:
           tools/denial-pc bundle \
             2>&1 | tee "$EVIDENCE_ROOT/integration-test-bundle.txt"
 
+      - name: Validate plugin SDK without a development engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/denial-pc sdk-test \
+            2>&1 | tee "$EVIDENCE_ROOT/sdk-tests.txt"
+          tools/denial-pc plugin-check \
+            2>&1 | tee "$EVIDENCE_ROOT/plugin-checks.txt"
+
       - name: Run release-path compositor tests
         shell: bash
         env:

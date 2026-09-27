@@ -13,20 +13,10 @@ class _WorkspaceIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final desktop = ref.watch(desktopWorkspaceProvider);
-    final count = ref.watch(
-      shellSettingsProvider.select(
-        (settings) => settings.layout.workspaceCount,
-      ),
-    );
-    final active = desktop.activeWorkspaceFor(monitorId);
-    final occupied = desktop.placements.values
-        .where(
-          (placement) =>
-              !placement.minimized && placement.monitorId == monitorId,
-        )
-        .map((placement) => placement.workspaceId)
-        .toSet();
+    final workspace = ref.watch(context.shellServices.workspace(monitorId));
+    final count = workspace.count;
+    final active = workspace.active;
+    final occupied = workspace.occupied;
     return RepaintBoundary(
       child: _SystemBarCard(
         accent: accent,
@@ -39,9 +29,10 @@ class _WorkspaceIndicator extends ConsumerWidget {
           occupied: occupied,
           horizontal: horizontal,
           accent: accent,
-          onPressed: (workspace) => ref
-              .read(denialBridgeProvider)
-              .switchWorkspace(monitorId: monitorId, workspaceId: workspace),
+          onPressed: (workspace) => context.shellServices.switchWorkspace(
+            monitorId: monitorId,
+            workspaceId: workspace,
+          ),
         ),
       ),
     );
@@ -246,7 +237,7 @@ class _WorkspaceIndicatorButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.shellTheme;
-    final l10n = context.l10n;
+    final l10n = context.pluginStrings;
     final description = occupied ? l10n.workspaceOccupied : l10n.workspaceEmpty;
     final label =
         '${l10n.workspaceLabel(workspace)}, $description'
@@ -276,7 +267,7 @@ class _WorkspaceIndicatorButton extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: theme.borderRadius(999),
-              mouseCursor: ShellMouseCursors.link,
+              mouseCursor: context.shellServices.linkCursor,
               splashFactory: NoSplash.splashFactory,
               overlayColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.focused)) {

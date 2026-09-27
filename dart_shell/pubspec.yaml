@@ -10,6 +10,14 @@ environment:
   flutter: 3.47.5
 
 dependencies:
+  denial_taskbar:
+    path: ../../denial_taskbar_plugin
+  denial_flutter_sdk:
+    path: ../packages/denial_flutter_sdk
+  denial_top_bar:
+    path: ../plugins/denial_top_bar
+  denial_sdk:
+    path: ../packages/denial_sdk
   archive: ^3.6.1
   collection: ^1.19.1
   crypto: ^3.0.5

@@ -1,3 +1,4 @@
+import 'package:denial_top_bar/denial_top_bar.dart' show TopBarPlugin;
 import 'package:denial_dart_shell/src/desktop/desktop_shell.dart';
 import 'package:denial_dart_shell/src/desktop/desktop_system_bar.dart';
 import 'package:denial_dart_shell/src/localization/denial_localizations.dart';
@@ -163,6 +164,8 @@ void main() {
               width: 800,
               height: 33,
               child: DesktopSystemBar(
+                panel: TopBarPlugin(),
+                onToggleLauncher: _ignore,
                 monitorId: 1,
                 side: SystemBarSide.top,
                 onOpenPowerSettings: _ignore,

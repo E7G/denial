@@ -130,21 +130,22 @@ void _runSystemTrayIconResolver(List<SendPort> bootstrap) {
   });
 }
 
-typedef SystemTrayInvoke =
-    FutureOr<bool> Function(
-      SystemTrayItem item,
-      SystemTrayAction action,
-      Offset position,
-    );
-typedef SystemTrayMenuLoader =
-    Future<List<SystemTrayMenuEntry>?> Function(SystemTrayItem item);
-typedef SystemTraySubmenuLoader =
-    Future<List<SystemTrayMenuEntry>?> Function(
-      SystemTrayItem item,
-      int parentId,
-    );
-typedef SystemTrayMenuInvoke =
-    FutureOr<bool> Function(SystemTrayItem item, int entryId);
+typedef SystemTrayInvoke = FutureOr<bool> Function(
+  SystemTrayItem item,
+  SystemTrayAction action,
+  Offset position,
+);
+typedef SystemTrayMenuLoader = Future<List<SystemTrayMenuEntry>?> Function(
+  SystemTrayItem item,
+);
+typedef SystemTraySubmenuLoader = Future<List<SystemTrayMenuEntry>?> Function(
+  SystemTrayItem item,
+  int parentId,
+);
+typedef SystemTrayMenuInvoke = FutureOr<bool> Function(
+  SystemTrayItem item,
+  int entryId,
+);
 
 ValueKey<String> systemTrayItemButtonKey(String id) =>
     ValueKey<String>('system-tray-item:$id');
@@ -275,6 +276,7 @@ class _SystemTrayMenuDismissLayerState
 class SystemTrayModule extends ConsumerWidget {
   const SystemTrayModule({
     required this.horizontal,
+    this.wrap = false,
     required this.accent,
     required this.items,
     this.onInvoke,
@@ -285,6 +287,7 @@ class SystemTrayModule extends ConsumerWidget {
   });
 
   final bool horizontal;
+  final bool wrap;
   final Color accent;
   final List<SystemTrayItem> items;
   final SystemTrayInvoke? onInvoke;
@@ -312,27 +315,30 @@ class SystemTrayModule extends ConsumerWidget {
         (item, entryId) => ref
             .read(systemTrayProvider.notifier)
             .activateMenuEntry(item, entryId);
+    final buttons = <Widget>[
+      for (var index = 0; index < items.length; index += 1) ...[
+        if (index > 0 && !wrap)
+          SizedBox(width: horizontal ? 4 : 0, height: horizontal ? 0 : 4),
+        _SystemTrayButton(
+          key: systemTrayItemButtonKey(items[index].id),
+          item: items[index],
+          accent: accent,
+          onInvoke: invoke,
+          onLoadMenu: loadMenu,
+          onLoadSubmenu: loadSubmenu,
+          onInvokeMenu: invokeMenu,
+        ),
+      ],
+    ];
     return ShellInputRegion(
       debugLabel: 'System tray',
-      child: Flex(
-        direction: horizontal ? Axis.horizontal : Axis.vertical,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          for (var index = 0; index < items.length; index += 1) ...[
-            if (index > 0)
-              SizedBox(width: horizontal ? 4 : 0, height: horizontal ? 0 : 4),
-            _SystemTrayButton(
-              key: systemTrayItemButtonKey(items[index].id),
-              item: items[index],
-              accent: accent,
-              onInvoke: invoke,
-              onLoadMenu: loadMenu,
-              onLoadSubmenu: loadSubmenu,
-              onInvokeMenu: invokeMenu,
+      child: wrap
+          ? Wrap(spacing: 8, runSpacing: 8, children: buttons)
+          : Flex(
+              direction: horizontal ? Axis.horizontal : Axis.vertical,
+              mainAxisSize: MainAxisSize.min,
+              children: buttons,
             ),
-          ],
-        ],
-      ),
     );
   }
 }

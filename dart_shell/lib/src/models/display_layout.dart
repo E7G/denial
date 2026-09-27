@@ -1,16 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:denial_flutter_sdk/panels.dart';
 import 'package:flutter/widgets.dart';
 
-enum SystemBarSide {
-  left,
-  right,
-  top,
-  bottom,
-  hidden;
+export 'package:denial_flutter_sdk/panels.dart' show PanelEdge;
 
-  bool get isHorizontal => this == top || this == bottom;
-}
+typedef SystemBarSide = PanelEdge;
 
 @immutable
 class DisplayOutput {

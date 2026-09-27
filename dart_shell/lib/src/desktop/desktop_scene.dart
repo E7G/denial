@@ -465,6 +465,7 @@ class _DesktopScene extends ConsumerStatefulWidget {
     required this.onOpenAppVolumeManager,
     required this.onOpenSettings,
     required this.onOpenPowerSettings,
+    required this.onToggleLauncher,
     required this.onCancelPanelClose,
     required this.onSchedulePanelClose,
     required this.onPanelOpened,
@@ -503,6 +504,7 @@ class _DesktopScene extends ConsumerStatefulWidget {
   final VoidCallback onOpenAppVolumeManager;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenPowerSettings;
+  final VoidCallback onToggleLauncher;
   final VoidCallback onCancelPanelClose;
   final VoidCallback onSchedulePanelClose;
   final VoidCallback onPanelOpened;
@@ -956,6 +958,7 @@ class _DesktopSceneState extends ConsumerState<_DesktopScene> {
                             monitorId: bar.monitorId,
                             side: bar.side,
                             onOpenPowerSettings: onOpenPowerSettings,
+                            onToggleLauncher: widget.onToggleLauncher,
                           ),
                         ),
                     ],

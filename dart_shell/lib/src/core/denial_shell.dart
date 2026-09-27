@@ -1,3 +1,4 @@
+import 'package:denial_flutter_sdk/panels.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,12 +52,14 @@ class DenialShell extends ConsumerWidget {
     required this.desktop,
     this.pairingSurfaceBuilder,
     this.onLocked,
+    this.desktopPanelPlacement,
   });
 
   final DenialShellScene mobile;
   final DenialShellScene desktop;
   final DenialPairingSurfaceBuilder? pairingSurfaceBuilder;
   final DenialShellEffect? onLocked;
+  final PanelPlacement? desktopPanelPlacement;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -145,6 +148,9 @@ class DenialShell extends ConsumerWidget {
     );
 
     return ShellRuntimeBindings(
+      panelPlacement: effectiveProfile == ShellProfile.desktop
+          ? desktopPanelPlacement
+          : null,
       pairingSurfaceBuilder: pairingSurfaceBuilder,
       onLocked: onLocked,
       child: AnimatedShellTheme(
@@ -229,9 +235,8 @@ class _ShellEnvironment extends StatelessWidget {
       child: ShellDefaultTextStyle(child: child),
     );
     return MediaQuery(
-      data: MediaQueryData.fromView(
-        View.of(context),
-      ).copyWith(platformBrightness: animatedTheme.brightness),
+      data: MediaQueryData.fromView(View.of(context))
+          .copyWith(platformBrightness: animatedTheme.brightness),
       child: ScrollConfiguration(
         behavior: const _ShellScrollBehavior(),
         child: profile == ShellProfile.mobile

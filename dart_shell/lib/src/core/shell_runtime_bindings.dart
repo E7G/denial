@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:denial_flutter_sdk/panels.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,8 +14,10 @@ import '../state/shell_controller.dart';
 import '../wallpaper/state/wallpaper_accent.dart';
 import '../widgets/shell_surface_host.dart';
 
-typedef DenialPairingSurfaceBuilder =
-    Widget Function(BuildContext context, VoidCallback close);
+typedef DenialPairingSurfaceBuilder = Widget Function(
+  BuildContext context,
+  VoidCallback close,
+);
 typedef DenialShellEffect = void Function(WidgetRef ref);
 
 /// Owns process-lifetime synchronization independently of feature UI.
@@ -24,11 +27,13 @@ class ShellRuntimeBindings extends ConsumerStatefulWidget {
     required this.child,
     this.pairingSurfaceBuilder,
     this.onLocked,
+    this.panelPlacement,
   });
 
   final Widget child;
   final DenialPairingSurfaceBuilder? pairingSurfaceBuilder;
   final DenialShellEffect? onLocked;
+  final PanelPlacement? panelPlacement;
 
   @override
   ConsumerState<ShellRuntimeBindings> createState() =>
@@ -36,6 +41,14 @@ class ShellRuntimeBindings extends ConsumerStatefulWidget {
 }
 
 class _ShellRuntimeBindingsState extends ConsumerState<ShellRuntimeBindings> {
+  @override
+  void didUpdateWidget(ShellRuntimeBindings oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.panelPlacement != widget.panelPlacement) {
+      _scheduleLayoutSync(ref.read(shellSettingsProvider).layout);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -123,9 +136,15 @@ class _ShellRuntimeBindingsState extends ConsumerState<ShellRuntimeBindings> {
       ref
           .read(displayLayoutProvider.notifier)
           .applyShellConfiguration(
-            side: layout.systemBarSide,
+            side: layout.systemBarSide == PanelEdge.hidden
+                ? PanelEdge.hidden
+                : widget.panelPlacement?.edge ?? layout.systemBarSide,
             outputNames: layout.systemBarOutputNames,
-            systemBarThickness: layout.systemBarThickness,
+            systemBarThickness:
+                widget.panelPlacement?.reservedThickness(
+                  layout.maximizePadding,
+                ) ??
+                layout.systemBarThickness,
             maximizePadding: layout.maximizePadding,
           );
     });

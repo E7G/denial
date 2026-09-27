@@ -10,7 +10,7 @@ class _ClockModule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final time = localizedTime(context, now);
+    final time = context.pluginStrings.time(now);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -20,7 +20,7 @@ class _ClockModule extends StatelessWidget {
           style: ShellText.systemBarCaption.copyWith(
             color: accent.captionColor(context.shellTheme),
           ),
-          child: Text(localizedShortDate(context, now)),
+          child: Text(context.pluginStrings.shortDate(now)),
         ),
         const SizedBox(width: 8),
         AnimatedSwitcher(
@@ -74,10 +74,10 @@ class _BatteryActionCardState extends State<_BatteryActionCard> {
   Widget build(BuildContext context) {
     final capacity = widget.status.capacity ?? 0;
     final state = widget.status.charging ? 'charging' : 'discharging';
-    final statusLabel = localizedBatteryLine(context.l10n, state, capacity);
+    final statusLabel = context.pluginStrings.batteryLine(state, capacity);
     return Semantics(
       button: true,
-      label: '${context.l10n.batteryTitle}, $statusLabel',
+      label: '${context.pluginStrings.batteryTitle}, $statusLabel',
       onTap: widget.onPressed,
       child: ExcludeSemantics(
         child: Material(
@@ -85,7 +85,7 @@ class _BatteryActionCardState extends State<_BatteryActionCard> {
           child: InkWell(
             key: systemBarBatteryButtonKey,
             borderRadius: context.shellTheme.borderRadius(999),
-            mouseCursor: ShellMouseCursors.link,
+            mouseCursor: context.shellServices.linkCursor,
             splashFactory: NoSplash.splashFactory,
             overlayColor: WidgetStatePropertyAll(
               ShellMediaColors.transparentDark,
@@ -145,11 +145,11 @@ class _BatteryModule extends StatelessWidget {
           width: 34,
           child: Text.rich(
             TextSpan(
-              text: context.l10n.numberValue(capacity),
+              text: context.pluginStrings.numberValue(capacity),
               style: context.shellTheme.text.systemBarValue,
               children: [
                 TextSpan(
-                  text: context.l10n.percentSign,
+                  text: context.pluginStrings.percentSign,
                   style: context.shellTheme.text.systemBarCaption.copyWith(
                     color: accent.captionColor(context.shellTheme),
                   ),
@@ -207,13 +207,13 @@ class _MeterModule extends StatelessWidget {
           width: 34,
           child: Text.rich(
             TextSpan(
-              text: context.l10n.numberValue(
+              text: context.pluginStrings.numberValue(
                 ((series.current ?? 0.0) * 100).round(),
               ),
               style: ShellText.systemBarValue,
               children: [
                 TextSpan(
-                  text: context.l10n.percentSign,
+                  text: context.pluginStrings.percentSign,
                   style: ShellText.systemBarCaption.copyWith(
                     color: accent.captionColor(context.shellTheme),
                   ),
@@ -243,11 +243,11 @@ class _TemperatureValue extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text.rich(
       TextSpan(
-        text: context.l10n.numberValue(temperatureC.round()),
+        text: context.pluginStrings.numberValue(temperatureC.round()),
         style: ShellText.systemBarValue,
         children: [
           TextSpan(
-            text: context.l10n.celsiusUnit,
+            text: context.pluginStrings.celsiusUnit,
             style: ShellText.systemBarCaption.copyWith(
               color: accent.captionColor(context.shellTheme),
             ),

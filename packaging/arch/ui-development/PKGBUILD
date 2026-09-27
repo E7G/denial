@@ -97,6 +97,14 @@ package() {
     "$workspace_template/dart_shell/.vscode/settings.json" \
     "$workspace_template/dart_shell/pubspec.yaml" \
     "$workspace_template/dart_shell/lib/main.dart" \
+    "$workspace_template/packages/denial_sdk/pubspec.yaml" \
+    "$workspace_template/packages/denial_sdk/lib/denial_sdk.dart" \
+    "$workspace_template/packages/denial_flutter_sdk/pubspec.yaml" \
+    "$workspace_template/packages/denial_flutter_sdk/lib/panels.dart" \
+    "$workspace_template/plugins/denial_top_bar/pubspec.yaml" \
+    "$workspace_template/plugins/denial_taskbar/pubspec.yaml" \
+    "$workspace_template/plugins/denial_top_bar/lib/denial_top_bar.dart" \
+    "$workspace_template/plugins/denial_taskbar/lib/denial_taskbar.dart" \
     "$workspace_template/protocol/generated/dart/pubspec.yaml" \
     "$flutter_tool_root/BUILD_INFO.md" \
     "$flutter_tool_root/flutter_tools.snapshot.sha256" \

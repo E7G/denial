@@ -961,6 +961,7 @@ class _DesktopShellState extends ConsumerState<DesktopShell> {
               onOpenAppVolumeManager: _openAppVolumeManager,
               onOpenSettings: _openSettings,
               onOpenPowerSettings: _openPowerSettings,
+              onToggleLauncher: _toggleLauncher,
               onCancelPanelClose: _cancelPanelClose,
               onSchedulePanelClose: _schedulePanelClose,
               onPanelOpened: _panelHoverController.openingCompleted,

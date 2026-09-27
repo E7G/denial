@@ -20,7 +20,9 @@
 }:
 
 let
-  pubspecLock = lib.importJSON ./settings_app-pubspec-lock.json;
+  pubspecLock = lib.recursiveUpdate (lib.importJSON ./settings_app-pubspec-lock.json) {
+    packages.denial_taskbar.description.path = "../plugins/denial_taskbar";
+  };
 in
 assert lib.assertMsg (pubspecLock.source_sha256 == sourceLockHash) ''
   settings_app/pubspec.lock changed without regenerating nix/settings_app-pubspec-lock.json;

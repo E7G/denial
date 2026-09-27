@@ -46,6 +46,35 @@ Xwayland implementation and `x11rb` are absent from the resolved build graph.
 A normal binary can instead disable only server startup for one invocation
 with `deniald --no-xwayland`.
 
+Validate the Dart-only plugin SDK without building a Flutter development engine:
+
+```sh
+tools/denial-pc sdk-test
+```
+
+This checks formatting, analysis, and SDK tests with the pinned Dart toolchain.
+It is also included in `tools/denial-pc test` and branch validation.
+
+Check the Flutter-facing SDK and first-party plugins without building a
+development engine:
+
+```sh
+tools/denial-pc plugin-check
+```
+
+This resolves each package's locked dependencies and checks formatting and static
+analysis. The normal release bundle build compiles their shell integration.
+It is also included in `tools/denial-pc test` and branch validation.
+
+The current local composition selects the standalone taskbar at
+`../denial_taskbar_plugin`. Keep that Git checkout beside this checkout; its
+SDK path dependencies point back into `denial/packages/`. Local builds and
+`plugin-check` require both repositories. UI development source snapshots vendor
+its package sources and rewrite only the generated paths to remain self-contained.
+Nix builds require the same source explicitly through the package's `taskbarSrc`
+argument, for example `pkgs.denial.override { taskbarSrc = /path/to/denial_taskbar_plugin; }`.
+The existing flake alone does not contain this unpublished external source.
+
 Run only the lock-matched Flutter shell tests, optionally forwarding a test
 path or other `flutter test` arguments:
 

@@ -86,6 +86,14 @@ shell_source_inputs=(
     "$ROOT/dart_shell/assets"
     "$ROOT/dart_shell/pubspec.yaml"
     "$ROOT/dart_shell/pubspec.lock"
+    "$ROOT/packages/denial_sdk/lib"
+    "$ROOT/packages/denial_sdk/pubspec.yaml"
+    "$ROOT/packages/denial_flutter_sdk/lib"
+    "$ROOT/packages/denial_flutter_sdk/pubspec.yaml"
+    "$ROOT/plugins/denial_top_bar/lib"
+    "$ROOT/../denial_taskbar_plugin/lib"
+    "$ROOT/plugins/denial_top_bar/pubspec.yaml"
+    "$ROOT/../denial_taskbar_plugin/pubspec.yaml"
     "$ROOT/protocol/generated/dart/lib"
 )
 settings_source_inputs=(

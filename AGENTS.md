@@ -11,6 +11,11 @@ That is the architecture. It is also the meaning of the name.
 
 ## Repository workflow
 
+For plugin-system work, read [docs/PLUGIN_SYSTEM.md](docs/PLUGIN_SYSTEM.md) first.
+It records the accepted build-time composition architecture and supersedes earlier
+plugin brainstorming. It is a design contract, not a claim that the system is
+implemented or authorization to implement or deploy it.
+
 Trusted development lands on `dev` first. Arm the ephemeral builder before
 pushing so `.github/workflows/branch-validation.yml` can build, package, and
 independently verify that exact commit. Do not repair pipeline failures

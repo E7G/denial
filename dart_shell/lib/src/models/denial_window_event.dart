@@ -1,4 +1,7 @@
 import 'package:flutter/widgets.dart';
+import 'package:denial_sdk/windows.dart';
+
+export 'package:denial_sdk/windows.dart' show DenialWindowAction;
 
 sealed class DenialWindowEvent {
   const DenialWindowEvent({required this.windowId});
@@ -28,15 +31,6 @@ class DenialWindowPlacementEvent extends DenialWindowEvent {
   final int workspaceId;
   final DenialWindowPlacementPhase phase;
   final DenialWindowPlacementChange change;
-}
-
-enum DenialWindowAction {
-  minimize,
-  maximize,
-  fullscreen,
-  restore,
-  toggleMaximize,
-  toggleFullscreen,
 }
 
 @immutable
