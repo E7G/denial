@@ -1,6 +1,6 @@
 // Previous parser retained for differential tests and local benchmarks.
 import 'package:dbus/dbus.dart';
-import 'package:denial_dart_shell/src/models/logind.dart';
+import 'package:denial_flutter_sdk/models.dart';
 
 LogindCapability legacyLogindCapability(String value) => switch (value) {
   'yes' => LogindCapability.available,

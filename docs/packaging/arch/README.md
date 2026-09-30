@@ -1,6 +1,7 @@
 # Arch Linux packaging
 
-Build Denial and create the two required Pacman packages from the current
+Build Denial and create its two required desktop packages plus the optional
+Plugin Manager package from the current
 working tree:
 
 ```sh
@@ -13,7 +14,9 @@ The packages are written below
 - `denial-flutter-engine` owns the pinned engine, ICU data, generation
   manifest, build metadata, and Flutter licenses;
 - `denial` owns the compositor, AOT application, Flutter assets, session
-  launcher, portals, and machine configuration.
+  launcher, portals, and machine configuration;
+- `denial-plugin-manager` owns the plugin app, backend, and release compiler
+  kit. It depends on the matching `denial` package and the system `dart` package.
 
 Install both in one transaction, with the engine package first:
 
@@ -21,6 +24,12 @@ Install both in one transaction, with the engine package first:
 sudo pacman -U \
   /path/to/denial-flutter-engine-1:*-1-x86_64.pkg.tar.zst \
   /path/to/denial-*.pkg.tar.zst
+```
+
+Install the optional Plugin Manager in the same transaction or later:
+
+```sh
+sudo pacman -U /path/to/denial-plugin-manager-*.pkg.tar.zst
 ```
 
 All public archives take their version directly from the verified signed
@@ -97,8 +106,8 @@ https://denialwm.github.io/denial/x86_64
 ```
 
 The repository is active. Each release contains the two required runtime
-packages and, beginning with Denial 0.2.0, the optional
-`denial-ui-development` package. The exact user setup is in
+packages and the optional `denial-plugin-manager` package. A compatible future
+generation may also restore the optional `denial-ui-development` package. The exact user setup is in
 [INSTALL.md](INSTALL.md). The operator key boundary, backup, tag-signing,
 rotation, and revocation procedure is in [SIGNING.md](SIGNING.md).
 

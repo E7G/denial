@@ -132,6 +132,37 @@ class ShellInteractionRegistry extends Notifier<ShellInteractionSnapshot> {
   }
 }
 
+/// Suppresses descendant native input registrations while retaining their
+/// widgets, for example while a desktop panel fades out or remains offstage.
+class ShellInputScope extends InheritedWidget {
+  const ShellInputScope({
+    required this.enabled,
+    required super.child,
+    super.key,
+  });
+  final bool enabled;
+
+  static bool enabledOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ShellInputScope>()?.enabled ??
+      true;
+
+  @override
+  bool updateShouldNotify(ShellInputScope oldWidget) =>
+      enabled != oldWidget.enabled;
+}
+
+/// Clips descendant native input to a scene-coordinate output rectangle.
+/// Use alongside a paint clip; nested scopes must intersect their parent bounds.
+class ShellInputClip extends InheritedWidget {
+  const ShellInputClip({required this.bounds, required super.child, super.key});
+  final Rect bounds;
+  static Rect? boundsOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ShellInputClip>()?.bounds;
+  @override
+  bool updateShouldNotify(ShellInputClip oldWidget) =>
+      bounds != oldWidget.bounds;
+}
+
 /// Declares a shell-owned input surface without requiring callers to calculate
 /// or publish its global rectangle. Child-bound surfaces are measured from the
 /// render tree after paint, including their current transform.
@@ -165,6 +196,20 @@ class _ShellInputRegionState extends ConsumerState<ShellInputRegion> {
   Rect? _paintBounds;
   Rect? _pendingBounds;
   bool _publishScheduled = false;
+  bool _scopeEnabled = true;
+  Rect? _scopeClip;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final enabled = ShellInputScope.enabledOf(context);
+    final clip = ShellInputClip.boundsOf(context);
+    if (enabled != _scopeEnabled || clip != _scopeClip) {
+      _scopeEnabled = enabled;
+      _scopeClip = clip;
+      _schedulePublish();
+    }
+  }
 
   @override
   void initState() {
@@ -206,7 +251,7 @@ class _ShellInputRegionState extends ConsumerState<ShellInputRegion> {
       if (!mounted) {
         return;
       }
-      if (!widget.active) {
+      if (!widget.active || !_scopeEnabled) {
         _registry.remove(_surfaceId);
         return;
       }
@@ -219,17 +264,32 @@ class _ShellInputRegionState extends ConsumerState<ShellInputRegion> {
           _paintBounds == null) {
         return;
       }
+      final boundedPolicy =
+          _scopeClip != null &&
+              widget.pointerPolicy == ShellPointerPolicy.fullScene
+          ? ShellPointerPolicy.childBounds
+          : widget.pointerPolicy;
+      final bounds = boundedPolicy == ShellPointerPolicy.childBounds
+          ? (widget.pointerPolicy == ShellPointerPolicy.fullScene
+                ? _scopeClip
+                : _scopeClip == null
+                ? _paintBounds
+                : _paintBounds?.intersect(_scopeClip!))
+          : null;
+      if (boundedPolicy == ShellPointerPolicy.childBounds &&
+          (bounds == null || bounds.isEmpty)) {
+        _registry.remove(_surfaceId);
+        return;
+      }
       _registry.upsert(
         ShellInteractionSurface(
           id: _surfaceId,
           debugLabel: widget.debugLabel,
-          pointerPolicy: widget.pointerPolicy,
+          pointerPolicy: boundedPolicy,
           keyboardPolicy: widget.keyboardPolicy,
           compositorPolicy: widget.compositorPolicy,
           observeClientPointerPresses: widget.observeClientPointerPresses,
-          bounds: widget.pointerPolicy == ShellPointerPolicy.childBounds
-              ? _paintBounds
-              : null,
+          bounds: bounds,
         ),
       );
     });

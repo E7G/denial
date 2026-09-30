@@ -7,9 +7,10 @@
 > candidate when the ephemeral runner is armed. Only after that candidate is
 > green is a version chosen; the clean signed tag promotes its exact compiled
 > payloads through the separate hosted release, signing, verification, and
-> Pages path without rebuilding them. The Flutter 3.47.5 generation is
-> release-engine-only: `denial-ui-development` remains paused until an explicit
-> development-engine refresh. Stage 2 and Stage 3 remain later hardening work
+> Pages path without rebuilding them. Flutter 3.47.5 release, debug, and profile
+> engines have been refreshed. `denial-ui-development` publication remains
+> paused pending complete package and editor validation for this generation.
+> Stage 2 and Stage 3 remain later hardening work
 > rather than prerequisites for an honest alpha.
 
 This document defines both the intended production packaging model for Denial
@@ -23,18 +24,20 @@ public beta discloses that its owner-operated builder is not independently
 reproducible. Later stages progressively close and reproduce every build
 input.
 
-The long-term package model has four roles:
+The long-term package model has five roles:
 
 ```text
 denial-flutter-toolchain ──builds──▶ denial ──requires──▶ denial-flutter-engine
                                          ▲                     ▲
                                          │                     │ same ABI
 denial-ui-development (optional) ─requires┘─────────────────────┘
+denial-plugin-manager (optional) ─requires┘
 ```
 
 Compilation happens in package builders, never during `pacman -S`, an install
 hook, or first launch. The public beta uses the validated two-package runtime
-split, `denial-flutter-engine` plus `denial`, and publishes
+split, `denial-flutter-engine` plus `denial`. It publishes the version-matched
+`denial-plugin-manager` separately for plugin development and installation, and
 `denial-ui-development` separately for users who want live Flutter shell
 editing. The build-only `denial-flutter-toolchain` arrives in Stage 2.
 
@@ -86,10 +89,11 @@ The initial public repository deliberately makes a smaller, testable promise:
 - the tag workflow does no compilation and proves that promoted compiled
   payloads are byte-identical to that candidate;
 - exactly one compatible `denial` and `denial-flutter-engine` pair, plus the
-  optional version-matched `denial-ui-development` package when present in the
-  release contract, is produced as Arch packages; the same exact runtime and
-  engine payloads are also wrapped as one Debian-family pair and one Fedora
-  pair and handed to a separate GitHub-hosted signing job;
+  version-matched optional `denial-plugin-manager` and
+  `denial-ui-development` packages when present in the release contract, is
+  produced as Arch packages; the runtime, engine, and Plugin Manager payloads
+  are also wrapped for Debian and Fedora and handed to a separate
+  GitHub-hosted signing job;
 - packages, direct-download signatures, Pacman databases, and the complete
   checksum manifest are signed;
 - the signed repository is re-verified without a secret key before one Pages

@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "denialPlugins": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790795186,
+        "narHash": "sha256-nidfJBJvh/r60vhYDytNumZQyLAiIyCf+QB0ECiBV60=",
+        "owner": "denialwm",
+        "repo": "denial-plugins",
+        "rev": "4b7adf998852b09b9a91c1cfab48be58debf2e80",
+        "type": "github"
+      },
+      "original": {
+        "owner": "denialwm",
+        "repo": "denial-plugins",
+        "rev": "4b7adf998852b09b9a91c1cfab48be58debf2e80",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1789542786,
@@ -18,6 +35,7 @@
     },
     "root": {
       "inputs": {
+        "denialPlugins": "denialPlugins",
         "nixpkgs": "nixpkgs"
       }
     }

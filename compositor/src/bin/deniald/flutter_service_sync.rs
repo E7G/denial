@@ -66,6 +66,7 @@ pub(super) fn synchronize_authentication_boundary(events: &mut RuntimeState) {
     }
     if locked {
         events.pending_shell_actions.clear();
+        events.plugin_actions.pending.clear();
     } else {
         // Fingerprint authentication can succeed without keyboard or pointer
         // activity. Wake idle-blanked outputs and restart the idle deadlines

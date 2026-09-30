@@ -1,4 +1,4 @@
-import 'package:denial_dart_shell/src/platform/denial_wire.dart';
+import 'package:denial_flutter_sdk/wire.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 WindowObjectBuilder window(int id, {String title = ''}) => WindowObjectBuilder(

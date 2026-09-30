@@ -1,5 +1,5 @@
 // Reference implementation retained for differential tests and benchmarks.
-import 'package:denial_dart_shell/src/services/network_backend.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
 
 WifiNetwork legacyCopyWifiNetwork(
   WifiNetwork source, {

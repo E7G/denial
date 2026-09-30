@@ -1,9 +1,11 @@
+import 'package:denial_flutter_sdk/src/platform/bounded_byte_stream.dart'
+    show ByteStreamLimitExceeded, collectBoundedBytes, decodeBoundedUtf8Lines;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/platform/bounded_byte_stream.dart';
 import 'package:test/test.dart';
 
 void main() {

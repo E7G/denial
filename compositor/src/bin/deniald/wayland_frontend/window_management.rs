@@ -841,11 +841,13 @@ pub(super) fn move_window_to_workspace(
             frontend.set_surface_minimized(root.id(), false);
         }
         let location = frontend.move_window_to_workspace(window_id, requested_output, workspace_id);
-        if location.is_some() {
+        if let Some(location) = location {
             if let Some(destination) = requested_output {
                 move_window_geometry_to_output(frontend, window_id, destination);
             }
-            frontend.rebuild_window_layout();
+            if let Some(window) = frontend.window_for_id(window_id) {
+                frontend.move_window_layout_to_workspace(&window, location);
+            }
         }
         location
     };

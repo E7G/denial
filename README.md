@@ -93,6 +93,8 @@ been tested, with no first-party binary yet. openSUSE Tumbleweed has a
 connected yet.
 
 After installing, choose **Denial** from your display manager's session menu.
+Plugin development and installation are provided separately by
+`denial-plugin-manager`; see the [step-by-step plugin guide](docs/PLUGIN_DEVELOPMENT.md).
 
 [Installation, updates, and removal](docs/INSTALL.md) ·
 [Session setup and renderer options](docs/SESSION_STARTUP.md)

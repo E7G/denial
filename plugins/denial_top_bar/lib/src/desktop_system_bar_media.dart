@@ -10,7 +10,7 @@ class _MediaStatusProviderModule extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(
-      context.shellServices.media.select((media) {
+      context.mediaServices.media.select((media) {
         final playback = media.value;
         return (
           available: playback?.available ?? false,
@@ -38,7 +38,7 @@ class _BatteryStatusCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return _BatteryActionCard(
       accent: accent,
-      status: ref.watch(context.shellServices.battery),
+      status: ref.watch(context.telemetryServices.battery),
       onPressed: onPressed,
     );
   }
@@ -58,7 +58,7 @@ class _GpuStatusCards extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gpus = ref.watch(context.shellServices.gpus);
+    final gpus = ref.watch(context.telemetryServices.gpus);
     return Flex(
       direction: horizontal ? Axis.horizontal : Axis.vertical,
       mainAxisSize: MainAxisSize.min,
@@ -113,7 +113,7 @@ class _CpuStatusCard extends ConsumerWidget {
           child: _MeterModule(
             accent: accent,
             label: context.pluginStrings.metricCpu,
-            series: ref.watch(context.shellServices.cpu),
+            series: ref.watch(context.telemetryServices.cpu),
           ),
         ),
       ),
@@ -129,7 +129,8 @@ class _ClockStatusModule extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final now = ref.watch(context.shellServices.clock).value ?? DateTime.now();
+    final now =
+        ref.watch(context.telemetryServices.clock).value ?? DateTime.now();
     return _ClockModule(accent: accent, now: now);
   }
 }
@@ -362,9 +363,9 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
 
   @override
   Widget build(BuildContext context) {
-    final service = ref.read(context.shellServices.mediaCommands);
+    final service = ref.read(context.mediaServices.mediaCommands);
     final playback = _portal.isShowing
-        ? ref.watch(context.shellServices.media).value ?? service.current
+        ? ref.watch(context.mediaServices.media).value ?? service.current
         : service.current;
     return ShellInputRegion(
       debugLabel: 'System bar media control',
@@ -376,7 +377,7 @@ class _MediaStatusModuleState extends ConsumerState<_MediaStatusModule>
           button: true,
           label: context.pluginStrings.mediaControls,
           child: MouseRegion(
-            cursor: context.shellServices.linkCursor,
+            cursor: context.presentationServices.linkCursor,
             onEnter: (_) => _show(),
             onExit: (_) => _scheduleClose(),
             child: GestureDetector(
@@ -625,8 +626,8 @@ class _MediaControlButtonState extends State<_MediaControlButton> {
         label: widget.label,
         child: MouseRegion(
           cursor: widget.enabled
-              ? context.shellServices.linkCursor
-              : context.shellServices.normalCursor,
+              ? context.presentationServices.linkCursor
+              : context.presentationServices.normalCursor,
           onEnter: widget.enabled
               ? (_) => setState(() => _hovered = true)
               : null,
@@ -688,7 +689,9 @@ class _MediaArtwork extends ConsumerWidget {
         path = null;
       }
       if (path != null) {
-        final bytes = ref.watch(context.shellServices.imageBytes(path)).value;
+        final bytes = ref
+            .watch(context.presentationServices.imageBytes(path))
+            .value;
         if (bytes != null) {
           artwork = Image.memory(
             bytes,

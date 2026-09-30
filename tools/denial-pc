@@ -153,6 +153,9 @@ Commands:
   bootstrap         Validate or provision Flutter, then fetch Rust crates
   bundle            Build only the native Dart/Flutter bundle
   settings          Build only the standalone Flutter Settings application
+  welcome           Build the Settings/Welcome host and install the Welcome launcher
+  install-welcome-entry
+                    Install the Welcome launcher entry
   refresh           Build the bundle and reload its Flutter runtime in this session
   kms-refresh       Re-evaluate the live KMS topology without ending the session
   compositor        Build the release Rust compositor and denialctl
@@ -164,6 +167,7 @@ Commands:
   alpine-package    Build installable Alpine Linux APK packages
   native-packages   Build Debian-family and Fedora packages from one payload
   flutter-test      Run lock-matched Flutter shell tests; forwards remaining arguments
+  plugin-manager    Build the separate Plugin Manager app and backend
   compositor-test   Run compositor and Rust embedder tests without a debug engine
   sdk-test          Analyze and test the Dart-only plugin SDK; forwards test arguments
   plugin-check      Analyze the Flutter SDK and first-party plugins without a development engine
@@ -315,6 +319,65 @@ install_settings_desktop_entry() {
     fi
     rm -f -- "$rendered"
     printf 'Installed %s\n' "$SETTINGS_DESKTOP_FILE"
+}
+
+install_welcome_desktop_entries() {
+    require_file "$SETTINGS_BINARY"
+    local config_home="${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}"
+    local destination="$USER_DATA_HOME/applications/dev.denial.Welcome.desktop"
+    local old_autostart="$config_home/autostart/dev.denial.Welcome.desktop"
+    if [[ -e "$destination" || -L "$destination" ]]; then
+        grep -Fqx "# Installed by $SCRIPT_DIR/denial-pc" "$destination" \
+            || die "refusing to replace unrecognized Welcome entry: $destination"
+    fi
+    local rendered
+    rendered="$(mktemp)"
+    {
+        printf '# Installed by %s/denial-pc\n' "$SCRIPT_DIR"
+        sed -e "s|^Exec=.*|Exec=$SETTINGS_BINARY --welcome|" \
+            -e "s|^TryExec=.*|TryExec=$SETTINGS_BINARY|" \
+            "$ROOT/packaging/dev.denial.Welcome.desktop"
+    } > "$rendered"
+    install -Dm644 -- "$rendered" "$destination"
+    rm -f -- "$rendered"
+    # Startup is compositor-owned now. Remove only this checkout's old entry.
+    if [[ -f "$old_autostart" ]] && grep -Fqx \
+        "# Installed by $SCRIPT_DIR/denial-pc" "$old_autostart"; then
+        rm -f -- "$old_autostart"
+    fi
+}
+
+remove_welcome_desktop_entries() {
+    local config_home="${XDG_CONFIG_HOME:-${HOME:?HOME is required}/.config}"
+    local destination
+    for destination in "$USER_DATA_HOME/applications/dev.denial.Welcome.desktop" \
+        "$config_home/autostart/dev.denial.Welcome.desktop"; do
+        if [[ -f "$destination" ]] && grep -Fqx \
+            "# Installed by $SCRIPT_DIR/denial-pc" "$destination"; then
+            rm -f -- "$destination"
+        fi
+    done
+}
+
+install_plugin_manager_desktop_entry() {
+    local binary="$ROOT/plugin_manager_app/build/linux/$DENIAL_FLUTTER_ARCH/release/bundle/denial-plugin-manager"
+    local destination="$USER_DATA_HOME/applications/dev.denial.PluginManager.desktop"
+    [[ -x "$binary" ]] || return 0
+    if [[ -e "$destination" || -L "$destination" ]]; then
+        grep -Fqx "# Installed by $SCRIPT_DIR/denial-pc" "$destination" \
+            || die "refusing to replace unrecognized Plugins desktop entry: $destination"
+    fi
+    local rendered
+    rendered="$(mktemp)"
+    {
+        printf '# Installed by %s/denial-pc\n' "$SCRIPT_DIR"
+        sed -e "s|^Exec=.*|Exec=$binary|" -e "s|^TryExec=.*|TryExec=$binary|" \
+            "$ROOT/packaging/dev.denial.PluginManager.desktop"
+    } > "$rendered"
+    if ! cmp -s -- "$rendered" "$destination"; then
+        install -Dm644 -- "$rendered" "$destination"
+    fi
+    rm -f -- "$rendered"
 }
 
 tracked_changes_match_revision() {
@@ -629,8 +692,16 @@ bootstrap_dependencies() {
     printf '\nDependencies are ready below %s\n' "$DEPENDENCY_ROOT"
 }
 
+prepare_sdk_package() (
+    # Localization now belongs to the SDK. Pub only generates localization for
+    # its root package, so refresh it before building an application consumer.
+    cd -- "$ROOT/packages/denial_flutter_sdk"
+    "$FLUTTER" pub get --enforce-lockfile
+)
+
 build_bundle() (
     prepare_flutter_toolchain
+    prepare_sdk_package
     "$ROOT/tools/denial-flutter-engine" prepare-app-build
     mkdir -p -- "$(dirname -- "$BUNDLE_ASSEMBLY")" "$BUNDLE/data" "$BUNDLE/lib"
     local assembly
@@ -667,7 +738,11 @@ build_bundle() (
 
 build_settings() (
     prepare_flutter_toolchain
+    prepare_sdk_package
     "$ROOT/tools/denial-flutter-engine" prepare-app-build
+    # The Linux asset target does not track app.dill as a subsetting input.
+    # Refresh its stamp so newly used icons cannot retain a stale font subset.
+    rm -f -- "$ROOT/settings_app"/.dart_tool/flutter_build/*/release_bundle_linux-*_assets.stamp
     (
         cd "$ROOT/settings_app"
         "$FLUTTER" pub get
@@ -684,6 +759,96 @@ build_settings() (
     require_file "$SETTINGS_BUNDLE/lib/libapp.so"
     require_file "$SETTINGS_BUNDLE/lib/libflutter_linux_gtk.so"
     printf '\nBuilt %s\n' "$SETTINGS_BUNDLE/denial-settings"
+)
+
+build_plugin_manager() (
+    prepare_flutter_toolchain
+    prepare_sdk_package
+    "$ROOT/tools/denial-flutter-engine" prepare-app-build
+    local dart="$FLUTTER_SDK_ROOT/bin/cache/dart-sdk/bin/dart"
+    mkdir -p -- "$BUILD_ROOT/plugin-manager"
+    (
+        cd -- "$ROOT/packages/denial_plugin_manager"
+        "$dart" pub get --enforce-lockfile
+        "$dart" compile exe bin/denial_plugins.dart \
+            --output="$BUILD_ROOT/plugin-manager/denial-plugins.new"
+        mv -f -- "$BUILD_ROOT/plugin-manager/denial-plugins.new" "$BUILD_ROOT/plugin-manager/denial-plugins"
+    )
+    local app_bundle="$ROOT/plugin_manager_app/build/linux/$DENIAL_FLUTTER_ARCH/release/bundle"
+    # Keep the metadata outside Flutter's disposable bundle. CMake installs
+    # it with the app, including during incremental builds and before kit work.
+    python3 - "$BUILD_ROOT/plugin-manager" "$RUST_TARGET/release/denialctl" \
+        "$app_bundle" <<'PYMETA'
+import json, os, pathlib, sys
+backend, control, app = map(pathlib.Path, sys.argv[1:])
+def publish(target, value):
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + '.new')
+    temporary.write_text(json.dumps(value) + '\n')
+    temporary.replace(target)
+publish(backend / 'denial-plugins.installation.json', {
+    'schema': 1, 'buildKit': 'build-kit',
+    'denialctl': os.path.relpath(control, backend),
+})
+publish(app.parent / 'denial-plugin-manager.installation.json', {
+    'schema': 1, 'application': 'denial-plugin-manager',
+    'backend': str((backend / 'denial-plugins').resolve()),
+})
+PYMETA
+    local retained_app=""
+    if [[ -d "$app_bundle" ]]; then
+        retained_app="$app_bundle-retained-$(date +%s%N)"
+        mv -- "$app_bundle" "$retained_app"
+    fi
+    (
+        cd -- "$ROOT/plugin_manager_app"
+        "$FLUTTER" pub get --enforce-lockfile || exit $?
+        "$FLUTTER" build linux \
+            --local-engine-src-path="$LOCAL_ENGINE_SRC_PATH" \
+            --local-engine="$LOCAL_ENGINE_TARGET" \
+            --local-engine-host="$LOCAL_ENGINE_TARGET" \
+            --suppress-analytics --release --target=lib/main.dart --tree-shake-icons
+    ) || {
+        local status=$?
+        if [[ -n "$retained_app" ]]; then
+            rm -rf -- "$app_bundle"
+            mv -- "$retained_app" "$app_bundle"
+        fi
+        return "$status"
+    }
+    require_file "$ROOT/plugin_manager_app/build/linux/$DENIAL_FLUTTER_ARCH/release/bundle/denial-plugin-manager"
+    require_file "$app_bundle/denial-plugin-manager.installation.json"
+    # A versioned, release-only build kit travels with installed Denial. The
+    # manager copies it into its own cache before running Flutter commands.
+    local staging kit_id
+    staging="$(mktemp -d "$BUILD_ROOT/plugin-manager/preparing-kit.XXXXXX")"
+    trap 'rm -rf -- "$staging"' EXIT
+    "$ROOT/tools/prepare-denial-plugin-kit" \
+        --flutter-root "$FLUTTER_SDK_ROOT" \
+        --engine-root "$LOCAL_ENGINE_SRC_PATH" \
+        --engine-target "$LOCAL_ENGINE_TARGET" \
+        --platform "$DENIAL_FLUTTER_PLATFORM" --output "$staging/kit"
+    kit_id="$(sha256sum "$staging/kit/kit.json" | cut -d' ' -f1)"
+    mkdir -p -- "$BUILD_ROOT/plugin-manager/build-kits"
+    if [[ ! -d "$BUILD_ROOT/plugin-manager/build-kits/$kit_id" ]]; then
+        mv -- "$staging/kit" "$BUILD_ROOT/plugin-manager/build-kits/$kit_id"
+    fi
+    ln -s "build-kits/$kit_id" "$staging/build-kit"
+    mv -Tf -- "$staging/build-kit" "$BUILD_ROOT/plugin-manager/build-kit"
+    # The compiled Flutter-tool snapshot is not byte-for-byte reproducible, so
+    # every rebuild can have a new kit identity. Only the atomically selected
+    # kit is a build output; retaining older copies quickly consumes gigabytes.
+    local cached_kit cached_id
+    while IFS= read -r -d '' cached_kit; do
+        cached_id="${cached_kit##*/}"
+        [[ "$cached_id" != "$kit_id" && "$cached_id" =~ ^[0-9a-f]{64}$ ]] \
+            || continue
+        chmod -R u+w -- "$cached_kit" 2>/dev/null || true
+        rm -rf --one-file-system -- "$cached_kit"
+    done < <(find "$BUILD_ROOT/plugin-manager/build-kits" \
+        -mindepth 1 -maxdepth 1 -type d -print0)
+
+    printf '\nBuilt Plugin Manager and backend at %s\n' "$BUILD_ROOT/plugin-manager/denial-plugins"
 )
 
 find_denial_pid() {
@@ -756,6 +921,7 @@ build_compositor() {
 build_all() {
     build_bundle
     build_settings
+    build_plugin_manager
     build_compositor
 }
 
@@ -833,16 +999,53 @@ test_sdk() (
 
 check_plugins() (
     prepare_flutter_toolchain
+    "$ROOT/tools/denial-flutter-engine" prepare-app-build
     local dart="$FLUTTER_SDK_ROOT/bin/cache/dart-sdk/bin/dart"
     local package
-    for package in packages/denial_flutter_sdk plugins/denial_top_bar ../denial_taskbar_plugin; do
+    for package in packages/denial_flutter_sdk plugins/denial_top_bar plugins/denial_desktop plugins/denial_launcher plugins/denial_clock plugins/denial_clock/ui; do
         (
             cd -- "$ROOT/$package"
             "$FLUTTER" pub get --enforce-lockfile
+            # Pub's SDK source is upstream cached sky_engine. The public SDK
+            # exposes Denial engine primitives, so analyze with the declarations
+            # produced by the same locked release build as the platform dill.
+            python3 - .dart_tool/package_config.json \
+                "$LOCAL_ENGINE_SRC_PATH/out/$LOCAL_ENGINE_TARGET/gen/dart-pkg/sky_engine" <<'PYSDK'
+import json, pathlib, sys
+config = pathlib.Path(sys.argv[1])
+engine = pathlib.Path(sys.argv[2]).resolve()
+assert (engine / 'pubspec.yaml').is_file(), engine
+data = json.loads(config.read_text())
+for package in data['packages']:
+    if package['name'] == 'sky_engine':
+        package['rootUri'] = engine.as_uri()
+config.write_text(json.dumps(data, indent=2) + '\n')
+PYSDK
             "$dart" format --output=none --set-exit-if-changed lib
             "$dart" analyze --fatal-infos
+            if [[ "$package" == packages/denial_flutter_sdk ]]; then
+                # Core SDK persistence and lifecycle tests need no development engine.
+                "$dart" test test/glass_configuration_test.dart test/surface_events_test.dart test/settings_document_test.dart test/bridge_transport_test.dart
+            fi
         )
     done
+    (
+        cd -- "$ROOT/packages/denial_plugin_manager"
+        "$dart" pub get --enforce-lockfile
+        "$dart" format --output=none --set-exit-if-changed lib bin test
+        "$dart" analyze --fatal-infos
+        "$dart" test
+    )
+    (
+        cd -- "$ROOT/plugin_manager_app"
+        "$FLUTTER" pub get --enforce-lockfile
+        "$dart" format --output=none --set-exit-if-changed lib tool
+        "$dart" analyze --fatal-infos
+        local check
+        for check in tool/check_*.dart; do
+            "$dart" run "$check"
+        done
+    )
 )
 
 test_all() {
@@ -955,6 +1158,8 @@ cancel_engine_test() {
 
 run_display_manager_session() {
     install_settings_desktop_entry
+    install_welcome_desktop_entries
+    install_plugin_manager_desktop_entry
     if [[ ! -e "$ENGINE_TEST_NEXT" && ! -L "$ENGINE_TEST_NEXT" ]]; then
         run_session
         return
@@ -1188,6 +1393,8 @@ install_session() {
     require_managed_config_or_absent "portal routing" "$PORTAL_FILE"
     require_managed_config_or_absent "wlr portal config" "$WLR_PORTAL_CONFIG"
     install_settings_desktop_entry
+    install_welcome_desktop_entries
+    install_plugin_manager_desktop_entry
     if [[ -e "$SESSION_TARGET_FILE" ]] \
         && ! grep -Fqx 'BindsTo=graphical-session.target' "$SESSION_TARGET_FILE"; then
         die "refusing to replace unrecognized session target: $SESSION_TARGET_FILE"
@@ -1356,6 +1563,11 @@ remove_session() {
         remove_denial_portal_metadata
         remove_session_target
         remove_settings_desktop_entry
+        remove_welcome_desktop_entries
+    local plugin_entry="$USER_DATA_HOME/applications/dev.denial.PluginManager.desktop"
+    if [[ -f "$plugin_entry" ]] && grep -Fqx "# Installed by $SCRIPT_DIR/denial-pc" "$plugin_entry"; then
+        rm -f -- "$plugin_entry"
+    fi
         remove_wlr_portal_config
         return
     fi
@@ -1367,6 +1579,11 @@ remove_session() {
     remove_denial_portal_metadata
     remove_session_target
     remove_settings_desktop_entry
+    remove_welcome_desktop_entries
+    local plugin_entry="$USER_DATA_HOME/applications/dev.denial.PluginManager.desktop"
+    if [[ -f "$plugin_entry" ]] && grep -Fqx "# Installed by $SCRIPT_DIR/denial-pc" "$plugin_entry"; then
+        rm -f -- "$plugin_entry"
+    fi
     remove_wlr_portal_config
 }
 
@@ -1374,6 +1591,7 @@ case "${1:-}" in
     bootstrap) bootstrap_dependencies ;;
     bundle) build_bundle ;;
     settings) build_settings ;;
+    welcome) build_settings; install_welcome_desktop_entries ;;
     refresh) refresh_bundle ;;
     kms-refresh) request_kms_reconfigure ;;
     compositor) build_compositor ;;
@@ -1388,6 +1606,7 @@ case "${1:-}" in
         shift
         test_flutter "$@"
         ;;
+    plugin-manager) build_plugin_manager ;;
     compositor-test) test_compositor ;;
     plugin-check) check_plugins ;;
     sdk-test)
@@ -1404,6 +1623,8 @@ case "${1:-}" in
     doctor) doctor ;;
     install-session) install_session ;;
     install-settings-entry) install_settings_desktop_entry ;;
+    install-welcome-entry) install_welcome_desktop_entries ;;
+    install-plugin-manager-entry) install_plugin_manager_desktop_entry ;;
     install-engine-test-session) install_engine_test_session ;;
     remove-session) remove_session ;;
     remove-engine-test-session) remove_engine_test_session ;;

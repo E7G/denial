@@ -13,7 +13,7 @@ class _WorkspaceIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final workspace = ref.watch(context.shellServices.workspace(monitorId));
+    final workspace = ref.watch(context.workspaceServices.workspace(monitorId));
     final count = workspace.count;
     final active = workspace.active;
     final occupied = workspace.occupied;
@@ -29,7 +29,7 @@ class _WorkspaceIndicator extends ConsumerWidget {
           occupied: occupied,
           horizontal: horizontal,
           accent: accent,
-          onPressed: (workspace) => context.shellServices.switchWorkspace(
+          onPressed: (workspace) => context.workspaceServices.switchWorkspace(
             monitorId: monitorId,
             workspaceId: workspace,
           ),
@@ -267,7 +267,7 @@ class _WorkspaceIndicatorButton extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: theme.borderRadius(999),
-              mouseCursor: context.shellServices.linkCursor,
+              mouseCursor: context.presentationServices.linkCursor,
               splashFactory: NoSplash.splashFactory,
               overlayColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.focused)) {

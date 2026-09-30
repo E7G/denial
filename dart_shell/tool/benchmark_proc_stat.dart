@@ -1,9 +1,12 @@
+import 'package:denial_flutter_sdk/src/services/linux_cpu_usage.dart'
+    show parseProcStat;
+
 // Compile with the pinned SDK, then run the resulting AOT executable:
 // dart compile exe tool/benchmark_proc_stat.dart -o /tmp/proc-stat-bench
 // /tmp/proc-stat-bench
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/services/linux_cpu_usage.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
 
 int _checksum = 0;
 void main() {

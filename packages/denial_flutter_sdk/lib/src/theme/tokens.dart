@@ -86,7 +86,8 @@ const int maximumShellFontFamilyLength = 128;
 abstract final class ShellText {
   /// Monospace family bundled for the system bar so ticking values keep a
   /// fixed advance; the rest of the shell stays on the default family.
-  static const String systemBarFontFamily = 'JetBrainsMono';
+  static const String systemBarFontFamily =
+      'packages/denial_flutter_sdk/JetBrainsMono';
   static const List<String> fallbackFontFamilies = <String>[
     'Source Han Sans CN',
     'Noto Sans CJK SC',

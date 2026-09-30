@@ -1,8 +1,9 @@
+import 'package:denial_flutter_sdk/wire.dart' show ClipboardHistoryProtocol;
+
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/models/clipboard_history.dart';
-import 'package:denial_dart_shell/src/platform/clipboard_history_protocol.dart';
+import 'package:denial_flutter_sdk/models.dart';
 import 'package:test/test.dart';
 
 void main() {

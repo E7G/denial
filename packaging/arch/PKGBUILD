@@ -22,6 +22,7 @@ depends=(
   "denial-flutter-engine-abi=${_flutter_generation}"
   'dbus'
   'glibc'
+  'git'
   'gtk3'
   'libgcc'
   'libglvnd'
@@ -51,6 +52,7 @@ optdepends=(
   'power-profiles-daemon: system power profiles'
   'sddm: graphical login and session selection'
   'upower: battery and power status'
+  'denial-plugin-manager: develop, install, and compose Denial plugins'
 )
 conflicts=('denial-git')
 backup=(
@@ -182,11 +184,16 @@ package() {
   chmod -R u=rwX,go=rX "$pkgdir/usr/lib/denial/settings"
   ln -s ../lib/denial/settings/denial-settings \
     "$pkgdir/usr/bin/denial-settings"
+  install -Dm644 \
+    "${DENIAL_PACKAGE_PLUGIN_BUILD_KIT:-$cache_root/denial/pc-build/plugin-manager/build-kit}/runtime/.denial-ui-source.json" \
+    "$pkgdir/usr/lib/denial/flutter/.denial-ui-source.json"
 
   install -Dm644 "$srcdir/denial.desktop" \
     "$pkgdir/usr/share/wayland-sessions/denial.desktop"
   install -Dm644 "$srcdir/dev.denial.Settings.desktop" \
     "$pkgdir/usr/share/applications/dev.denial.Settings.desktop"
+  install -Dm644 "$repository_root/packaging/dev.denial.Welcome.desktop" \
+    "$pkgdir/usr/share/applications/dev.denial.Welcome.desktop"
   install -Dm644 "$srcdir/denial-portals.conf" \
     "$pkgdir/usr/share/xdg-desktop-portal/denial-portals.conf"
   install -Dm644 "$srcdir/denial.portal" \
@@ -211,18 +218,18 @@ package() {
   install -Dm644 "$repository_root/docs/man/denial-portal.1" \
     "$pkgdir/usr/share/man/man1/denial-portal.1"
   install -Dm644 \
-    "$repository_root/dart_shell/assets/wallpapers/ATTRIBUTION.md" \
+    "$repository_root/packages/denial_flutter_sdk/assets/wallpapers/ATTRIBUTION.md" \
     "$pkgdir/usr/share/doc/denial/WALLPAPERS.md"
   install -Dm644 \
-    "$repository_root/dart_shell/assets/cursors/BIBATA_MODERN_ICE.md" \
+    "$repository_root/packages/denial_flutter_sdk/assets/cursors/BIBATA_MODERN_ICE.md" \
     "$pkgdir/usr/share/doc/denial/CURSORS.md"
   install -Dm644 \
-    "$repository_root/dart_shell/assets/cursors/bibata_modern_ice.sha256" \
+    "$repository_root/packages/denial_flutter_sdk/assets/cursors/bibata_modern_ice.sha256" \
     "$pkgdir/usr/share/doc/denial/BIBATA_MODERN_ICE.sha256"
-  install -Dm644 "$repository_root/dart_shell/assets/fonts/README.md" \
+  install -Dm644 "$repository_root/packages/denial_flutter_sdk/assets/fonts/README.md" \
     "$pkgdir/usr/share/doc/denial/FONTS.md"
   install -Dm644 \
-    "$repository_root/dart_shell/assets/fonts/JetBrainsMono.sha256" \
+    "$repository_root/packages/denial_flutter_sdk/assets/fonts/JetBrainsMono.sha256" \
     "$pkgdir/usr/share/doc/denial/JETBRAINS_MONO.sha256"
   install -Dm644 \
     "$repository_root/third_party/bibata/Bibata_Cursor-v2.0.7-source.tar.gz" \
@@ -231,7 +238,7 @@ package() {
     "$pkgdir/usr/share/licenses/denial/CC-BY-SA-4.0.txt"
   install -Dm644 "$repository_root/LICENSES/GPL-3.0-only.txt" \
     "$pkgdir/usr/share/licenses/denial/GPL-3.0-only.txt"
-  install -Dm644 "$repository_root/dart_shell/assets/fonts/OFL.txt" \
+  install -Dm644 "$repository_root/packages/denial_flutter_sdk/assets/fonts/OFL.txt" \
     "$pkgdir/usr/share/licenses/denial/OFL-1.1.txt"
   install -Dm644 "$repository_root/LICENSE" \
     "$pkgdir/usr/share/licenses/denial/LICENSE"

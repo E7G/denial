@@ -1,7 +1,13 @@
+import 'package:denial_flutter_sdk/workers.dart'
+    show
+        BackgroundWorker,
+        BackgroundWorkerEntrypoint,
+        BackgroundWorkerException,
+        serveBackgroundWorker;
+
 import 'dart:async';
 import 'dart:isolate';
 
-import 'package:denial_dart_shell/src/services/background_worker.dart';
 import 'package:test/test.dart';
 
 void main() {

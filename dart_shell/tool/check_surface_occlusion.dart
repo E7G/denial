@@ -1,7 +1,7 @@
 // Run with the pinned Dart SDK; no Flutter development engine is needed.
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/models/surface_occlusion.dart';
+import 'package:denial_flutter_sdk/models.dart';
 
 typedef Layer = ({int id, SurfaceBounds rect, bool opaque, bool paints});
 const area = (left: 0.0, top: 0.0, right: 100.0, bottom: 80.0);

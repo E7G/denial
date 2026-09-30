@@ -13,6 +13,11 @@ in
     enable = lib.mkEnableOption "Denial, a Flutter-native Wayland compositor";
     package = lib.mkPackageOption pkgs "denial" { };
 
+    plugins = {
+      enable = lib.mkEnableOption "Denial's plugin development and composition tools";
+      package = lib.mkPackageOption pkgs "denialPluginManager" { };
+    };
+
     polkitAgent = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -45,7 +50,7 @@ in
     environment.systemPackages = [
       cfg.package
       pkgs.zenity
-    ];
+    ] ++ lib.optional cfg.plugins.enable cfg.plugins.package;
     fonts.packages = [ pkgs.source-han-sans ];
 
     services.displayManager.sessionPackages = [ cfg.package ];

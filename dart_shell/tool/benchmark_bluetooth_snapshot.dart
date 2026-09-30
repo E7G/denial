@@ -1,6 +1,10 @@
-import 'dart:io';
+// This benchmark exercises the SDK's internal snapshot implementation.
+// ignore_for_file: invalid_use_of_visible_for_testing_member
 
-import 'package:denial_dart_shell/src/services/bluetooth_backend.dart';
+import 'package:denial_flutter_sdk/src/services/bluetooth_backend.dart'
+    show buildBluetoothSnapshot;
+
+import 'dart:io';
 
 import '../test/support/bluetooth_fixtures.dart';
 import '../test/support/legacy_bluetooth_snapshot.dart';
@@ -20,8 +24,6 @@ void main() {
       final watch = Stopwatch()..start();
       for (var i = 0; i < iterations; i++) {
         final result = optimized
-            // This tool measures the same pure parser exercised by tests.
-            // ignore: invalid_use_of_visible_for_testing_member
             ? buildBluetoothSnapshot(managed)
             : legacyBluetoothSnapshot(managed);
         checksum += result.devices.length + result.devices.first.name.length;

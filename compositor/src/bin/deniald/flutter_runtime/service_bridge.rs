@@ -80,6 +80,14 @@ impl FlutterRuntime {
         self.wire.drain_settings_commands()
     }
 
+    pub fn take_plugin_actions(&mut self) -> Option<crate::plugin_actions::ActionCatalog> { self.wire.take_plugin_actions() }
+
+    pub fn send_plugin_action(&mut self, generation: u64, id: &str, monitor: Option<i64>) -> Result<(), Box<dyn Error>> {
+        let response = self.wire.encode_plugin_action(generation, id, monitor)?;
+        self.host.as_ref().expect("active runtime").engine().send_platform_message(wire::TO_FLUTTER_CHANNEL, response)?;
+        Ok(())
+    }
+
     pub fn take_theme_accent(&mut self) -> Option<u32> {
         self.wire.take_theme_accent()
     }
@@ -103,6 +111,15 @@ impl FlutterRuntime {
     ) -> Result<(), system_command::DispatchError> {
         self.system_commands
             .start_application(launch, activation_token)
+    }
+
+    pub fn start_startup_application(
+        &self,
+        arguments: Vec<String>,
+        desktop_file_id: &'static str,
+    ) -> std::io::Result<()> {
+        self.system_commands
+            .start_startup_application(arguments, desktop_file_id)
     }
 
     pub fn start_shortcut_application(
@@ -430,6 +447,7 @@ impl FlutterRuntime {
         revision: u64,
         shortcuts: &[crate::native_shortcut::ShortcutBinding],
         supported_inputs: &[crate::native_shortcut::ShortcutInputDefinition],
+        plugin_actions: &crate::plugin_actions::ActionCatalog,
         error: Option<&str>,
     ) -> Result<(), Box<dyn Error>> {
         let engine = self
@@ -442,6 +460,7 @@ impl FlutterRuntime {
             revision,
             shortcuts,
             supported_inputs,
+            plugin_actions,
             error,
         )?;
         engine.send_platform_message(wire::TO_FLUTTER_CHANNEL, response)?;

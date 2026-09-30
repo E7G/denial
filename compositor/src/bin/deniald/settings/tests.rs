@@ -100,7 +100,7 @@ fn migrates_existing_shell_document_without_losing_sections() {
         document["layout"]["scrollingLayoutWheelUpDirection"],
         "left"
     );
-    assert_eq!(document["layout"]["workspacesEnabled"], false);
+    assert_eq!(document["layout"]["workspacesEnabled"], true);
     assert_eq!(document["layout"]["workspaceCount"], 4);
     assert_eq!(
         document["layout"]["workspaceSwitchingOrientation"],

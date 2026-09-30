@@ -222,6 +222,23 @@ where
     fn space_for(&self, window: &WindowId) -> Option<LayoutSpace>;
     fn clear(&mut self);
 
+    /// Transfer one existing leaf without reconstructing any other layout
+    /// space. Repeating a move to the current space leaves its position intact.
+    fn move_to_space(&mut self, window: &WindowId, destination: LayoutSpace) -> bool {
+        let Some(source) = self.space_for(window) else {
+            return false;
+        };
+        if source == destination {
+            return false;
+        }
+        self.insert(LayoutInsertion {
+            window: window.clone(),
+            space: destination,
+            anchor: None,
+        });
+        true
+    }
+
     /// Update the minimum visual size for one managed leaf. Zero-sized
     /// protocol hints are normalized by the frontend before they arrive here.
     fn update_minimum_size(&mut self, _window: &WindowId, _minimum: Size<i32, Logical>) -> bool {
@@ -2030,6 +2047,38 @@ where
             .find_map(|(space, row)| row.position(window).map(|_| *space))
     }
 
+    fn move_to_space(&mut self, window: &WindowId, destination: LayoutSpace) -> bool {
+        let Some(source) = self.space_for(window) else {
+            return false;
+        };
+        if source == destination {
+            return false;
+        }
+        let extracted = self
+            .rows
+            .get_mut(&source)
+            .and_then(|row| row.extract(window))
+            .expect("located scrolling leaf must be removable");
+        if self.rows[&source].columns.is_empty() {
+            self.rows.remove(&source);
+        }
+        let row = self
+            .rows
+            .entry(destination)
+            .or_insert_with(ScrollingRow::empty);
+        row.columns.push(ScrollingColumn::single(
+            extracted.window.clone(),
+            extracted.column_width_fraction,
+        ));
+        row.active = Some(extracted.window.clone());
+        row.scroll_origin = None;
+        row.needs_reveal = true;
+        if extracted.maximized {
+            row.set_maximized(&extracted.window, true);
+        }
+        true
+    }
+
     fn clear(&mut self) {
         self.rows.clear();
         self.minimum_sizes.clear();
@@ -2824,6 +2873,166 @@ mod tests {
                 geometry: rect(800, 0, 800, 600),
             }]
         );
+    }
+
+    #[test]
+    fn dwindle_workspace_move_preserves_unrelated_trees_and_same_space_position() {
+        let mut layout = DwindleLayout::<u64>::default();
+        let third_workspace = LayoutSpace::new(OUTPUT.output, 3);
+        let spaces = [OUTPUT, SECOND_WORKSPACE, third_workspace, SECOND_OUTPUT];
+        let area = rect(0, 0, 1000, 600);
+        for (index, space) in spaces.into_iter().enumerate() {
+            let first = index as u64 * 10 + 1;
+            for window in first..first + 3 {
+                layout.insert(LayoutInsertion {
+                    window,
+                    space,
+                    anchor: None,
+                });
+            }
+            assert!(layout.swap(&first, &(first + 2), false));
+            assert!(keyboard_resize(
+                &mut layout,
+                first + 2,
+                area,
+                10,
+                LayoutAxis::Horizontal,
+                LayoutSizeChange::Adjust(100.0),
+            ));
+        }
+        let unrelated =
+            [third_workspace, SECOND_OUTPUT].map(|space| (space, layout.arrange(space, area, 10)));
+        let destination_before = layout.arrange(SECOND_WORKSPACE, area, 10);
+
+        assert!(layout.move_to_space(&1, SECOND_WORKSPACE));
+        assert_eq!(layout.space_for(&1), Some(SECOND_WORKSPACE));
+        assert!(
+            !layout
+                .arrange(OUTPUT, area, 10)
+                .iter()
+                .any(|p| p.window == 1)
+        );
+        // Inserting at the destination retains its existing resized root split.
+        assert_eq!(
+            layout.arrange(SECOND_WORKSPACE, area, 10)[0],
+            destination_before[0],
+        );
+        for (space, before) in &unrelated {
+            assert_eq!(layout.arrange(*space, area, 10), *before);
+        }
+
+        assert!(layout.move_to_space(&1, OUTPUT));
+        assert_eq!(layout.space_for(&1), Some(OUTPUT));
+        for (space, before) in &unrelated {
+            assert_eq!(layout.arrange(*space, area, 10), *before);
+        }
+        let before = layout.arrange(OUTPUT, area, 10);
+        assert!(!layout.move_to_space(&1, OUTPUT));
+        assert!(!layout.move_to_space(&999, SECOND_WORKSPACE));
+        assert_eq!(layout.arrange(OUTPUT, area, 10), before);
+    }
+
+    #[test]
+    fn scrolling_workspace_move_preserves_other_rows_and_the_moved_width() {
+        let mut layout = ScrollingLayout::<u64>::default();
+        let third_workspace = LayoutSpace::new(OUTPUT.output, 3);
+        let spaces = [OUTPUT, SECOND_WORKSPACE, third_workspace, SECOND_OUTPUT];
+        let area = rect(0, 0, 1000, 600);
+        for (index, space) in spaces.into_iter().enumerate() {
+            let first = index as u64 * 10 + 1;
+            for window in first..first + 3 {
+                layout.insert(LayoutInsertion {
+                    window,
+                    space,
+                    anchor: None,
+                });
+            }
+            assert!(layout.move_beside(&first, &(first + 1), LayoutDirection::Up));
+            layout.prepare_arrange(space, area, 10, LayoutAxis::Horizontal);
+            assert!(layout.scroll_horizontally(space, area, 10, LayoutAxis::Horizontal, -125.0));
+        }
+        layout.rows.get_mut(&OUTPUT).unwrap().columns[1].width_fraction = 0.45;
+        assert!(layout.update_minimum_size(&3, Size::from((475, 1))));
+        let unrelated = [third_workspace, SECOND_OUTPUT].map(|space| {
+            let row = &layout.rows[&space];
+            (
+                space,
+                layout.arrange(space, area, 10),
+                row.view_start,
+                row.scroll_origin,
+                row.active,
+            )
+        });
+
+        for destination in [SECOND_WORKSPACE, OUTPUT] {
+            assert!(layout.move_to_space(&3, destination));
+            assert_eq!(layout.space_for(&3), Some(destination));
+            for space in spaces {
+                layout.prepare_arrange(space, area, 10, LayoutAxis::Horizontal);
+            }
+            let moved = &layout.rows[&destination].columns.last().unwrap();
+            assert_eq!(moved.active, 3);
+            assert_eq!(moved.width_fraction, 0.45);
+            assert_eq!(
+                layout
+                    .arrange(destination, area, 10)
+                    .iter()
+                    .find(|p| p.window == 3)
+                    .unwrap()
+                    .geometry
+                    .size
+                    .w,
+                475,
+            );
+            for (space, before, view_start, scroll_origin, active) in &unrelated {
+                assert_eq!(layout.arrange(*space, area, 10), *before);
+                let row = &layout.rows[space];
+                assert_eq!(row.view_start, *view_start);
+                assert_eq!(row.scroll_origin, *scroll_origin);
+                assert_eq!(row.active, *active);
+            }
+        }
+        let before = layout.arrange(OUTPUT, area, 10);
+        assert!(!layout.move_to_space(&3, OUTPUT));
+        assert!(!layout.move_to_space(&999, SECOND_WORKSPACE));
+        assert_eq!(layout.arrange(OUTPUT, area, 10), before);
+    }
+
+    #[test]
+    fn scrolling_workspace_move_retains_maximize_and_retires_only_the_empty_row() {
+        let mut layout = ScrollingLayout::<u64>::default();
+        let area = rect(0, 0, 1000, 600);
+        for (window, space) in [(1, OUTPUT), (2, SECOND_WORKSPACE)] {
+            layout.insert(LayoutInsertion {
+                window,
+                space,
+                anchor: None,
+            });
+            layout.prepare_arrange(space, area, 10, LayoutAxis::Horizontal);
+        }
+        layout.rows.get_mut(&OUTPUT).unwrap().columns[0].width_fraction = 0.4;
+        assert!(layout.set_maximized(&1, true));
+
+        assert!(layout.move_to_space(&1, SECOND_WORKSPACE));
+        assert!(!layout.rows.contains_key(&OUTPUT));
+        assert!(layout.is_maximized(&1));
+        layout.prepare_arrange(SECOND_WORKSPACE, area, 10, LayoutAxis::Horizontal);
+        assert_eq!(
+            layout.arrange(SECOND_WORKSPACE, area, 10)[1]
+                .geometry
+                .size
+                .w,
+            1000
+        );
+        assert!(layout.set_maximized(&1, false));
+        assert_eq!(
+            layout.arrange(SECOND_WORKSPACE, area, 10)[1]
+                .geometry
+                .size
+                .w,
+            400
+        );
+        assert_eq!(layout.space_for(&2), Some(SECOND_WORKSPACE));
     }
 
     #[test]

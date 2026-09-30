@@ -964,6 +964,29 @@ impl WaylandFrontend {
         removed
     }
 
+    /// Transfer only the requested window's leaf. A global rebuild discards
+    /// Dwindle trees and resets scrolling view state on unrelated workspaces.
+    #[cfg(feature = "flutter")]
+    pub(super) fn move_window_layout_to_workspace(
+        &mut self,
+        window: &Window,
+        location: super::workspace::WorkspaceLocation,
+    ) -> bool {
+        let Some(root) = self.window_root_surface(window) else {
+            return false;
+        };
+        let window_id = root.id();
+        if !self.window_layout.contains(&window_id) {
+            return self.reconcile_window_layout(window);
+        }
+        let destination = LayoutSpace::new(location.output, location.workspace);
+        if !self.window_layout.move_to_space(&window_id, destination) {
+            return false;
+        }
+        self.arrange_layout_windows();
+        true
+    }
+
     /// Rebuild output membership after hotplug/rotation while preserving each
     /// window's original stacking rectangle.
     pub(crate) fn rebuild_window_layout(&mut self) -> bool {

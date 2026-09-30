@@ -1,1 +1,1 @@
-export 'src/theme/shell_text_theme.dart';
+export 'src/theme/shell_text_theme.dart' show ShellTextTheme;

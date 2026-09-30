@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 enum ShellTransparencyMode { off, blur, glass }
 
@@ -8,24 +8,27 @@ enum ShellGlassAppearance { dark, light }
 class ShellGlassConfiguration {
   const ShellGlassConfiguration({
     this.appearance = ShellGlassAppearance.dark,
-    this.opacity = 0.19999999999999996,
-    this.blurSigma = 17,
+    this.opacity = 0.4,
+    double? windowOpacity,
+    double? appPanelOpacity,
+    this.blurSigma = 10,
     this.quality = 1,
-    this.thickness = 28,
-    this.refraction = 0.56,
-    this.dispersion = 0.51,
-    this.saturation = 1.3,
-    this.tintStrength = 0,
+    this.thickness = 25,
+    this.refraction = 0.2,
+    this.dispersion = 0,
+    this.saturation = 1,
+    this.tintStrength = 0.1,
     this.brightness = 0,
-    this.lightAngle = 45,
-    this.lightIntensity = 1.12,
+    this.lightAngle = 50,
+    this.lightIntensity = 1,
     this.edgeStrength = 1,
     this.bevelWidthScale = 1,
-    this.refractionDepthScale = 1,
-    this.rimWidth = 1.5,
-    this.rimFalloff = 0.89,
+    this.refractionDepthScale = 1.1,
+    this.rimWidth = 1,
+    this.rimFalloff = 1.1,
     this.oppositeLightStrength = 0.8,
-  });
+  }) : windowOpacity = windowOpacity ?? opacity,
+       appPanelOpacity = appPanelOpacity ?? opacity;
 
   static const double minimumBlurSigma = 0;
   static const double maximumBlurSigma = 30;
@@ -63,8 +66,15 @@ class ShellGlassConfiguration {
 
   final ShellGlassAppearance appearance;
 
-  /// Backing opacity shared by every translucent shell surface in glass mode.
+  /// Backing opacity for shell panels, cards, and overlays in glass mode.
   final double opacity;
+
+  /// Backing opacity for Denial-painted application window surfaces.
+  /// Client-provided pixels from other Wayland applications retain their alpha.
+  final double windowOpacity;
+
+  /// Glass sidebar and toolbar opacity inside compatible applications only.
+  final double appPanelOpacity;
   final double blurSigma;
   final double quality;
   final double thickness;
@@ -85,6 +95,8 @@ class ShellGlassConfiguration {
   ShellGlassConfiguration copyWith({
     ShellGlassAppearance? appearance,
     double? opacity,
+    double? windowOpacity,
+    double? appPanelOpacity,
     double? blurSigma,
     double? quality,
     double? thickness,
@@ -105,6 +117,8 @@ class ShellGlassConfiguration {
     return ShellGlassConfiguration(
       appearance: appearance ?? this.appearance,
       opacity: opacity ?? this.opacity,
+      windowOpacity: windowOpacity ?? this.windowOpacity,
+      appPanelOpacity: appPanelOpacity ?? this.appPanelOpacity,
       blurSigma: blurSigma ?? this.blurSigma,
       quality: quality ?? this.quality,
       thickness: thickness ?? this.thickness,
@@ -128,6 +142,8 @@ class ShellGlassConfiguration {
   Map<String, Object> toJson() => <String, Object>{
     'appearance': appearance.name,
     'opacity': opacity,
+    'windowOpacity': windowOpacity,
+    'appPanelOpacity': appPanelOpacity,
     'blurSigma': blurSigma,
     'quality': quality,
     'thickness': thickness,
@@ -161,12 +177,27 @@ class ShellGlassConfiguration {
       return candidate.toDouble().clamp(minimum, maximum).toDouble();
     }
 
+    final opacity = number('opacity', defaults.opacity, 0, 1);
     return ShellGlassConfiguration(
       appearance: ShellGlassAppearance.values.firstWhere(
         (appearance) => appearance.name == json['appearance'],
         orElse: () => defaults.appearance,
       ),
-      opacity: number('opacity', defaults.opacity, 0, 1),
+      opacity: opacity,
+      // Seed missing fields from the legacy shared value once on decode.
+      // Subsequent copyWith/serialization keeps all three controls independent.
+      windowOpacity: number(
+        'windowOpacity',
+        json.containsKey('opacity') ? opacity : defaults.windowOpacity,
+        0,
+        1,
+      ),
+      appPanelOpacity: number(
+        'appPanelOpacity',
+        json.containsKey('opacity') ? opacity : defaults.appPanelOpacity,
+        0,
+        1,
+      ),
       blurSigma: number(
         'blurSigma',
         defaults.blurSigma,
@@ -275,6 +306,8 @@ class ShellGlassConfiguration {
     return ShellGlassConfiguration(
       appearance: t < 0.5 ? first.appearance : second.appearance,
       opacity: blend(first.opacity, second.opacity),
+      windowOpacity: blend(first.windowOpacity, second.windowOpacity),
+      appPanelOpacity: blend(first.appPanelOpacity, second.appPanelOpacity),
       blurSigma: blend(first.blurSigma, second.blurSigma),
       quality: blend(first.quality, second.quality),
       thickness: blend(first.thickness, second.thickness),
@@ -305,6 +338,8 @@ class ShellGlassConfiguration {
     return other is ShellGlassConfiguration &&
         other.appearance == appearance &&
         other.opacity == opacity &&
+        other.windowOpacity == windowOpacity &&
+        other.appPanelOpacity == appPanelOpacity &&
         other.blurSigma == blurSigma &&
         other.quality == quality &&
         other.thickness == thickness &&
@@ -327,6 +362,8 @@ class ShellGlassConfiguration {
   int get hashCode => Object.hash(
     appearance,
     opacity,
+    windowOpacity,
+    appPanelOpacity,
     blurSigma,
     quality,
     thickness,

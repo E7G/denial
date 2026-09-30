@@ -871,3 +871,40 @@ fn legacy_window_readers_continue_receiving_full_snapshots() {
     assert!(!update.delta());
     assert_eq!(update.windows().unwrap().len(), 2);
 }
+
+#[test]
+fn plugin_action_transport_preserves_catalog_ids_and_generations() {
+    let mut bridge = bridge();
+    let mut builder = FlatBufferBuilder::new();
+    let json = r#"[{"id":"external.run","label":"Run","description":"","provider":"External"}]"#;
+    let descriptors = builder.create_string(json);
+    let catalog = fb::PluginActionCatalog::create(&mut builder, &fb::PluginActionCatalogArgs {
+        generation: 42, actions_json: Some(descriptors),
+    });
+    let envelope = fb::Envelope::create(&mut builder, &fb::EnvelopeArgs {
+        protocol_version: PROTOCOL_VERSION, sequence: 1, request_id: 0,
+        payload_type: fb::Payload::PluginActionCatalog, payload: Some(catalog.as_union_value()),
+    });
+    fb::finish_envelope_buffer(&mut builder, envelope);
+    assert!(bridge.handle(builder.finished_data()).unwrap().is_none());
+    let catalog = bridge.take_plugin_actions().unwrap();
+    assert_eq!(catalog.generation, 42);
+    assert!(catalog.contains("external.run"));
+    assert!(bridge.take_plugin_actions().is_none());
+    let bindings = [ShortcutBinding {
+        shortcut: "Super".into(), target: ShortcutTarget::PluginAction { id: "external.run".into() },
+    }];
+    let bytes = bridge.encode_shortcut_configuration_response(1, 5, &bindings, &[], &catalog, None).unwrap();
+    let envelope = fb::root_as_envelope(bytes).unwrap();
+    let configuration = envelope.payload_as_settings_response().unwrap().shortcuts().unwrap();
+    assert_eq!(configuration.action_generation(), 42);
+    let binding = configuration.shortcuts().unwrap().get(0);
+    assert_eq!(binding.target_as_shortcut_plugin_action_target().unwrap().id(), Some("external.run"));
+    assert_eq!(configuration.plugin_actions_json(), Some(json));
+    let bytes = bridge.encode_plugin_action(42, "external.run", Some(9)).unwrap();
+    let envelope = fb::root_as_envelope(bytes).unwrap();
+    let invocation = envelope.payload_as_plugin_action_invocation().unwrap();
+    assert_eq!(invocation.generation(), 42);
+    assert_eq!(invocation.id(), Some("external.run"));
+    assert_eq!(invocation.monitor_id(), 9);
+}

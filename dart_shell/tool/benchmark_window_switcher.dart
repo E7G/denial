@@ -4,7 +4,7 @@
 // Measures CPU algorithms only, not Flutter rendering or desktop frame time.
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/desktop/window_switcher_order.dart';
+import 'package:denial_desktop/src/desktop/window_switcher_order.dart';
 
 int _sink = 0;
 

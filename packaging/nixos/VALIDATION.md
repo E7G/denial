@@ -4,6 +4,47 @@ Validated on 2026-09-18. This record covers the first-party Nix source build,
 module integration, package contracts, and non-visual runtime health. Visual
 validation remains user-owned and was not performed.
 
+## Host dependency validation (2026-09-30)
+
+The host-native overlay and module change was source-built and activated on
+`192.168.1.18`, using its NixOS 26.05.7443.70cc4559b10a package set. Both the
+Rust compositor and rebuilt Flutter engine selected the host's exact
+`avld9cdn23zab2ssl30h2r6444rqh6ms-glibc-2.42-67` store path rather than
+Denial's locked Nixpkgs libc. The full source package, compositor release
+tests, source-lock check, module check, and installed-path check passed.
+
+This test applied only the packaging change to the host's known-good
+2026-09-18 source snapshot, retaining Flutter 3.44.7 and its existing source
+locks. The current checkout's locked Flutter commit
+`43d164738f1b1540bf4d5601968f2ae50a4be2de` returned HTTP 404 from GitHub,
+preventing a build of that newer engine. No source locks were changed to
+work around that failure. This validates the packaging integration, not the
+newer engine or the other pending checkout changes.
+
+The resulting package was
+`/nix/store/hwksv05q8i39ciqnnm13880wa8k4m31s-denial-0.0.0+src.3b07b016aea7`.
+After a temporary NixOS activation and GDM restart, `deniald` PID 56425
+mapped that package's `libflutter_engine.so` and `libapp.so`, the host libc
+above, and the host's Mesa 26.1.5 EGL driver. Store integrity verification,
+`denial-session --check`, and the display manager, Denial session target,
+portal, and PolicyKit-agent health checks passed; neither system nor user
+systemd had failed units. The existing `MissingAuthorization` backing-store
+startup messages also appeared in the preceding session and were not changed
+by this packaging work. Visual validation was not performed.
+
+The module regression check also passed against Nixpkgs unstable revision
+`b4fd65b198c599cbe814fcb9f42d25d021595ec9` on this host. Evaluation selected
+glibc 2.44 for the host, compositor, and Flutter engine. The unstable engine
+and compositor were not built or run.
+
+The test configuration was activated with `switch-to-configuration test`.
+The permanent `/etc/nixos/configuration.nix` and boot system profile remained
+unchanged. Evidence is retained on the test host under
+`/home/logix/denial-nix-host-test-20260930/`, including `smoke-build.log`,
+`system-build.log`, `runtime-check.log`, and both libc identity JSON files.
+No pipeline jobs were added; the host-dependency assertions extend the
+existing module check.
+
 ## Test system
 
 - Host: dedicated unattended validation machine `192.168.1.18`

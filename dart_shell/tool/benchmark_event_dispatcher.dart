@@ -1,10 +1,10 @@
+import 'package:denial_flutter_sdk/lifecycle.dart' show DeferredEventDispatcher;
+
 // Compile with the pinned Dart SDK, then run the resulting AOT executable:
 // dart compile exe tool/benchmark_event_dispatcher.dart -o /tmp/events-bench
 // /tmp/events-bench
 import 'dart:collection';
 import 'dart:io';
-
-import 'package:denial_dart_shell/src/core/deferred_event_dispatcher.dart';
 
 int _sum = 0;
 bool _ready(int event) => true;

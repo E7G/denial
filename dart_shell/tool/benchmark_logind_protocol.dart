@@ -1,7 +1,9 @@
+import 'package:denial_flutter_sdk/src/services/logind_protocol.dart'
+    show parseLogindInhibitors;
+
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
-import 'package:denial_dart_shell/src/services/logind_protocol.dart';
 
 import '../test/support/legacy_logind_protocol.dart';
 

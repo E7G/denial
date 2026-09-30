@@ -1,12 +1,12 @@
 # Denial plugin system: agent implementation contract
 
-Status: accepted architecture; SDK foundation implemented, composition tooling pending.
+Status: accepted architecture; SDK/composition implementation present, manager integration validation underway.
 Decision date: 2026-09-27.
 Audience: agents designing, implementing, reviewing, or documenting Denial plugins.
 
 Companion contract: [Plugin Manager distribution and backend](PLUGIN_MANAGER.md).
 Read both for manager work. The companion records Git-first plugin distribution,
-pub.dev-hosted SDKs, the catalog, and multi-package repository selection.
+installed SDK distribution, the catalog, and multi-package repository selection.
 
 This document records the final architecture agreed with the user. It supersedes
 earlier brainstorming about runtime plugin registries, arbitrary source rewriting,
@@ -75,54 +75,44 @@ build. Generated factory calls and static provider wiring are permitted.
 
 ## 3. Package boundaries
 
-Use the shared SDK package `denial_sdk`. Both plugins and the shell
-runtime depend on it. The SDK MUST NOT depend on implementations in the runtime
-or on particular plugins.
-
-Illustrative structure:
-
-```text
-denial/
-  compositor/
-  packages/
-    denial_sdk/
-    denial_shell_runtime/
-  plugins/
-    ...first-party plugin packages...
-  ...generated composition workspace outside authoritative source...
-```
-
-Dependency direction:
+The SDK is the sole public Denial platform API. `denial_sdk` owns pure Dart models
+and composition contracts; `denial_flutter_sdk` owns the Dart platform client,
+bootstrap, reactive services/controllers, rendering/input primitives and shared
+assets. Neither SDK may depend on a UI plugin or `denial_dart_shell`.
 
 ```text
 generated application
-  +-> shell runtime -------> SDK
+  +-> denial_flutter_sdk -> denial_sdk
   +-> first-party plugins -> SDK
   +-> third-party plugins -> SDK
+
+native compositor -> Wayland/engine/resource/authentication enforcement
 ```
 
-The SDK owns public models, platform-service interfaces, contribution contracts,
-build-time metadata types, and necessary public Flutter integration helpers. The
-runtime implements native bridging, bootstrap, and platform lifecycle. Plugins
-use public APIs, not runtime-private bridge/state machinery.
+`dart_shell` is only a development application selecting plugin providers. Its
+old public runtime and default-shell facades are removed. The reference plugin
+owns the complete stock desktop/mobile UI, including its stock application
+screens. It imports public SDK libraries exactly like an external plugin.
+It may initially remain one large plugin; splitting its presentation into more
+packages is independent of achieving the SDK boundary.
 
-Plugins obtain runtime services through generated composition/injection and public
-interfaces. A specific injection mechanism is not selected by this document.
+This clarifies the earlier illustrative runtime-package split: the SDK includes
+Dart-side native integration and its managed providers, including low-level APIs.
+Rust remains authoritative for native lifetimes, protocol correctness,
+authentication, composition/recovery and capabilities. Moving an API into the SDK
+does not implement a new native operation or delegate enforcement to plugins.
 
-Plugin-specific extension APIs belong in their own packages, for example:
+Generated entry points use SDK bootstrap directly. Plugin planning rejects old
+runtime dependencies and private SDK imports. Do not retain compatibility facades
+or duplicate implementations in the old application. UI plugins own layout and
+presentation policy; they reuse SDK providers and the shared bridge rather than
+creating parallel native channel handlers. Root plugins can compose low-level
+SDK primitives without importing any default UI.
 
-```text
-alternative_desktop_api -> denial_sdk
-alternative_desktop -> alternative_desktop_api
-alternative_desktop_extension -> alternative_desktop_api
-```
-
-Do not move every ecosystem-specific concept into the core SDK. A package can
-publish contracts without being an activatable plugin.
-
-The default plugins MUST consume the same public platform contracts as external
-plugins. Remove private shortcuts during extraction. Preserve stock behavior when
-the default preset is selected.
+Public interfaces, provider lifetimes, models and contribution contracts belong
+in the SDK. No particular default widget hierarchy is a platform contract. See
+[custom shells](CUSTOM_SHELLS.md) for complete-root responsibilities and
+[plugin development](PLUGIN_DEVELOPMENT.md) for authoring APIs.
 
 ## 4. Pub is the dependency authority
 
@@ -204,11 +194,12 @@ restricted to the intended plugin/application dependency closure, rather than
 indiscriminately activating every package found in `.dart_tool/package_config.json`.
 
 The SDK defines `@Plugin()` on contribution libraries, `@ExtensionPoint` on public
-contracts, and `@Provides(ContractType)` on implementation classes. Discovery is
-still to be implemented: inspect marked libraries under a package's `lib/` within
-the selected application dependency closure, excluding tests, examples, and build
+contracts, and `@Provides(ContractType)` on implementation classes. The manager now analyzes marked libraries under a package's `lib/` within the
+selected application dependency closure, excluding tests, examples, and build
 tooling. It MUST NOT reintroduce runtime entry-point loading or duplicate Pub
-dependencies. Constructor/factory wiring remains a separate builder design task.
+dependencies. Current constructor wiring supports public unnamed constructors,
+typed contracts, optional nullable contracts and ordered contract collections;
+other factory/build-script mechanisms require explicit design.
 
 Public contract references should be actual Dart types. Package IDs, source
 locations, user selections, and serialized lock records naturally use strings.
@@ -309,9 +300,11 @@ use. Custom composition builds require the compatible build tooling, which can b
 cached and reused.
 
 The planned manager installs plugin source packages from Git and lists built-ins
-alongside entries from a Denial-owned YAML catalog. SDK packages are intended for
-pub.dev; plugin authors do not need to publish there. Multi-package repositories
-use package-level selection and repository-relative paths. See
+alongside entries from a Denial-owned YAML catalog. SDK packages ship in the
+matching installed compiler kit; SDK and plugin publication to pub.dev is optional.
+Authors manually configure local SDK overrides and editor paths as documented in
+[plugin development](PLUGIN_DEVELOPMENT.md). Multi-package repositories use
+package-level selection and repository-relative paths. See
 [PLUGIN_MANAGER.md](PLUGIN_MANAGER.md) for the accepted distribution/backend
 contract and remaining decisions. Pub remains the dependency authority. Local
 development/installations should use the same composition rules.
@@ -325,34 +318,21 @@ state. Compatibility checks, last-working rollback, startup recovery, and durabl
 custom-selection behavior need explicit implementation verification. Existing
 refresh support alone does not establish that these are all implemented.
 
-## 10. Known implementation gaps and source anchors
+## 10. Platform boundaries and source anchors
 
-These are observations from the design review, not a complete current-state audit.
-Reinspect before editing; do not freeze internal filenames as public contracts.
-
-- Public framework/default assembly separation already exists:
-  [custom shells](CUSTOM_SHELLS.md), `dart_shell/lib/denial.dart`, and
-  `dart_shell/lib/src/features/default_shell/default_shell_app.dart`.
-- The framework is not yet a separate plugin SDK/runtime/default-plugin package
-  graph. Extract public boundaries without making plugins import `lib/src`.
-- System-bar rendering now lives in `plugins/denial_top_bar`. The compatibility
-  host in `dart_shell/lib/src/desktop/desktop_system_bar.dart` delegates to the typed
-  selection in `features/default_shell/panel_composition.dart`. It currently selects
-  `denial_taskbar` from the sibling `../denial_taskbar_plugin` checkout; the
-  original bar remains independently available.
-- Work-area modeling includes built-in system-bar assumptions in
-  `dart_shell/lib/src/models/display_layout.dart`. General panel/reservation
-  contracts must keep native layout and Flutter presentation consistent.
-- The semantic window-action facade in
-  `dart_shell/lib/src/core/shell_windows.dart` is narrower than internal desktop
-  operations. Expose reusable actions without coupling plugins to private state.
-- Frame/content geometry assumes uniform borders in
-  `dart_shell/lib/src/desktop/desktop_workspace.dart` and
-  `compositor/src/bin/deniald/wayland_frontend/window_management.rs`.
-- Decoration negotiation and window facts currently impose server-frame policy;
-  inspect `wayland_frontend/handlers.rs` and `wayland_frontend/managed_window.rs`.
-- Refresh implementation and remaining limitations are documented in
-  [UI development](UI_DEVELOPMENT.md) and implemented in native UI runtime control.
+- Public Dart platform services, controllers, surface/input primitives and
+  bootstrap live in `packages/denial_flutter_sdk`; pure contracts/models live
+  in `packages/denial_sdk`.
+- The full reference UI lives in `plugins/denial_desktop`. Panel, launcher and
+  action contributions are consumed there using public SDK contracts.
+- There is no reusable `denial_dart_shell` API. The generated composition does
+  not depend on or copy assets from that application.
+- Work-area modeling still includes one selected panel's reservation. General
+  multi-panel geometry must keep native layout and Flutter presentation consistent.
+- Native decoration negotiation and configure/commit ownership remain in
+  `compositor/src/bin/deniald/wayland_frontend`.
+- Refresh, recovery and the trust boundary are documented in
+  [UI development](UI_DEVELOPMENT.md).
 
 General geometry APIs must consistently account for outer frame, client content,
 per-edge insets, input ownership, client configure sizes, popup coordinates,
@@ -399,53 +379,137 @@ authorization required by `AGENTS.md`.
 - A process-per-plugin architecture as the selected design.
 - Treating compile-time composition as execution of Flutter UI during the build.
 
-## 13. Decisions still required during implementation design
+## 13. Implementation decisions and remaining boundaries
 
-Resolve these within the accepted architecture; do not mistake illustrative syntax
-for a completed API specification:
+The manager now resolves annotated types, validates constructor injection and
+contract cardinality/order, emits direct static wiring, persists selected roots
+and Pub pins, and integrates sealed bundles with native startup/recovery. Its
+README and the companion contract describe the implemented APIs and validation.
+Earlier illustrative syntax does not supersede those actual APIs.
 
-- exact package extraction and public API/versioning boundaries;
-- discovery implementation (the SDK now defines a `@Plugin()` library marker,
-  `@ExtensionPoint` contract metadata, and typed `@Provides` declarations);
-- constructor/factory injection and generated root application API;
-- contract cardinality, selection, decorator ordering, and conflict diagnostics;
+The following boundaries still require design or publication work:
+
+- optional subdivision of the large reference UI plugin and public API/versioning policy;
+- factory injection beyond supported public unnamed constructors;
 - build-script contract, declared inputs, and execution isolation;
-- dependency-cycle and runtime resource-lifecycle rules;
-- selection persistence, configuration migration, and incompatible-upgrade behavior;
-- bundle manifest/compatibility integration and persistent recovery behavior;
+- explicit composition-owned resource lifecycle beyond ordinary widget/owner
+  disposal (constructor dependency cycles already fail during planning);
+- future persisted-schema migrations (current schemas reject unsupported versions);
 - store source provenance, package verification, and publication workflow.
 
 The initial SDK lives in [packages/denial_sdk](../packages/denial_sdk/README.md):
 typed contribution metadata, shared application/window-action/system models, and
 analyzer tests. [packages/denial_flutter_sdk](../packages/denial_flutter_sdk/README.md)
-adds the typed panel contract, service injection, theme, effects, and input-region
+adds typed surface contracts, service injection, theme, effects, and input-region
 primitives. [plugins/denial_top_bar](../plugins/denial_top_bar/README.md) owns bar
 presentation and uses those public APIs without importing shell internals.
 
-The shell includes the plugin through a Pub path dependency and direct static
-composition, as explicitly requested for this increment. Annotations are not yet
-consumed by a generator. Existing placement, reservations, native service
-lifetimes, and tray menu/input ownership remain runtime-owned. The default shell
-has not yet been fully split into plugins. General panel layout, plugin selection,
-generated composition, and manager-driven installation/deployment remain
-unimplemented. Manual plugin builds and lab deployments have been exercised.
+The handwritten development app and generated applications both instantiate the
+selected `ShellApplication` provider and call SDK bootstrap. The default provider
+owns its UI directly; it does not delegate to a runtime-owned desktop. The SDK
+provides native integration and shared primitives; the reference plugin supplies
+its placement policy, reservations, transitions and tray/menu presentation.
 
-Current desktop composition selects `TaskbarPlugin` (`material_ui`) directly.
-`ShellPanel.placement` can request a fixed edge/thickness; the default assembly
-injects this into `DenialShell.desktopPanelPlacement`. Runtime bindings apply it
-to both native reservations and the Flutter display layout, respecting hidden
-panels and configured output selection. Custom shells opt in explicitly; mobile
-layout is unchanged. `ShellServices` additionally exposes application-window
-summaries, activation, launcher access, and icon rendering. Tray presentation
-supports wrapped icons for overflow flyouts. This is still one selected panel,
-not a general multi-panel placement solver or an implemented plugin manager.
-`PanelPlacement.reserveWindowSpacing` additionally lets the host reserve configured
-window spacing while painting the panel at its original thickness against the
-output edge. The taskbar uses this option and Denial's shared glass primitives.
+Desktop UI placement uses the SDK's `ShellSurface` collection. Contributions
+specify arbitrary bounds, output selection, scene layer and visibility from live
+scene facts. The reference desktop mounts those declarations through SDK planes;
+it has no panel-position slot or desktop-clock grid. `ShellSurfaceContext` supplies
+state snapshots, an event stream and public services. Temporary hiding preserves
+state and uses the SDK input/fade lifecycle, including separate glass fades. The
+plugin authoring API is `surfaces.dart`; root hosting is `surface_hosting.dart`.
+Temporary popup instances use `popups.dart`, separately from contributions.
+Surface events report environment changes rather than every host rebuild.
 
-Local development extraction: `denial_taskbar` now lives in its own Git repository
-at `../denial_taskbar_plugin`, outside the Denial checkout. Its two SDK dependencies
-point back to `../denial/packages/denial_sdk` and
-`../denial/packages/denial_flutter_sdk`. The shell deliberately keeps it selected
-through a path dependency. Both checkouts are required for this local composition;
-this is not SDK publication or a plugin-manager installation mechanism.
+Native reservations are a distinct optional exclusive `ShellWorkArea` contribution.
+Its current single-provider cardinality reflects the native protocol's one shared
+edge/thickness/output selection, not a limit on surface count. Conflicts fail
+composition validation. General per-output, multi-edge native reservations require
+extending that protocol. Plugin placement and native reservations must not be
+silently conflated.
+
+The desktop clock is independently selectable. Its reusable clock face is an
+ordinary helper package without contribution annotations; mobile and lock UI can
+reuse it without implicitly selecting the desktop clock contribution.
+
+Collection distribution: `denial_taskbar` lives at
+`plugins/denial_taskbar` in the public `denialwm/denial-plugins` repository.
+The collection root is a source container, not a Dart package. The shell pins
+that package by repository, path, and exact commit; generated offline workspaces
+vendor the resolved package. Plugin authors still use ignored local SDK overrides
+as documented in `PLUGIN_DEVELOPMENT.md`. Plugin installation receives the SDK
+and compiler kit from Denial and does not require publishing either SDK to pub.dev.
+
+
+## Automatic manager setup
+
+Users select plugins and apply them; they MUST NOT configure compiler/runtime
+paths, backend flags, or development modes. The installed Denial payload supplies
+matching source templates, compiler inputs, SDKs, and native control. The app
+prepares its writable cache automatically. Only `DENIAL_SDK_PATH` may optionally
+substitute the SDK pair for development. See `PLUGIN_MANAGER.md` section 14 for
+the implementation and validation boundary.
+
+## Advisory compatibility declarations
+
+Plugins may now declare `denial_plugin` schema 1 metadata in their Pub manifest
+for a fast selection preflight: a display name, provided contract counts, and
+required contract min/max counts. See `PLUGIN_MANAGER.md` section 16. These are
+serialized public Dart type identities and advisory author claims. Pub still
+resolves dependency versions/closure, and actual-type analysis still validates
+all contributions before compilation. Immediate checks block known conflicts
+without introducing a hardcoded list of incompatible plugins.
+
+## Desktop launcher extraction
+
+`plugins/denial_launcher` now supplies the optional exclusive `ShellLauncher`
+contract from `denial_flutter_sdk/launcher.dart`. `ReferenceDesktop` accepts a
+nullable launcher through generated constructor injection, independently of its
+panel. The built-in preset and manual development entry point select the launcher;
+existing saved plugin selections are not changed automatically.
+
+The plugin owns launcher presentation, filtering, suggestions and keyboard
+navigation. Its public context supplies application/history snapshots, localized
+labels, icons, cursors, focus and semantic actions. Native launching and recents persistence use SDK services. The consuming root
+plugin owns surface placement, transitions and input publication through SDK APIs.
+With no provider the desktop omits the launcher and its edge trigger and ignores
+launcher-open actions. Alternative providers use the same contract; conflicts fail
+before compilation. The mobile home grid remains part of the mobile composition.
+
+## Plugin-provided shortcut actions
+
+`ShellAction` in `denial_flutter_sdk/actions.dart` is a `zeroOrMore` public
+contract. Plugins annotate implementations with `@Provides(ShellAction)`. The
+builder injects the selected implementations into the desktop's `actions` list;
+custom shells can mount the SDK's `ShellActionsBinding` with their generated
+list and public `ShellServices`. This does not change build-time composition.
+
+Each action supplies a stable package-qualified ID, localized label/description,
+provider name, and an `invoke(ShellActionContext)` handler. The ID, not its label,
+is saved in shortcuts. `native.*` is reserved. Catalogs allow at most 256 actions,
+128 KiB of JSON, 256-byte labels/provider names and 2048-byte descriptions; text
+must not contain control characters. Duplicate or invalid descriptors fail the
+host binding instead of silently overriding another handler.
+
+The running shell publishes the complete catalog over one generic native bridge.
+Rust matches shortcut IDs and sends generation-tagged invocations back to the
+shell. It does not contain per-plugin enums or implementations. Shell replacement
+clears the catalog and pending calls; the new host publishes a fresh generation.
+Locked sessions cannot dispatch plugin actions. Native authentication and service
+policy still apply to operations requested by handlers.
+
+Settings lists native actions alongside the current plugin catalog, including
+provider names. Its open shortcuts page refreshes the catalog periodically.
+Removing a provider makes saved bindings unavailable without deleting them;
+restoring the same ID makes them usable again. Plugins do not override user
+shortcut choices or silently install suggested bindings.
+
+The Launcher plugin provides `denial_launcher.openApplications`. Shortcut schema
+11 migrates legacy `openApplications` targets to that ID, preserving customized
+keys and removed bindings. The default SUPER binding uses this ID. Without the
+Launcher contribution, it cannot open the launcher.
+
+The initial generic bridge requires one native update. Subsequent plugin action
+additions/removals require only the normal composition build and live shell
+refresh, with no Rust rebuild or compositor restart. Build kits declare required
+native capabilities in their source identity; activation checks the running
+compositor before attempting a shell replacement.

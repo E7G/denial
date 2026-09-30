@@ -692,6 +692,7 @@ pub struct WireBridge {
     pending_xembed_tray_commands: VecDeque<XEmbedTrayCommand>,
     pending_settings_commands: VecDeque<SettingsCommand>,
     pending_theme_accent: Option<u32>,
+    pending_plugin_actions: Option<crate::plugin_actions::ActionCatalog>,
     pending_work_area: Option<WorkAreaOptions>,
     next_sequence: u64,
 }
@@ -731,6 +732,7 @@ impl WireBridge {
             pending_xembed_tray_commands: VecDeque::new(),
             pending_settings_commands: VecDeque::new(),
             pending_theme_accent: None,
+            pending_plugin_actions: None,
             pending_work_area: None,
             next_sequence: 1,
         })
@@ -780,6 +782,8 @@ impl WireBridge {
     /// Takes the latest resolved shell accent. Theme state is intentionally
     /// last-writer-wins: wallpaper extraction and setting changes may finish
     /// in the same event-loop turn, and only the final color is observable.
+    pub fn take_plugin_actions(&mut self) -> Option<crate::plugin_actions::ActionCatalog> { self.pending_plugin_actions.take() }
+
     pub fn take_theme_accent(&mut self) -> Option<u32> {
         self.pending_theme_accent.take()
     }

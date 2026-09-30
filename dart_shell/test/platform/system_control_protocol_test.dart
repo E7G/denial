@@ -1,8 +1,9 @@
+import 'package:denial_flutter_sdk/wire.dart' show SystemControlProtocol;
+
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/platform/system_control_protocol.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -1,9 +1,12 @@
+import 'package:denial_flutter_sdk/src/state/display_brightness_model.dart'
+    show DisplayBrightnessModel;
+
 // Compile with the pinned SDK, then run the resulting AOT executable:
 // dart compile exe tool/benchmark_display_brightness.dart -o /tmp/brightness-bench
 // /tmp/brightness-bench
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/state/display_brightness_model.dart';
+import 'package:denial_flutter_sdk/state.dart';
 
 int _checksum = 0;
 void main() {

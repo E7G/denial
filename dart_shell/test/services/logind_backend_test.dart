@@ -1,7 +1,9 @@
+import 'package:denial_flutter_sdk/service_backends.dart' show LogindService;
+
 import 'dart:async';
 
 import 'package:dbus/dbus.dart';
-import 'package:denial_dart_shell/src/services/logind_backend.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
 import 'package:test/test.dart';
 
 void main() {

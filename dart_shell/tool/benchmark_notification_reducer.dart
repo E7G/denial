@@ -1,8 +1,10 @@
+import 'package:denial_flutter_sdk/src/state/desktop_notification_reducer.dart'
+    show DesktopNotificationReducer;
+
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/models/desktop_notification.dart';
-import 'package:denial_dart_shell/src/state/desktop_notification_reducer.dart';
-import 'package:denial_dart_shell/src/state/desktop_notifications_state.dart';
+import 'package:denial_flutter_sdk/models.dart';
+import 'package:denial_flutter_sdk/state.dart';
 
 import '../test/support/legacy_notification_reducer.dart';
 import '../test/support/notification_event_fixtures.dart';

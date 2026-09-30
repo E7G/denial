@@ -11,6 +11,10 @@ That is the architecture. It is also the meaning of the name.
 
 ## Repository workflow
 
+For plugin development, refer to [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md).
+It documents manual SDK/editor setup, validation, Git distribution, installation,
+and the build/apply workflow using Denial's bundled compiler kit.
+
 For plugin-system work, read [docs/PLUGIN_SYSTEM.md](docs/PLUGIN_SYSTEM.md) first.
 It records the accepted build-time composition architecture and supersedes earlier
 plugin brainstorming. It is a design contract, not a claim that the system is
@@ -79,6 +83,17 @@ Moto restart observation (2026-09-08): the user reports that Denial seems to
 restart without hanging when the screen is already off. Keep this condition in
 mind for future authorized restarts; its reliability still needs repeated
 confirmation.
+
+For an active plugin composition, `tools/denial-pc refresh` reloads its existing
+bundle; it does not apply checkout edits. To refresh with those edits, run
+`tools/denial-pc plugin-manager`, then `tools/denial-plugins plan`,
+`tools/denial-plugins build ID`, and `tools/denial-plugins activate ID` outside
+the sandbox, using the returned candidate ID and preserving the selection.
+Verify the candidate contains the fix, `plugin_healthy` is true, and the running
+compositor maps that candidate's `libapp.so`. No session restart is needed.
+Run PID/process checks and `/proc/PID/maps` inspection outside the sandbox;
+sandbox process visibility can hide the running compositor and falsely suggest
+that it exited.
 
 ## User-owned visual validation and test triggers
 

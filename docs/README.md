@@ -28,7 +28,7 @@ Project-level release documents live at the repository root:
 - [Plugin SDK package and validation](../packages/denial_sdk/README.md)
 - [Flutter plugin contracts](../packages/denial_flutter_sdk/README.md)
 - [Original top-bar plugin](../plugins/denial_top_bar/README.md)
-- [Windows-style taskbar and manual composition](../../denial_taskbar_plugin/README.md)
+- [Windows-style taskbar](https://github.com/denialwm/denial-plugins/tree/main/plugins/denial_taskbar)
 - [Screenshots and screen sharing](SCREEN_CAPTURE.md)
 - [Window rendering diagnostics](RENDER_AUDIT.md)
 

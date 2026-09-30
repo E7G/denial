@@ -20,11 +20,21 @@ pub(super) fn synchronize_flutter_window_management(
     runtime: &mut flutter_runtime::FlutterRuntime,
     events: &mut RuntimeState,
 ) -> Result<(), Box<dyn Error>> {
+    if let Some(catalog) = runtime.take_plugin_actions() {
+        events.native_escape_shortcut.set_plugin_actions(&catalog);
+        events.plugin_actions = catalog;
+    }
     if events.secure_session_locked() {
+        events.plugin_actions.pending.clear();
         events.pending_shell_actions.clear();
         events.pending_shortcut_launches.clear();
         while runtime.take_application_launch().is_some() {}
     } else {
+        while let Some((generation, id, monitor)) = events.plugin_actions.pending.pop_front() {
+            if generation == events.plugin_actions.generation && events.plugin_actions.contains(&id) {
+                runtime.send_plugin_action(generation, &id, monitor)?;
+            }
+        }
         while let Some(target) = events.pending_shortcut_launches.pop_front() {
             let activation_token = events
                 .wayland
@@ -47,7 +57,7 @@ pub(super) fn synchronize_flutter_window_management(
                         None,
                         activation_token.as_deref(),
                     ),
-                native_shortcut::ShortcutTarget::DenialAction { .. } => continue,
+                native_shortcut::ShortcutTarget::DenialAction { .. } | native_shortcut::ShortcutTarget::PluginAction { .. } => continue,
             };
             if let Err(error) = result {
                 warn!(%error, "could not launch command requested by shortcut");
@@ -1119,7 +1129,9 @@ fn control_shortcut_snapshot(
     Ok(json!({
         "revision": manager.revision(),
         "shortcuts": manager.file().shortcuts,
-        "supported_actions": &native_shortcut::ShortcutAction::ALL[..],
+        "supported_actions": native_shortcut::ShortcutAction::ALL.iter().filter(|a| **a != native_shortcut::ShortcutAction::OpenApplications).collect::<Vec<_>>(),
+        "plugin_actions": events.plugin_actions.actions,
+        "action_generation": events.plugin_actions.generation,
         "supported_inputs": inputs.into_iter().map(|input| json!({
             "canonical": input.canonical,
             "kind": shortcut_input_kind_name(input.kind),
@@ -1169,7 +1181,8 @@ fn apply_control_shortcut_update(
     prepared: Result<native_shortcut::PreparedShortcutUpdate, native_shortcut::ShortcutError>,
 ) -> Result<serde_json::Value, OutputControlFailure> {
     let mut prepared = prepared.map_err(control_conflict)?;
-    let candidate_engine = prepared.take_engine();
+    let mut candidate_engine = prepared.take_engine();
+    candidate_engine.set_plugin_actions(&events.plugin_actions);
     let previous_engine = std::mem::replace(&mut events.native_escape_shortcut, candidate_engine);
     if let Err(error) = events
         .wayland
@@ -1218,7 +1231,8 @@ pub(super) fn apply_shortcut_update(
 ) -> Result<(), Box<dyn Error>> {
     let result = match prepared {
         Ok(mut prepared) => {
-            let candidate_engine = prepared.take_engine();
+            let mut candidate_engine = prepared.take_engine();
+    candidate_engine.set_plugin_actions(&events.plugin_actions);
             let previous_engine =
                 std::mem::replace(&mut events.native_escape_shortcut, candidate_engine);
             let result = events
@@ -1274,6 +1288,7 @@ pub(super) fn send_shortcut_settings(
         manager.revision(),
         &manager.file().shortcuts,
         &supported_inputs,
+        &events.plugin_actions,
         error,
     )
 }

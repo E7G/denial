@@ -21,6 +21,7 @@ class ShellBackdropBlur extends StatelessWidget {
     this.strength = 1,
     this.borderRadius,
     this.blendMode = ui.BlendMode.src,
+    this.opacity,
     super.key,
   }) : assert(strength >= 0 && strength <= 1),
        assert(!separateChild || !useWindowAlphaThreshold),
@@ -40,6 +41,10 @@ class ShellBackdropBlur extends StatelessWidget {
   final BorderRadiusGeometry? borderRadius;
   final ui.BlendMode blendMode;
 
+  /// Fade the completed backdrop and foreground independently. In particular,
+  /// separate-child glass must not be isolated with controls in an opacity group.
+  final Animation<double>? opacity;
+
   @override
   Widget build(BuildContext context) {
     final theme = ShellTheme.of(context);
@@ -52,6 +57,12 @@ class ShellBackdropBlur extends StatelessWidget {
             theme.backdropBlurSigma > 0) &&
         (!useWindowAlphaThreshold || theme.backdropBlurOpacityThreshold < 1.0);
     final enabled = available && resolvedStrength > 0;
+    Widget fade(Widget value) => opacity == null
+        ? value
+        : FadeTransition(opacity: opacity!, child: value);
+    final effectiveBlendMode = opacity == null
+        ? blendMode
+        : ui.BlendMode.srcOver;
     final Widget filtered;
     if (available) {
       final filterConfig = theme.backdropFilterConfigAt(
@@ -64,13 +75,13 @@ class ShellBackdropBlur extends StatelessWidget {
       final backdrop = grouped
           ? BackdropFilter.grouped(
               filterConfig: filterConfig,
-              blendMode: blendMode,
+              blendMode: effectiveBlendMode,
               enabled: enabled,
               child: filterChild,
             )
           : BackdropFilter(
               filterConfig: filterConfig,
-              blendMode: blendMode,
+              blendMode: effectiveBlendMode,
               enabled: enabled,
               child: filterChild,
             );
@@ -78,13 +89,13 @@ class ShellBackdropBlur extends StatelessWidget {
           ? Stack(
               fit: StackFit.passthrough,
               children: [
-                Positioned.fill(child: backdrop),
-                child,
+                Positioned.fill(child: fade(backdrop)),
+                fade(child),
               ],
             )
-          : backdrop;
+          : fade(backdrop);
     } else {
-      filtered = child;
+      filtered = fade(child);
     }
 
     if (radius == null) {

@@ -1,3 +1,5 @@
+import 'package:denial_flutter_sdk/wire.dart' show SystemControlProtocol;
+
 // Compile and run with the pinned Dart SDK:
 // dart compile exe tool/benchmark_system_control_protocol.dart -o /tmp/control-bench
 // /tmp/control-bench
@@ -5,8 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/platform/denial_bridge_models.dart';
-import 'package:denial_dart_shell/src/platform/system_control_protocol.dart';
+import 'package:denial_flutter_sdk/platform.dart';
 
 int _checksum = 0;
 void main() {

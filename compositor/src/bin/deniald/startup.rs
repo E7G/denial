@@ -655,6 +655,22 @@ pub(super) fn run(options: Options) -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+        // Onboarding belongs to compositor startup, not a systemd/XDG
+        // autostart generator (which may be absent or already active).
+        // The application checks its completion marker before GTK activation.
+        // Bounded diagnostics and tests must never launch user applications.
+        #[cfg(feature = "flutter")]
+        if runtime_limit == RuntimeLimit::UntilLogout
+            && wayland.is_some()
+            && let Some(runtime) = flutter.as_mut()
+            && let Some(arguments) = welcome::launch_arguments()
+            && let Err(error) = runtime.start_startup_application(
+                arguments,
+                "dev.denial.Welcome.desktop",
+            )
+        {
+            warn!(%error, "could not start Welcome");
+        }
         if options.flutter_bundle.is_some() {
             #[cfg(feature = "flutter")]
             {

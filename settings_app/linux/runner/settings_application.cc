@@ -1,6 +1,7 @@
 #include "settings_application.h"
 
 #include <cstring>
+#include <initializer_list>
 
 #include <flutter_linux/flutter_linux.h>
 
@@ -11,6 +12,7 @@ struct _SettingsApplication {
   char** dart_entrypoint_arguments;
   GtkWindow* window;
   FlMethodChannel* activation_channel;
+  gboolean welcome;
 };
 
 G_DEFINE_TYPE(SettingsApplication, settings_application, GTK_TYPE_APPLICATION)
@@ -30,13 +32,73 @@ static void clear_window_opaque_region(GtkWidget* widget, gpointer user_data) {
   }
 }
 
+static gboolean clear_window_background(GtkWidget*, cairo_t* cr, gpointer) {
+  // app-paintable suppresses GTK's background, and Flutter blends its alpha
+  // over this target. Replace old pixels before drawing the new frame so an
+  // opaque frame cannot survive a switch back to glass or a window resize.
+  // Keep GTK's dirty-region clip and restore the child's drawing operator.
+  cairo_save(cr);
+  cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+  cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+  cairo_paint(cr);
+  cairo_restore(cr);
+  return FALSE;
+}
+
 static void settings_method_call_cb(FlMethodChannel* channel,
                                     FlMethodCall* method_call,
                                     gpointer user_data) {
   SettingsApplication* self = DENIAL_SETTINGS_APPLICATION(user_data);
   const gchar* method = fl_method_call_get_name(method_call);
   g_autoptr(FlMethodResponse) response = nullptr;
-  if (strcmp(method, "pickCursorZip") == 0) {
+  if (self->welcome && strcmp(method, "closeWindow") == 0) {
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    // Respond before destroying the engine which owns this method channel.
+    g_idle_add_full(G_PRIORITY_DEFAULT_IDLE, [](gpointer data) -> gboolean {
+      auto* app = DENIAL_SETTINGS_APPLICATION(data);
+      if (app->window != nullptr) gtk_widget_destroy(GTK_WIDGET(app->window));
+      return G_SOURCE_REMOVE;
+    }, g_object_ref(self), g_object_unref);
+  } else if (self->welcome && strcmp(method, "openUrl") == 0) {
+    FlValue* argument = fl_method_call_get_args(method_call);
+    const gchar* uri = argument != nullptr && fl_value_get_type(argument) == FL_VALUE_TYPE_STRING
+        ? fl_value_get_string(argument) : nullptr;
+    g_autoptr(GError) launch_error = nullptr;
+    if (uri == nullptr || (!g_str_has_prefix(uri, "https://") && !g_str_has_prefix(uri, "http://"))) {
+      response = FL_METHOD_RESPONSE(fl_method_error_response_new("invalid-url", "Expected a web URL", nullptr));
+    } else if (!g_app_info_launch_default_for_uri(uri, nullptr, &launch_error)) {
+      response = FL_METHOD_RESPONSE(fl_method_error_response_new("open-url", launch_error->message, nullptr));
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    }
+  } else if (strcmp(method, "pickProfileImage") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    const auto label = [args](const char* key, const char* fallback) {
+      FlValue* value = args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP
+          ? fl_value_lookup_string(args, key) : nullptr;
+      return value != nullptr && fl_value_get_type(value) == FL_VALUE_TYPE_STRING
+          ? fl_value_get_string(value) : fallback;
+    };
+    GtkWidget* dialog = gtk_file_chooser_dialog_new(
+        label("title", "Choose photo"), self->window, GTK_FILE_CHOOSER_ACTION_OPEN,
+        label("cancel", "Cancel"), GTK_RESPONSE_CANCEL,
+        label("choose", "Choose photo"), GTK_RESPONSE_ACCEPT, nullptr);
+    gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
+    gtk_file_chooser_set_local_only(GTK_FILE_CHOOSER(dialog), TRUE);
+    GtkFileFilter* filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(filter, "PNG, JPEG, WebP, GIF, BMP");
+    for (const char* mime : {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"}) {
+      gtk_file_filter_add_mime_type(filter, mime);
+    }
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(dialog), filter);
+    g_autoptr(FlValue) result = nullptr;
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+      g_autofree gchar* filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+      if (filename != nullptr) result = fl_value_new_string(filename);
+    }
+    gtk_widget_destroy(dialog);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else if (strcmp(method, "pickCursorZip") == 0) {
     GtkWidget* dialog = gtk_file_chooser_dialog_new(
         "Import cursor ZIP", self->window, GTK_FILE_CHOOSER_ACTION_OPEN,
         "_Cancel", GTK_RESPONSE_CANCEL, "_Import", GTK_RESPONSE_ACCEPT,
@@ -81,11 +143,12 @@ static void settings_application_activate(GApplication* application) {
   self->window = window;
   g_object_add_weak_pointer(G_OBJECT(window),
                             reinterpret_cast<gpointer*>(&self->window));
-  gtk_window_set_title(window, "Denial Settings");
+  gtk_window_set_title(window, self->welcome ? "Welcome to Denial" : "Denial Settings");
   gtk_window_set_default_size(window, 900, 620);
   gtk_widget_set_size_request(GTK_WIDGET(window), 520, 400);
   gtk_window_set_decorated(window, FALSE);
   gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
+  g_signal_connect(window, "draw", G_CALLBACK(clear_window_background), nullptr);
   g_signal_connect(window, "style-updated",
                    G_CALLBACK(clear_window_opaque_region), nullptr);
   GdkScreen* screen = gtk_widget_get_screen(GTK_WIDGET(window));
@@ -188,13 +251,16 @@ static void settings_application_init(SettingsApplication* self) {
                                   G_N_ELEMENTS(actions), self);
 }
 
-SettingsApplication* settings_application_new() {
-  g_set_prgname(APPLICATION_ID);
-  return DENIAL_SETTINGS_APPLICATION(g_object_new(
+SettingsApplication* settings_application_new(gboolean welcome) {
+  const char* id = welcome ? "dev.denial.Welcome" : APPLICATION_ID;
+  g_set_prgname(id);
+  auto* app = DENIAL_SETTINGS_APPLICATION(g_object_new(
       settings_application_get_type(),
       "application-id",
-      APPLICATION_ID,
+      id,
       "flags",
       G_APPLICATION_DEFAULT_FLAGS,
       nullptr));
+  app->welcome = welcome;
+  return app;
 }

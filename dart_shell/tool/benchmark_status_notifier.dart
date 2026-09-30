@@ -1,11 +1,16 @@
+import 'package:denial_flutter_sdk/src/services/status_notifier_protocol.dart'
+    show
+        StatusNotifierProtocol,
+        StatusNotifierUpdateDecoder,
+        StatusNotifierUpdateEncoder;
+
 // Compile with the pinned Dart SDK and run the resulting AOT executable:
 // dart compile exe tool/benchmark_status_notifier.dart -o /tmp/tray-bench
 // /tmp/tray-bench
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/models/system_tray_item.dart';
-import 'package:denial_dart_shell/src/services/status_notifier_protocol.dart';
+import 'package:denial_flutter_sdk/models.dart';
 
 int _checksum = 0;
 void main() {

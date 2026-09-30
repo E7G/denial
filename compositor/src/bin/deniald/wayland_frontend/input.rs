@@ -2094,10 +2094,15 @@ pub(super) fn execute_shortcut_disposition(
                 .request_shutdown(ShutdownReason::NativeEscapeShortcut);
             true
         }
+        ShortcutDisposition::PluginAction(id) => {
+            #[cfg(feature = "flutter")]
+            if state.secure_session_locked() { return false; }
+            state.plugin_actions.queue(id, None)
+        }
         ShortcutDisposition::RequestApplications => {
             #[cfg(feature = "flutter")]
-            state.queue_shell_action(super::super::wire::ShellAction::Applications, None);
-            true
+            if state.secure_session_locked() { return false; }
+            state.plugin_actions.queue(crate::plugin_actions::LEGACY_LAUNCHER_ACTION.into(), None)
         }
         ShortcutDisposition::RequestDashboard => {
             #[cfg(feature = "flutter")]

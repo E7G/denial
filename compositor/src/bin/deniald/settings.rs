@@ -601,6 +601,7 @@ impl From<serde_json::Error> for SettingsError {
 }
 
 pub(super) struct SettingsManager {
+    application_theming: Option<super::application_theming::ApplicationTheming>,
     path: PathBuf,
     document: Map<String, Value>,
     revision: u64,
@@ -617,7 +618,10 @@ pub(super) struct SettingsManager {
 
 impl SettingsManager {
     pub(super) fn load() -> Result<Self, SettingsError> {
-        Self::load_path(settings_path()?)
+        let mut manager = Self::load_path(settings_path()?)?;
+        manager.application_theming =
+            super::application_theming::ApplicationTheming::start(&manager.document);
+        Ok(manager)
     }
 
     fn load_path(path: PathBuf) -> Result<Self, SettingsError> {
@@ -626,6 +630,7 @@ impl SettingsManager {
             match parse_document(bytes) {
                 Ok(parsed) => {
                     let mut manager = Self {
+                        application_theming: None,
                         path,
                         document: parsed.document,
                         revision: parsed.revision,
@@ -659,6 +664,7 @@ impl SettingsManager {
             allow_client_cursor_surfaces,
         ) = default_document();
         let mut manager = Self {
+            application_theming: None,
             path,
             document,
             revision,
@@ -979,6 +985,9 @@ impl SettingsManager {
         if let Err(error) = sync_parent(&self.path) {
             warn!(%error, path = %self.path.display(), "settings were committed but directory fsync failed");
         }
+        if let Some(theming) = &self.application_theming {
+            theming.apply(&self.document);
+        }
         Ok(())
     }
 
@@ -1190,7 +1199,7 @@ impl WorkspaceSwitchingOrientation {
 impl Default for WorkspaceSettings {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             count: DEFAULT_WORKSPACE_COUNT,
             switching_orientation: WorkspaceSwitchingOrientation::Horizontal,
         }

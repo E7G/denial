@@ -1,1 +1,1 @@
-export 'src/widgets/shell_backdrop_blur.dart';
+export 'src/widgets/shell_backdrop_blur.dart' show ShellBackdropBlur;

@@ -1,6 +1,7 @@
-import 'dart:io';
+import 'package:denial_flutter_sdk/wire.dart'
+    show DenialUiDevelopmentCommand, DenialUiDevelopmentProtocol;
 
-import 'package:denial_dart_shell/src/platform/ui_development_protocol.dart';
+import 'dart:io';
 
 import '../test/support/legacy_ui_development_protocol.dart';
 import '../test/support/ui_development_packet.dart';

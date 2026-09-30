@@ -1,6 +1,6 @@
 // Baseline retained for differential tests and local benchmarks.
 import 'package:dbus/dbus.dart';
-import 'package:denial_dart_shell/src/services/bluetooth_backend.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
 
 BluetoothSnapshot legacyBluetoothSnapshot(
   Map<DBusObjectPath, Map<String, Map<String, DBusValue>>> managed, {

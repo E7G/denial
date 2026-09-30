@@ -3,13 +3,17 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:denial_dart_shell/src/input/input_layout.dart';
-import 'package:denial_dart_shell/src/models/display_layout.dart' as model;
-import 'package:denial_dart_shell/src/models/denial_window.dart';
-import 'package:denial_dart_shell/src/models/denial_window_event.dart';
-import 'package:denial_dart_shell/src/models/input_device_capabilities.dart';
-import 'package:denial_dart_shell/src/platform/denial_wire.dart'
-    hide InputWindowRegion;
+import 'package:denial_flutter_sdk/input.dart';
+import 'package:denial_flutter_sdk/models.dart' as model;
+import 'package:denial_flutter_sdk/models.dart'
+    show
+        DenialWindow,
+        DenialWindowContentKind,
+        DenialWindowOpacityClass,
+        DenialWindowPlacementPhase,
+        DenialWindowPlacementChange,
+        DenialInputDeviceCapabilities;
+import 'package:denial_flutter_sdk/wire.dart' hide InputWindowRegion;
 
 void main() {
   test('notification text survives validation without losing UTF-8 fields', () {

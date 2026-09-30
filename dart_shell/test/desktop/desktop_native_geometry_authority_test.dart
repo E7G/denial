@@ -1,7 +1,6 @@
-import 'package:denial_dart_shell/src/desktop/desktop_workspace.dart';
-import 'package:denial_dart_shell/src/models/denial_window.dart';
-import 'package:denial_dart_shell/src/models/denial_window_event.dart';
-import 'package:denial_dart_shell/src/settings/shell_settings.dart';
+import 'package:denial_desktop/src/desktop/desktop_workspace.dart';
+import 'package:denial_flutter_sdk/models.dart';
+import 'package:denial_flutter_sdk/settings.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

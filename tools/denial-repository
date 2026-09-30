@@ -176,8 +176,8 @@ mapfile -d '' package_inputs < <(
     -print0 \
     | sort -z
 )
-((${#package_inputs[@]} == 2)) \
-  || fail "expected exactly two packages, found ${#package_inputs[@]}"
+((${#package_inputs[@]} == 3)) \
+  || fail "expected exactly three packages, found ${#package_inputs[@]}"
 
 release_version="${RELEASE_TAG#v}"
 IFS=. read -r release_major release_minor release_patch <<<"$release_version"
@@ -187,6 +187,7 @@ IFS=. read -r release_major release_minor release_patch <<<"$release_version"
   || fail "release tag has an invalid semantic version: $RELEASE_TAG"
 engine_packages=0
 denial_packages=0
+plugin_manager_packages=0
 for package in "${package_inputs[@]}"; do
   package_filename="$(basename -- "$package")"
   package_info="$(bsdtar -xOf "$package" .PKGINFO)"
@@ -236,13 +237,26 @@ for package in "${package_inputs[@]}"; do
         || fail 'Denial package runtime version does not match its signed tag'
       denial_packages=$((denial_packages + 1))
       ;;
+    denial-plugin-manager)
+      [[ "$package_filename" == \
+        "denial-plugin-manager-${release_version}-1-x86_64.pkg.tar.zst" ]] \
+        || fail "unexpected Plugin Manager package filename: $package_filename"
+      [[ "$package_version" == "${release_version}-1" ]] \
+        || fail "unexpected Plugin Manager package version: $package_version"
+      grep -Fqx "depend = denial=${release_version}-1" <<<"$package_info" \
+        || fail 'Plugin Manager package does not require matching Denial'
+      grep -Fqx 'depend = dart' <<<"$package_info" \
+        || fail 'Plugin Manager package does not require Dart'
+      plugin_manager_packages=$((plugin_manager_packages + 1))
+      ;;
     *)
       fail "unexpected package name: ${package_name:-unset}"
       ;;
   esac
 done
-((engine_packages == 1 && denial_packages == 1)) \
-  || fail 'the package set must contain denial and denial-flutter-engine'
+((engine_packages == 1 && denial_packages == 1 \
+  && plugin_manager_packages == 1)) \
+  || fail 'the package set must contain denial, its engine, and Plugin Manager'
 
 mapfile -d '' deb_inputs < <(
   find "$PACKAGE_INPUT" \
@@ -268,12 +282,12 @@ mapfile -d '' apk_inputs < <(
     -print0 \
     | sort -z
 )
-((${#deb_inputs[@]} == 2)) \
-  || fail "expected exactly two Debian packages, found ${#deb_inputs[@]}"
-((${#rpm_inputs[@]} == 2)) \
-  || fail "expected exactly two RPM packages, found ${#rpm_inputs[@]}"
-((${#apk_inputs[@]} == 2)) \
-  || fail "expected exactly two Alpine packages, found ${#apk_inputs[@]}"
+((${#deb_inputs[@]} == 3)) \
+  || fail "expected exactly three Debian packages, found ${#deb_inputs[@]}"
+((${#rpm_inputs[@]} == 3)) \
+  || fail "expected exactly three RPM packages, found ${#rpm_inputs[@]}"
+((${#apk_inputs[@]} == 3)) \
+  || fail "expected exactly three Alpine packages, found ${#apk_inputs[@]}"
 
 deb_names=()
 for package in "${deb_inputs[@]}"; do
@@ -291,6 +305,9 @@ for package in "${deb_inputs[@]}"; do
     denial-flutter-engine)
       expected_filename="denial-flutter-engine_${release_version}-1_amd64.deb"
       ;;
+    denial-plugin-manager)
+      expected_filename="denial-plugin-manager_${release_version}-1_amd64.deb"
+      ;;
     *) fail "unexpected Debian package: ${package_name:-unset}" ;;
   esac
   [[ "$(basename -- "$package")" == "$expected_filename" ]] \
@@ -299,7 +316,8 @@ for package in "${deb_inputs[@]}"; do
     deb "$package" "$release_version" 1 '3.47.5.denial1' 2.39
   deb_names+=("$package_name")
 done
-[[ "${deb_names[*]}" == 'denial-flutter-engine denial' ]] \
+[[ "${deb_names[*]}" == \
+  'denial-flutter-engine denial-plugin-manager denial' ]] \
   || fail 'Debian package set is incomplete'
 
 rpm_names=()
@@ -318,6 +336,9 @@ for package in "${rpm_inputs[@]}"; do
     denial-flutter-engine)
       expected_filename="denial-flutter-engine-${release_version}-1.x86_64.rpm"
       ;;
+    denial-plugin-manager)
+      expected_filename="denial-plugin-manager-${release_version}-1.x86_64.rpm"
+      ;;
     *) fail "unexpected RPM package: ${package_name:-unset}" ;;
   esac
   [[ "$(basename -- "$package")" == "$expected_filename" ]] \
@@ -326,7 +347,8 @@ for package in "${rpm_inputs[@]}"; do
     rpm "$package" "$release_version" 1 '3.47.5.denial1' 2.39
   rpm_names+=("$package_name")
 done
-[[ "${rpm_names[*]}" == 'denial denial-flutter-engine' ]] \
+[[ "${rpm_names[*]}" == \
+  'denial denial-flutter-engine denial-plugin-manager' ]] \
   || fail 'RPM package set is incomplete'
 
 apk_names=()
@@ -367,6 +389,12 @@ for package in "${apk_inputs[@]}"; do
         <<<"$package_info" \
         || fail 'Alpine engine package has the wrong ABI capability'
       ;;
+    denial-plugin-manager)
+      expected_filename="denial-plugin-manager-${release_version}-r1.apk"
+      grep -Fqx "depend = denial=${release_version}-r1" \
+        <<<"$package_info" \
+        || fail 'Alpine Plugin Manager has the wrong Denial dependency'
+      ;;
     *) fail "unexpected Alpine package: ${package_name:-unset}" ;;
   esac
   [[ "$(basename -- "$package")" == "$expected_filename" ]] \
@@ -374,7 +402,7 @@ for package in "${apk_inputs[@]}"; do
   apk_names+=("$package_name")
 done
 [[ "$(printf '%s\n' "${apk_names[@]}" | sort | paste -sd' ' -)" == \
-  'denial denial-flutter-engine' ]] \
+  'denial denial-flutter-engine denial-plugin-manager' ]] \
   || fail 'Alpine package set is incomplete'
 
 readonly INSTALLER="${ROOT}/install.sh"
@@ -477,8 +505,8 @@ mapfile -d '' signed_rpm_packages < <(
     -print0 \
     | sort -z
 )
-((${#signed_rpm_packages[@]} == 2)) \
-  || fail 'signed DNF repository does not contain two RPM packages'
+((${#signed_rpm_packages[@]} == 3)) \
+  || fail 'signed DNF repository does not contain three RPM packages'
 for package in "${signed_rpm_packages[@]}"; do
   destination="${DOWNLOAD_ROOT}/$(basename -- "$package")"
   cp --reflink=auto -- "$package" "$destination"
@@ -600,6 +628,7 @@ This is a signed x86-64 public-beta release of Denial.
 - Source commit: \`${SOURCE_SHA}\`
 - Signing fingerprint: \`${FINGERPRINT}\`
 - Required packages: \`denial\` and \`denial-flutter-engine\`
+- Optional plugin tools: \`denial-plugin-manager\`
 - Direct downloads: Arch, Alpine 3.24, Debian-family (Debian 13 / Ubuntu 24.04), and Fedora
 - Every direct package has an adjacent detached OpenPGP signature
 - APT repository: Debian 13 (trixie) and Ubuntu 24.04 (noble)

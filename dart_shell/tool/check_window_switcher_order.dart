@@ -1,7 +1,7 @@
 // Run with the pinned Dart SDK; this check needs no Flutter development engine.
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/desktop/window_switcher_order.dart';
+import 'package:denial_desktop/src/desktop/window_switcher_order.dart';
 
 void main() {
   var checked = 0;

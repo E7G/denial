@@ -55,6 +55,10 @@ tools/denial-pc sdk-test
 This checks formatting, analysis, and SDK tests with the pinned Dart toolchain.
 It is also included in `tools/denial-pc test` and branch validation.
 
+The Dart suite focuses on wire compatibility, authentication, power actions,
+persistence, plugin composition/build/activation, and native geometry authority.
+Widget appearance, layout, animation, and per-feature smoke tests are omitted.
+
 Check the Flutter-facing SDK and first-party plugins without building a
 development engine:
 
@@ -66,21 +70,19 @@ This resolves each package's locked dependencies and checks formatting and stati
 analysis. The normal release bundle build compiles their shell integration.
 It is also included in `tools/denial-pc test` and branch validation.
 
-The current local composition selects the standalone taskbar at
-`../denial_taskbar_plugin`. Keep that Git checkout beside this checkout; its
-SDK path dependencies point back into `denial/packages/`. Local builds and
-`plugin-check` require both repositories. UI development source snapshots vendor
-its package sources and rewrite only the generated paths to remain self-contained.
-Nix builds require the same source explicitly through the package's `taskbarSrc`
-argument, for example `pkgs.denial.override { taskbarSrc = /path/to/denial_taskbar_plugin; }`.
-The existing flake alone does not contain this unpublished external source.
+The current local composition selects `plugins/denial_taskbar` from the locked
+[`denialwm/denial-plugins`](https://github.com/denialwm/denial-plugins)
+collection. Pub records its exact Git commit in `dart_shell/pubspec.lock`; no
+adjacent checkout is required. UI development snapshots and Nix sources vendor
+that package into `plugins/denial_taskbar` so their offline builds remain
+self-contained. The flake pins the same collection commit as an explicit input.
 
 Run only the lock-matched Flutter shell tests, optionally forwarding a test
 path or other `flutter test` arguments:
 
 ```sh
 tools/denial-pc flutter-test
-tools/denial-pc flutter-test test/settings/settings_application_test.dart
+tools/denial-pc flutter-test test/platform/denial_wire_test.dart
 ```
 
 The release compositor is written to:
@@ -217,13 +219,15 @@ scheduling when neither grant is available.
 
 ## Local Arch package prototype
 
-Build the two required Stage 1 packages with:
+Build the two required runtime packages and the optional Plugin Manager package
+with:
 
 ```sh
 tools/denial-pc arch-package
 ```
 
-This produces `denial-flutter-engine` and `denial` below:
+This produces `denial-flutter-engine`, `denial`, and
+`denial-plugin-manager` below:
 
 ```text
 $XDG_CACHE_HOME/denial/pc-build/packages/
@@ -249,7 +253,7 @@ compiled payloads to tag-derived package metadata, signs them, and publishes
 them without compiling again. Stage 2 later adds offline input closure. See the
 [branch validation boundary](packaging/arch/BRANCH_VALIDATION.md).
 
-Live Flutter UI editing remains split into a third, optional package. Debug
+Live Flutter UI editing remains split into another optional package. Debug
 and profile engines are excluded from the routine build and release path. The
 legacy package can only be refreshed after an explicitly requested engine
 build with `DENIAL_FLUTTER_ENGINE_DEVELOPMENT_MODES=1`; then create and
@@ -259,8 +263,8 @@ validate it with the repository's Rust task:
 cargo xtask ui-development-package
 ```
 
-The resulting legacy `denial-ui-development` archive is written beside the two
-required packages. It contains the coupled JIT engine, optimized AOT profile
+The resulting legacy `denial-ui-development` archive is written beside the
+release packages. It contains the coupled JIT engine, optimized AOT profile
 engine, curated Dart and Flutter runtime needed for shell assembly and editor
 attach, matching browser DevTools assets needed for Inspector and performance
 profiling, locked dependency sources needed by Denial's shell, a

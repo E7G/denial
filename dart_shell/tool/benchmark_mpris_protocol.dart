@@ -1,8 +1,10 @@
+import 'package:denial_flutter_sdk/src/services/mpris_playback_protocol.dart'
+    show applyMprisPlayerProperties, parseMprisPlaybackState;
+
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
-import 'package:denial_dart_shell/src/models/mpris_playback.dart';
-import 'package:denial_dart_shell/src/services/mpris_playback_protocol.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
 
 import '../test/support/legacy_mpris_protocol.dart';
 

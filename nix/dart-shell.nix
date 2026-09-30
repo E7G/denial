@@ -8,9 +8,17 @@
 }:
 
 let
-  pubspecLock = lib.recursiveUpdate (lib.importJSON ./dart_shell-pubspec-lock.json) {
-    # The generated Nix source vendors the external development checkout.
-    packages.denial_taskbar.description.path = "../plugins/denial_taskbar";
+  sourceLock = lib.importJSON ./dart_shell-pubspec-lock.json;
+  pubspecLock = sourceLock // {
+    packages = sourceLock.packages // {
+      denial_taskbar = sourceLock.packages.denial_taskbar // {
+        source = "path";
+        description = {
+          path = "../plugins/denial_taskbar";
+          relative = true;
+        };
+      };
+    };
   };
   targetPlatform =
     if stdenv.hostPlatform.system == "x86_64-linux" then

@@ -1,7 +1,8 @@
 import 'dart:collection';
 import 'dart:math';
 
-import 'package:denial_dart_shell/src/core/deferred_event_dispatcher.dart';
+import 'package:denial_flutter_sdk/src/core/deferred_event_dispatcher.dart'
+    show DeferredEventDispatcher;
 import 'package:test/test.dart';
 
 void main() {

@@ -588,6 +588,10 @@ table ShortcutDenialActionTarget {
   action:ShortcutActionKind = Shutdown;
 }
 
+table ShortcutPluginActionTarget {
+  id:string;
+}
+
 table ShortcutSpawnTarget {
   // Program followed by its exact argument vector.
   command:[string];
@@ -604,7 +608,8 @@ table ShortcutSpawnShTarget {
 union ShortcutTarget {
   ShortcutDenialActionTarget,
   ShortcutSpawnTarget,
-  ShortcutSpawnShTarget
+  ShortcutSpawnShTarget,
+  ShortcutPluginActionTarget
 }
 
 table ShortcutBinding {
@@ -624,6 +629,8 @@ table ShortcutConfiguration {
   shortcuts:[ShortcutBinding];
   supported_actions:[ShortcutActionKind];
   supported_inputs:[ShortcutInput];
+  plugin_actions_json:string;
+  action_generation:ulong;
 }
 
 table ShortcutValidation {
@@ -770,6 +777,19 @@ table ThemeState {
   accent_srgb:uint;
 }
 
+// Versioned, bounded action descriptors; supplied only by the embedded shell.
+// JSON schema: [{id, label, description, provider}]. IDs are package-qualified.
+table PluginActionCatalog {
+  generation:ulong;
+  actions_json:string;
+}
+
+table PluginActionInvocation {
+  generation:ulong;
+  id:string;
+  monitor_id:long = -1;
+}
+
 union Payload {
   InputLayout,
   WindowSnapshot,
@@ -789,7 +809,9 @@ union Payload {
   XEmbedTrayEvent,
   XEmbedTrayCommand,
   ThemeState,
-  CursorState
+  CursorState,
+  PluginActionCatalog,
+  PluginActionInvocation
 }
 
 table Envelope {

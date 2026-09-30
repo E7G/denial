@@ -14,9 +14,9 @@ implementation, or runtime plugin registry is required to import it.
 | `windows.dart` | Shared `DenialWindowAction` vocabulary |
 | `system.dart` | Shared battery, load-series, GPU, and MPRIS playback models |
 
-The shell uses these model types through compatibility exports; they are not
-copies with different Dart type identities. Existing application search behavior
-and window-action ordering are preserved. No native protocol or UI behavior changes.
+The Flutter SDK and plugins use these same model types. Native integration and
+Flutter providers live in `denial_flutter_sdk`; stock UI lives in plugins. There
+is no parallel shell runtime API.
 
 ## Declaration contract
 

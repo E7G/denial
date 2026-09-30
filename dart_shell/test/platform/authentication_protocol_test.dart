@@ -1,7 +1,16 @@
+import 'package:denial_flutter_sdk/service_backends.dart'
+    show AuthenticationPacketKind;
+import 'package:denial_flutter_sdk/wire.dart'
+    show
+        AuthenticationProtocol,
+        authenticationHeaderBytes,
+        authenticationMaxPacketBytes,
+        authenticationMaxPayloadBytes;
+
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/platform/authentication_protocol.dart';
+import 'package:denial_flutter_sdk/platform.dart';
 import 'package:test/test.dart';
 
 void main() {

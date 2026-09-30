@@ -6,6 +6,7 @@
   fetchurl,
   fetchzip,
   runCommand,
+  flutterNixpkgs ? pkgs.path,
   maintenanceOnly ? false,
 }:
 
@@ -66,10 +67,13 @@ let
     }
   '';
 
-  flutterNix = pkgs.path + "/pkgs/development/compilers/flutter";
+  # Pin helper definitions independently of the native package set. Calling
+  # them through the host's pkgs keeps libc and graphics dependencies aligned
+  # with the drivers loaded from /run/opengl-driver, even on NixOS unstable.
+  flutterNix = flutterNixpkgs + "/pkgs/development/compilers/flutter";
   mkCustomFlutter = pkgs.callPackage (flutterNix + "/flutter.nix");
-  # These are part of Denial's locked Nixpkgs input. Keeping the references
-  # there avoids maintaining a downstream Flutter patch series in this tree.
+  # These stay in the locked helper source rather than a downstream patch
+  # series in this tree.
   frameworkPatches = map (name: flutterNix + "/patches/${name}") [
     "copy-without-perms.patch"
     "do-not-log-os-release-read-failure.patch"
@@ -228,6 +232,15 @@ let
         artifactHashes = { };
       }).overrideAttrs
         (oldAttrs: {
+          # Nixpkgs stamps a synthetic revision. Keep the immutable SDK's
+          # machine-readable identity aligned with our exact framework source;
+          # plugin compilation checks it against SOURCE_LOCK.json.
+          postBuild = (oldAttrs.postBuild or "") + ''
+            jq --arg revision '${flutterRevision}' \
+              '.frameworkRevision = $revision | .repositoryUrl = "https://github.com/denialwm/flutter.git"' \
+              bin/cache/flutter.version.json > bin/cache/flutter.version.json.new
+            mv bin/cache/flutter.version.json.new bin/cache/flutter.version.json
+          '';
           passthru = oldAttrs.passthru // {
             engine = releaseEngine;
             engineSource = rawEngine.src;
@@ -250,6 +263,7 @@ let
       engine = releaseEngine;
       engineSource = rawEngine.src;
       depotToolsSource = engineTools.depot_tools;
+      frameworkRevision = flutterRevision;
       inherit dart;
       inherit fetchedFlutter flutterSource;
     };

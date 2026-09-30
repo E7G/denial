@@ -40,24 +40,26 @@ class _DesktopSystemBarContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accent = WallpaperAccent(ref.watch(context.shellServices.accent));
+    final accent = WallpaperAccent(
+      ref.watch(context.presentationServices.accent),
+    );
     final batteryVisible = ref.watch(
-      context.shellServices.battery.select(
+      context.telemetryServices.battery.select(
         (battery) => battery.capacity != null,
       ),
     );
     final cpuVisible = ref.watch(
-      context.shellServices.cpu.select((cpu) => cpu.current != null),
+      context.telemetryServices.cpu.select((cpu) => cpu.current != null),
     );
     final gpuCount = ref.watch(
-      context.shellServices.gpus.select((gpus) => gpus.length),
+      context.telemetryServices.gpus.select((gpus) => gpus.length),
     );
     final mediaVisible = ref.watch(
-      context.shellServices.media.select(
+      context.mediaServices.media.select(
         (media) => media.value?.available ?? false,
       ),
     );
-    final trayVisible = ref.watch(context.shellServices.trayVisible);
+    final trayVisible = ref.watch(context.trayServices.trayVisible);
     final horizontal = side.isHorizontal;
     final modules = Flex(
       direction: horizontal ? Axis.horizontal : Axis.vertical,
@@ -133,7 +135,7 @@ class _DesktopSystemBarContent extends ConsumerWidget {
       ],
     );
     final workspacesEnabled = ref.watch(
-      context.shellServices.workspacesEnabled,
+      context.workspaceServices.workspacesEnabled,
     );
     return Padding(
       padding: horizontal
@@ -199,7 +201,7 @@ class _SystemTrayStatusModule extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return context.shellServices.buildSystemTray(
+    return context.trayServices.buildSystemTray(
       context,
       horizontal: horizontal,
     );
@@ -230,6 +232,11 @@ class DesktopSystemBar extends StatelessWidget {
 }
 
 extension _PluginContext on BuildContext {
-  ShellServices get shellServices => ShellServicesScope.of(this);
-  ShellStrings get pluginStrings => shellServices.strings(this);
+  ShellTelemetryServices get telemetryServices => ShellServicesScope.of(this);
+  ShellMediaServices get mediaServices => ShellServicesScope.of(this);
+  ShellWorkspaceServices get workspaceServices => ShellServicesScope.of(this);
+  ShellPresentationServices get presentationServices =>
+      ShellServicesScope.of(this);
+  ShellTrayServices get trayServices => ShellServicesScope.of(this);
+  ShellStrings get pluginStrings => presentationServices.strings(this);
 }

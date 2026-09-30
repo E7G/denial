@@ -1065,13 +1065,19 @@ run_flutter_tests() {
   [[ -x "$output/flutter_tester" ]] \
     || fail "lock-matched flutter_tester is missing: $output/flutter_tester"
 
+  if [[ "$#" -eq 0 ]]; then
+    set -- test ../packages/denial_flutter_sdk/test
+  fi
   printf 'Running Dart shell tests with lock-matched flutter_tester\n'
   (
     cd "$ROOT/dart_shell"
+    # The Denial engine enables Impeller by default. Select it explicitly so
+    # Flutter's test tool does not also request incompatible software rendering.
     "$flutter_test_command" test \
       --local-engine-src-path="$local_engine_src_path" \
       --local-engine="$target" \
       --local-engine-host="$target" \
+      --enable-impeller \
       "$@"
   )
 }
@@ -1128,6 +1134,7 @@ prepare_app_build() {
       -C "$output" \
       -j "$BUILD_JOBS" \
       dart_sdk \
+      flutter/sky/packages/sky_engine:sky_engine \
       flutter_patched_sdk/platform_strong.dill \
       gen_snapshot \
       libflutter_linux_gtk.so \

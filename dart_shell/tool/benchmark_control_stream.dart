@@ -1,9 +1,10 @@
+import 'package:denial_flutter_sdk/src/platform/bounded_byte_stream.dart'
+    show collectBoundedBytes, decodeBoundedUtf8Lines;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-
-import 'package:denial_dart_shell/src/platform/bounded_byte_stream.dart';
 
 Future<void> main() async {
   var checksum = 0;

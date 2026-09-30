@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/desktop/transient_family_order.dart';
+import 'package:denial_desktop/src/desktop/transient_family_order.dart';
 
 import '../test/support/legacy_transient_family_order.dart';
 

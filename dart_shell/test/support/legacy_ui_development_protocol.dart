@@ -1,10 +1,10 @@
+import 'package:denial_flutter_sdk/wire.dart' show DenialUiDevelopmentCommand;
+
 // Previous codec retained for differential tests and benchmarks.
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/models/ui_development.dart';
-import 'package:denial_dart_shell/src/platform/ui_development_protocol.dart'
-    show DenialUiDevelopmentCommand;
+import 'package:denial_flutter_sdk/models.dart';
 
 const denialUiDevelopmentControlChannel = 'denial/ui_development/control';
 const denialUiDevelopmentStateChannel = 'denial/ui_development/state';

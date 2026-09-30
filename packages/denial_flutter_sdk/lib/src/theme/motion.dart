@@ -14,7 +14,7 @@ class Motion {
   // Scripted durations -------------------------------------------------------
   static const Duration overviewOpen = Duration(milliseconds: 380);
   static const Duration overviewClose = Duration(milliseconds: 280);
-  static const Duration workspaceSwitch = Duration(milliseconds: 320);
+  static const Duration workspaceSwitch = Duration(milliseconds: 500);
   static const Duration workspaceIndicatorTakeoff = Duration(milliseconds: 72);
   static const Duration workspaceIndicatorTravel = Duration(milliseconds: 168);
   static const Duration workspaceIndicatorSettle = Duration(milliseconds: 80);
@@ -27,6 +27,9 @@ class Motion {
   static const Duration desktopPanelFadeOpen = Duration(milliseconds: 180);
   static const Duration desktopPanelFadeClose = Duration(milliseconds: 150);
   static const Duration homeFlyAway = Duration(milliseconds: 280);
+  static const Duration showDesktopHide = Duration(milliseconds: 220);
+  static const Duration showDesktopRestore = Duration(milliseconds: 260);
+  static const Duration windowEmphasis = Duration(milliseconds: 220);
   static const Duration tile = Duration(milliseconds: 160);
   static const Duration layoutTileReflow = Duration(milliseconds: 200);
   static const Duration inputMethodPopup = Duration(milliseconds: 180);
@@ -66,6 +69,7 @@ class Motion {
 
   // Curves -------------------------------------------------------------------
   static const Curve standard = Curves.easeOutCubic;
+  static const Curve workspaceSwitchCurve = _WorkspaceSwitchCurve();
   static const Curve wallpaperTilesFadeCurve = Curves.easeInOut;
 
   /// Symmetric session motion with enough travel in the terminal tenth to
@@ -121,6 +125,24 @@ class Motion {
     stiffness: 460.0,
     damping: 34.0,
   );
+}
+
+/// A smooth approach, one gentle overshoot, then a direct return to rest.
+/// Velocity and acceleration are continuous and zero at the start and finish.
+/// The overshoot is about 1.6% of the travel, with no rebound past the target.
+///
+/// Integrate t²(1-t)²(0.78-t), then normalize its integral to 1.
+/// Its only internal velocity root puts the turn at 390 ms on the 500 ms
+/// timeline. Integer coefficients avoid opaque rounded normalization.
+/// Curve.transform supplies exact endpoints; there is no spring tolerance or
+/// truncated oscillation to leave a residual displacement at completion.
+class _WorkspaceSwitchCurve extends Curve {
+  const _WorkspaceSwitchCurve();
+
+  @override
+  double transformInternal(double t) {
+    return t * t * t * (195 + t * (-480 + t * (417 - 125 * t))) / 7;
+  }
 }
 
 /// Clamps [value] to the unit interval `[0, 1]`.

@@ -1,7 +1,10 @@
+import 'package:denial_flutter_sdk/src/services/network_backend.dart'
+    show normalizeWifiNetworks;
+
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/services/network_backend.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
 
 import '../test/support/legacy_wifi_normalization.dart';
 

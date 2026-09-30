@@ -1,15 +1,59 @@
 import 'dart:typed_data';
 
-import 'package:denial_dart_shell/src/models/denial_cursor_state.dart';
-import 'package:denial_dart_shell/src/models/power_button_action.dart';
-import 'package:denial_dart_shell/src/models/suspend_mode.dart';
-import 'package:denial_dart_shell/src/platform/denial_bridge.dart';
-import 'package:denial_dart_shell/src/platform/denial_wire.dart' as wire;
+import 'package:denial_flutter_sdk/models.dart';
+import 'package:denial_flutter_sdk/platform.dart';
+import 'package:denial_flutter_sdk/state.dart';
+import 'package:denial_flutter_sdk/wire.dart' as wire;
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'shared bridge receives replies without the window controller',
+    () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMessageHandler(wire.denialWireToNativeChannel, (
+        data,
+      ) async {
+        final request = wire.Envelope(
+          data!.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        );
+        final reply = wire.EnvelopeObjectBuilder(
+          protocolVersion: 1,
+          sequence: 1,
+          requestId: request.requestId,
+          payloadType: wire.PayloadTypeId.SettingsResponse,
+          payload: wire.SettingsResponseObjectBuilder(
+            kind: wire.SettingsResponseKind.Document,
+            success: true,
+            revision: 7,
+            document: '{"version":28}',
+          ),
+        ).toBytes('DENW');
+        await messenger.handlePlatformMessage(
+          wire.denialWireToFlutterChannel,
+          ByteData.sublistView(reply),
+          null,
+        );
+        return null;
+      });
+      final container = ProviderContainer();
+      try {
+        final bridge = container.read(denialBridgeProvider);
+        final settings = await bridge.readSettingsDocument();
+        expect(settings.revision, 7);
+        expect(settings.json, '{"version":28}');
+        expect(container.exists(shellControllerProvider), isFalse);
+      } finally {
+        container.dispose();
+        messenger.setMockMessageHandler(wire.denialWireToNativeChannel, null);
+      }
+    },
+  );
 
   for (final hasPendingRead in [false, true]) {
     test(
@@ -62,8 +106,7 @@ void main() {
     () async {
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      final bridge = DenialBridge()
-        ..start(onWindowsChanged: () {}, onWindowActivated: (_) {});
+      final bridge = DenialBridge();
       final states = <DenialCursorState>[];
       final subscription = bridge.cursorStates.listen(states.add);
 

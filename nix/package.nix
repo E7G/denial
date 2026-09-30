@@ -13,8 +13,10 @@
   xwayland,
   gnused,
   util-linux,
+  denialFlutter,
   src,
   runCommand,
+  yq-go,
   taskbarSrc ? null,
   version ? "0.0.0+unknown",
   buildIdentity ? "nix.unknown",
@@ -39,32 +41,39 @@ let
     ];
     inherit version buildIdentity;
   };
-  # Local taskbar development uses a separate checkout. Require that source as
-  # an explicit Nix input; never depend on an undeclared path outside the source.
-  uiSourceFor = roots:
+  # Vendor the package selected from the locked multi-package collection.
+  uiSourceFor =
+    roots:
     assert lib.assertMsg (taskbarSrc != null) ''
-      This composition uses the standalone denial_taskbar_plugin checkout.
-      Supply taskbarSrc through denial.override when building with Nix.
+      The default composition requires plugins/denial_taskbar from the locked
+      denial-plugins collection. Supply taskbarSrc when using this expression directly.
     '';
-    runCommand "source" { } ''
+    runCommand "source" { nativeBuildInputs = [ yq-go ]; } ''
       mkdir -p $out/plugins
       cp -R ${sourceFor roots}/. $out/
-      cp -R ${lib.cleanSourceWith {
-        src = taskbarSrc;
-        filter = path: type:
-          !(type == "directory" && builtins.elem (baseNameOf (toString path)) [
-            ".git" ".dart_tool" "build"
-          ]);
-      }} $out/plugins/denial_taskbar
+      cp -R ${
+        lib.cleanSourceWith {
+          src = taskbarSrc;
+          filter =
+            path: type:
+            !(
+              type == "directory"
+              && builtins.elem (baseNameOf (toString path)) [
+                ".git"
+                ".dart_tool"
+                "build"
+              ]
+            );
+        }
+      } $out/plugins/denial_taskbar
       chmod -R u+w $out
-      for app in dart_shell settings_app; do
-        if [ -d "$out/$app" ]; then
-          sed -i 's|../../denial_taskbar_plugin|../plugins/denial_taskbar|g' \
-            "$out/$app/pubspec.yaml" "$out/$app/pubspec.lock"
-        fi
-      done
-      sed -i 's|../denial/packages/|../../packages/|g' \
-        $out/plugins/denial_taskbar/pubspec.yaml
+      if [ -f "$out/dart_shell/pubspec.yaml" ]; then
+        yq -i '.dependencies.denial_taskbar = {"path": "../plugins/denial_taskbar"}' \
+          "$out/dart_shell/pubspec.yaml"
+        yq -i '.packages.denial_taskbar.source = "path" |
+          .packages.denial_taskbar.description = {"path": "../plugins/denial_taskbar", "relative": true}' \
+          "$out/dart_shell/pubspec.lock"
+      fi
     '';
   dartShell = callPackage ./dart-shell.nix {
     src = uiSourceFor [
@@ -72,6 +81,9 @@ let
       "packages/denial_sdk"
       "packages/denial_flutter_sdk"
       "plugins/denial_top_bar"
+      "plugins/denial_desktop"
+      "plugins/denial_launcher"
+      "plugins/denial_clock"
       "protocol"
     ];
     sourceLockHash = builtins.hashFile "sha256" (src.origSrc + "/dart_shell/pubspec.lock");
@@ -85,28 +97,73 @@ let
       "packages/denial_sdk"
       "packages/denial_flutter_sdk"
       "plugins/denial_top_bar"
+      "plugins/denial_desktop"
+      "plugins/denial_launcher"
+      "plugins/denial_clock"
       "protocol"
       "settings_app"
     ];
     sourceLockHash = builtins.hashFile "sha256" (src.origSrc + "/settings_app/pubspec.lock");
     version = "0.0.0";
   };
+  pluginManagerApp = callPackage ./plugin-manager-app.nix {
+    inherit pluginManagerBackend;
+    src = sourceFor [
+      "plugin_manager_app"
+      "packages/denial_sdk"
+      "packages/denial_flutter_sdk"
+      "protocol/generated/dart"
+    ];
+    sourceLockHash = builtins.hashFile "sha256" (src.origSrc + "/plugin_manager_app/pubspec.lock");
+    version = "0.0.0";
+  };
+  pluginManagerBackend = callPackage ./plugin-manager-backend.nix {
+    inherit pluginBuildKit compositor;
+    src = sourceFor [
+      "packages/denial_plugin_manager"
+      "packages/denial_sdk"
+    ];
+    sourceLockHash = builtins.hashFile "sha256" (
+      src.origSrc + "/packages/denial_plugin_manager/pubspec.lock"
+    );
+  };
+  pluginBuildKit = callPackage ./plugin-build-kit.nix {
+    src = sourceFor [
+      "dart_shell"
+      "packages/denial_sdk"
+      "packages/denial_flutter_sdk"
+      "plugins/denial_top_bar"
+      "plugins/denial_desktop"
+      "plugins/denial_launcher"
+      "plugins/denial_clock"
+      "plugins/builtins.yaml"
+      "protocol/generated/dart"
+      "compositor/src/lib.rs"
+      "prebuilt/flutter-engine"
+      "LICENSE"
+      "tools/prepare-denial-plugin-kit"
+    ];
+    inherit sourceRevision;
+  };
   packageSrc = sourceFor [
     "README.md"
     "LICENSE"
     "LICENSES/CC-BY-SA-4.0.txt"
     "LICENSES/GPL-3.0-only.txt"
-    "dart_shell/assets/cursors/BIBATA_MODERN_ICE.md"
-    "dart_shell/assets/fonts/OFL.txt"
-    "dart_shell/assets/fonts/README.md"
-    "dart_shell/assets/wallpapers/ATTRIBUTION.md"
+    "packages/denial_flutter_sdk/assets/cursors/BIBATA_MODERN_ICE.md"
+    "packages/denial_flutter_sdk/assets/fonts/OFL.txt"
+    "packages/denial_flutter_sdk/assets/fonts/README.md"
+    "packages/denial_flutter_sdk/assets/wallpapers/ATTRIBUTION.md"
     "docs/man"
+    "docs/PLUGIN_DEVELOPMENT.md"
     "packaging/arch/denial-portal.service"
     "packaging/arch/denial-portals.conf"
     "packaging/arch/denial-session"
     "packaging/arch/denial.desktop"
     "packaging/arch/denial.portal"
     "packaging/arch/dev.denial.Settings.desktop"
+    "packaging/dev.denial.PluginManager.desktop"
+    "packaging/dev.denial.Welcome.desktop"
     "packaging/arch/org.freedesktop.impl.portal.desktop.denial.service"
     "packaging/arch/outputs.conf"
     "packaging/arch/session.conf"
@@ -153,6 +210,9 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       --replace-fail '${settingsApp}/bin/.denial-settings-wrapped' \
       "$out/bin/.denial-settings-wrapped"
 
+    install -m644 ${pluginBuildKit}/runtime/.denial-ui-source.json \
+      $out/lib/denial/flutter/.denial-ui-source.json
+
     install -Dm644 ${packageSrc}/packaging/denial-session.target \
       $out/lib/systemd/user/denial-session.target
     install -Dm644 ${packageSrc}/packaging/arch/denial-portal.service \
@@ -180,6 +240,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
       $out/share/applications/dev.denial.Settings.desktop
     substituteInPlace $out/share/applications/dev.denial.Settings.desktop \
       --replace-fail '/usr/bin/denial-settings' "$out/bin/denial-settings"
+    install -Dm644 ${packageSrc}/packaging/dev.denial.Welcome.desktop \
+      $out/share/applications/dev.denial.Welcome.desktop
+    substituteInPlace $out/share/applications/dev.denial.Welcome.desktop \
+      --replace-fail '/usr/bin/denial-settings' "$out/bin/denial-settings"
 
     install -Dm644 ${packageSrc}/packaging/arch/denial-portals.conf \
       $out/share/xdg-desktop-portal/denial-portals.conf
@@ -206,18 +270,18 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     for manual in denialctl deniald denial-session denial-portal; do
       install -Dm644 ${packageSrc}/docs/man/$manual.1 $out/share/man/man1/$manual.1
     done
-    install -Dm644 ${packageSrc}/dart_shell/assets/wallpapers/ATTRIBUTION.md \
+    install -Dm644 ${packageSrc}/packages/denial_flutter_sdk/assets/wallpapers/ATTRIBUTION.md \
       $out/share/doc/denial/WALLPAPERS.md
-    install -Dm644 ${packageSrc}/dart_shell/assets/cursors/BIBATA_MODERN_ICE.md \
+    install -Dm644 ${packageSrc}/packages/denial_flutter_sdk/assets/cursors/BIBATA_MODERN_ICE.md \
       $out/share/doc/denial/CURSORS.md
-    install -Dm644 ${packageSrc}/dart_shell/assets/fonts/README.md \
+    install -Dm644 ${packageSrc}/packages/denial_flutter_sdk/assets/fonts/README.md \
       $out/share/doc/denial/FONTS.md
     install -Dm644 ${packageSrc}/LICENSE $out/share/licenses/denial/LICENSE
     install -Dm644 ${packageSrc}/LICENSES/CC-BY-SA-4.0.txt \
       $out/share/licenses/denial/CC-BY-SA-4.0.txt
     install -Dm644 ${packageSrc}/LICENSES/GPL-3.0-only.txt \
       $out/share/licenses/denial/GPL-3.0-only.txt
-    install -Dm644 ${packageSrc}/dart_shell/assets/fonts/OFL.txt \
+    install -Dm644 ${packageSrc}/packages/denial_flutter_sdk/assets/fonts/OFL.txt \
       $out/share/licenses/denial/OFL-1.1.txt
 
     wrapProgram $out/bin/denial-session \
@@ -284,11 +348,30 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   '';
 
   passthru = {
-    inherit compositor dartShell settingsApp;
+    inherit
+      compositor
+      dartShell
+      settingsApp
+      pluginManagerApp
+      pluginManagerBackend
+      pluginBuildKit
+      ;
     inherit buildIdentity sourceRevision;
+    pluginManager = callPackage ./plugin-manager-package.nix {
+      denial = finalAttrs.finalPackage;
+      inherit
+        denialFlutter
+        pluginManagerApp
+        pluginManagerBackend
+        pluginBuildKit
+        packageSrc
+        version
+        ;
+    };
     providedSessions = [ "denial" ];
     tests.path-contract = callPackage ./tests/path-contract.nix {
       package = finalAttrs.finalPackage;
+      pluginManager = finalAttrs.finalPackage.pluginManager;
     };
   };
 

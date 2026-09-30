@@ -210,6 +210,13 @@ class ShellThemeData {
 
   Color cardColor(Color color) => _resolution.cardColor(color);
 
+  /// Scope application content to window glass without changing the shell's
+  /// panel setting or fading semantic foregrounds through widget opacity.
+  /// Legacy shell-material consumers only. Applications using
+  /// DenialApplicationTheme must preserve both opacities instead of remapping.
+  ShellThemeData forWindowSurfaces() =>
+      copyWith(glass: glass.copyWith(opacity: glass.windowOpacity));
+
   LinearGradient cardGradient(Color top, Color bottom) =>
       _resolution.cardGradient(top, bottom);
 

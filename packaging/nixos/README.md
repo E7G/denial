@@ -30,6 +30,7 @@ Add Denial to the flake that owns the NixOS system:
           denial.nixosModules.default
           {
             programs.denial.enable = true;
+            programs.denial.plugins.enable = true; # Optional Plugin Manager.
           }
         ];
       };
@@ -42,8 +43,36 @@ manager. The module deliberately does not enable a display manager, select a
 default session, or configure autologin.
 
 `programs.denial.package` can replace the package without replacing the
-module. Denial deliberately builds against its locked Nixpkgs revision; the
-module does not couple the private Flutter expressions to the host's Nixpkgs.
+module. When enabled, the module adds Denial's overlay and defaults to
+`pkgs.denial`, built with the host's Nixpkgs dependencies. This keeps the
+compositor's libc and graphics libraries aligned with the system's drivers,
+including on NixOS unstable. The overlay also respects the host's package
+overrides.
+
+Plugin tooling is a separate `denial-plugin-manager` flake package and
+`pkgs.denialPluginManager` overlay attribute. Set
+`programs.denial.plugins.enable = true` to install it. Its wrapper puts the
+exact locked Dart derivation in `PATH`; the main `pkgs.denial` closure does not
+contain the Plugin Manager or compiler kit.
+
+Flutter and Skia source revisions remain pinned by `SOURCE_LOCK.json`.
+Denial takes its private Flutter build helper definitions from its locked
+Nixpkgs source, but evaluates them with the host's package set; it does not
+reuse an engine binary built against another Nixpkgs revision. There is no
+need to make Denial's Nixpkgs input follow the host's input.
+
+The standalone `denial.packages.x86_64-linux.denial` output still builds with
+Denial's own Nixpkgs lock for reproducible CI and direct flake builds. Use the
+module or overlay for NixOS integration so native dependencies follow the
+host:
+
+```nix
+{
+  nixpkgs.overlays = [ denial.overlays.default ];
+  # pkgs.denial and pkgs.denialFlutter now use this system's package set.
+}
+```
+
 The module also registers the Wayland session, Denial's Settings portal and
 systemd user unit, the wlroots screenshot/screencast portal, Xwayland, polkit,
 realtime scheduling, and Denial's CJK fallback font.
@@ -100,7 +129,9 @@ as an input. Direct commands against the Denial flake can accept its identical
 checked-in configuration with `--accept-flake-config`.
 
 An exact cache hit downloads the package instead of compiling the pinned
-Flutter engine. A cache miss still performs the complete source build and has
+Flutter engine. A host using another Nixpkgs revision or package overrides
+produces different derivations and may need to rebuild the engine. A cache
+miss still performs the complete source build and has
 required more than 48 GiB of temporary Nix store space on the validation host;
 plan a builder with at least 64 GiB of free working space. Subsequent builds
 reuse Nix store objects, and source filtering keeps the engine and unrelated

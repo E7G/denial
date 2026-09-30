@@ -1,6 +1,8 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![deny(clippy::undocumented_unsafe_blocks)]
 
+#[path = "deniald/application_theming.rs"]
+mod application_theming;
 #[cfg(feature = "flutter")]
 #[path = "deniald/authentication.rs"]
 mod authentication;
@@ -49,6 +51,8 @@ mod hotplug_transaction;
 #[cfg(feature = "flutter")]
 #[path = "deniald/idle_policy.rs"]
 mod idle_policy;
+#[path = "deniald/keyboard_resize.rs"]
+mod keyboard_resize;
 #[path = "deniald/kms_pipeline.rs"]
 mod kms_pipeline;
 #[path = "deniald/kms_render.rs"]
@@ -62,10 +66,10 @@ mod lifecycle;
 #[cfg(feature = "flutter")]
 #[path = "deniald/local_windows.rs"]
 mod local_windows;
-#[path = "deniald/keyboard_resize.rs"]
-mod keyboard_resize;
 #[path = "deniald/native_shortcut.rs"]
 mod native_shortcut;
+#[path = "deniald/plugin_actions.rs"]
+mod plugin_actions;
 #[cfg(feature = "flutter")]
 #[path = "deniald/notification_server.rs"]
 mod notification_server;
@@ -82,6 +86,9 @@ mod output_control;
 mod output_scheduler;
 #[path = "deniald/output_topology.rs"]
 mod output_topology;
+#[cfg(feature = "flutter")]
+#[path = "deniald/plugin_bundle.rs"]
+mod plugin_bundle;
 #[path = "deniald/portal_ipc.rs"]
 mod portal_ipc;
 #[path = "deniald/presentation_clock.rs"]
@@ -95,6 +102,8 @@ mod scene_sync;
 mod screenshot;
 #[path = "deniald/session_activation.rs"]
 mod session_activation;
+#[path = "deniald/welcome.rs"]
+mod welcome;
 #[path = "deniald/settings.rs"]
 mod settings;
 #[cfg(feature = "flutter")]

@@ -1,5 +1,5 @@
-import 'package:denial_dart_shell/src/models/denial_window.dart';
-import 'package:denial_dart_shell/src/widgets/window_surface_tree.dart';
+import 'package:denial_flutter_sdk/models.dart';
+import 'package:denial_flutter_sdk/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 

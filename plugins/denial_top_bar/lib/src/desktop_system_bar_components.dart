@@ -85,7 +85,7 @@ class _BatteryActionCardState extends State<_BatteryActionCard> {
           child: InkWell(
             key: systemBarBatteryButtonKey,
             borderRadius: context.shellTheme.borderRadius(999),
-            mouseCursor: context.shellServices.linkCursor,
+            mouseCursor: context.presentationServices.linkCursor,
             splashFactory: NoSplash.splashFactory,
             overlayColor: WidgetStatePropertyAll(
               ShellMediaColors.transparentDark,

@@ -9,6 +9,6 @@ G_DECLARE_FINAL_TYPE(SettingsApplication,
                      SETTINGS_APPLICATION,
                      GtkApplication)
 
-SettingsApplication* settings_application_new();
+SettingsApplication* settings_application_new(gboolean welcome);
 
 #endif  // DENIAL_SETTINGS_APPLICATION_H_

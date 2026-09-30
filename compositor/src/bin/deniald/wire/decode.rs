@@ -79,6 +79,14 @@ impl WireBridge {
                     .push_back(decode_xembed_tray_command(command)?);
                 Ok(None)
             }
+            fb::Payload::PluginActionCatalog => {
+                if envelope.request_id() != 0 { return Err(WireError::RequestId); }
+                let catalog = envelope.payload_as_plugin_action_catalog().ok_or(WireError::Payload)?;
+                self.pending_plugin_actions = Some(crate::plugin_actions::ActionCatalog::decode(
+                    catalog.generation(), catalog.actions_json().ok_or(WireError::Payload)?
+                ).map_err(|_| WireError::Payload)?);
+                Ok(None)
+            }
             fb::Payload::ThemeState => {
                 if envelope.request_id() != 0 {
                     return Err(WireError::RequestId);
@@ -705,6 +713,11 @@ fn decode_shortcut_binding(binding: fb::ShortcutBinding<'_>) -> Result<ShortcutB
                 command: arguments,
                 desktop_file_id,
             }
+        }
+        fb::ShortcutTarget::ShortcutPluginActionTarget => {
+            let target = binding.target_as_shortcut_plugin_action_target().ok_or(WireError::Payload)?;
+            let id = target.id().filter(|id| crate::plugin_actions::valid_id(id)).ok_or(WireError::String)?;
+            ShortcutTarget::PluginAction { id: id.to_owned() }
         }
         fb::ShortcutTarget::ShortcutSpawnShTarget => {
             let target = binding

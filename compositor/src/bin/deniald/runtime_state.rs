@@ -68,6 +68,7 @@ pub(super) struct RuntimeState {
     pub(super) pending_unpublished_window_events: PendingWindowEventQueue,
     #[cfg(feature = "flutter")]
     pub(super) pending_shell_actions: VecDeque<PendingShellAction>,
+    pub(super) plugin_actions: plugin_actions::ActionCatalog,
     #[cfg(feature = "flutter")]
     pub(super) pending_shortcut_launches: VecDeque<native_shortcut::ShortcutTarget>,
     #[cfg(feature = "flutter")]

@@ -56,7 +56,7 @@ fn take_periodic_deadline(now: Instant, deadline: &mut Instant, interval: Durati
 }
 
 fn interactive_service_work_pending(events: &RuntimeState) -> bool {
-    !events.pending_shell_actions.is_empty()
+    !events.plugin_actions.pending.is_empty() || !events.pending_shell_actions.is_empty()
         || !events.pending_shortcut_launches.is_empty()
         || !events.pending_window_events.is_empty()
 }
@@ -2055,6 +2055,7 @@ fn cancel_invalid_screenshot_selection(
 }
 
 fn synchronize_flutter_scene_and_input(
+    output_control: &output_control::OutputControlPublisher,
     runtime: &mut flutter_runtime::FlutterRuntime,
     background_services_due: bool,
     frame_scheduler: &mut frame_scheduler::FrameScheduler,
@@ -2063,7 +2064,7 @@ fn synchronize_flutter_scene_and_input(
     if background_services_due {
         synchronize_flutter_window_management(runtime, events)?;
     }
-    synchronize_flutter_scene(runtime, events)?;
+    synchronize_flutter_scene(output_control, runtime, events)?;
     collect_flutter_output_damage(runtime, frame_scheduler);
     synchronize_flutter_input_layout(runtime, events)?;
     synchronize_wayland_cursor(runtime, events)?;
@@ -2887,6 +2888,7 @@ pub(super) fn run_flutter_event_loop(
             continue;
         }
         synchronize_flutter_scene_and_input(
+            &output_control,
             runtime,
             background_services_due,
             &mut frame_scheduler,

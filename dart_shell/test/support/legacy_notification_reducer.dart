@@ -1,6 +1,6 @@
 // Previous event reducer retained for differential tests and AOT benchmarks.
-import 'package:denial_dart_shell/src/models/desktop_notification.dart';
-import 'package:denial_dart_shell/src/state/desktop_notifications_state.dart';
+import 'package:denial_flutter_sdk/models.dart';
+import 'package:denial_flutter_sdk/state.dart';
 
 class LegacyNotificationReducer {
   static const maxActiveNotifications = 256;

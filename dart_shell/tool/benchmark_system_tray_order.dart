@@ -1,10 +1,12 @@
+import 'package:denial_flutter_sdk/src/services/system_tray_order.dart'
+    show combineSystemTrayItems, compareSystemTrayItems, orderSystemTrayItems;
+
 // Compile with the pinned SDK, then run the resulting AOT executable:
 // dart compile exe tool/benchmark_system_tray_order.dart -o /tmp/tray-order-bench
 // /tmp/tray-order-bench
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/models/system_tray_item.dart';
-import 'package:denial_dart_shell/src/services/system_tray_order.dart';
+import 'package:denial_flutter_sdk/models.dart';
 
 int _checksum = 0;
 void main() {

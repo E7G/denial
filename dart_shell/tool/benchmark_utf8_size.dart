@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/core/utf8_size.dart';
+import 'package:denial_flutter_sdk/shell.dart';
 
 void main() {
   var checksum = 0;

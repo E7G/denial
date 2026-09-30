@@ -1,11 +1,13 @@
+import 'package:denial_flutter_sdk/src/state/app_audio_reconciliation.dart'
+    show reconcileAppAudioStreams, updateAppAudioStreamVolume;
+
 // Compile with the pinned Dart SDK and run the resulting AOT executable:
 // dart compile exe tool/benchmark_app_audio.dart -o /tmp/app-audio-bench
 // /tmp/app-audio-bench
 import 'dart:io';
 import 'dart:math';
 
-import 'package:denial_dart_shell/src/models/audio.dart';
-import 'package:denial_dart_shell/src/state/app_audio_reconciliation.dart';
+import 'package:denial_flutter_sdk/models.dart';
 
 int _checksum = 0;
 void main() {

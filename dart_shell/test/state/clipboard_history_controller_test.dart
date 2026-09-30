@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:denial_dart_shell/src/models/clipboard_history.dart';
-import 'package:denial_dart_shell/src/services/clipboard_history_service.dart';
-import 'package:denial_dart_shell/src/state/clipboard_history_controller.dart';
+import 'package:denial_flutter_sdk/models.dart';
+import 'package:denial_flutter_sdk/system_services.dart';
+import 'package:denial_flutter_sdk/state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 

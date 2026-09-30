@@ -1,7 +1,7 @@
 import 'dart:collection';
 import 'dart:io';
 
-import 'package:denial_dart_shell/src/models/system_telemetry.dart';
+import 'package:denial_flutter_sdk/models.dart';
 
 LoadSeries _previousAppend(LoadSeries previous, double usage) {
   // The bounded-copy implementation before unchanged histories were reused.

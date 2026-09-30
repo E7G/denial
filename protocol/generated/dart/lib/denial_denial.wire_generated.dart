@@ -1041,7 +1041,8 @@ enum ShortcutTargetTypeId {
   NONE(0),
   ShortcutDenialActionTarget(1),
   ShortcutSpawnTarget(2),
-  ShortcutSpawnShTarget(3);
+  ShortcutSpawnShTarget(3),
+  ShortcutPluginActionTarget(4);
 
   final int value;
   const ShortcutTargetTypeId(this.value);
@@ -1052,6 +1053,7 @@ enum ShortcutTargetTypeId {
       case 1: return ShortcutTargetTypeId.ShortcutDenialActionTarget;
       case 2: return ShortcutTargetTypeId.ShortcutSpawnTarget;
       case 3: return ShortcutTargetTypeId.ShortcutSpawnShTarget;
+      case 4: return ShortcutTargetTypeId.ShortcutPluginActionTarget;
       default: throw StateError('Invalid value $value for bit flag enum');
     }
   }
@@ -1060,7 +1062,7 @@ enum ShortcutTargetTypeId {
       value == null ? null : ShortcutTargetTypeId.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 3;
+  static const int maxValue = 4;
   static const fb.Reader<ShortcutTargetTypeId> reader = _ShortcutTargetTypeIdReader();
 }
 
@@ -1095,7 +1097,9 @@ enum PayloadTypeId {
   XEmbedTrayEvent(16),
   XEmbedTrayCommand(17),
   ThemeState(18),
-  CursorState(19);
+  CursorState(19),
+  PluginActionCatalog(20),
+  PluginActionInvocation(21);
 
   final int value;
   const PayloadTypeId(this.value);
@@ -1122,6 +1126,8 @@ enum PayloadTypeId {
       case 17: return PayloadTypeId.XEmbedTrayCommand;
       case 18: return PayloadTypeId.ThemeState;
       case 19: return PayloadTypeId.CursorState;
+      case 20: return PayloadTypeId.PluginActionCatalog;
+      case 21: return PayloadTypeId.PluginActionInvocation;
       default: throw StateError('Invalid value $value for bit flag enum');
     }
   }
@@ -1130,7 +1136,7 @@ enum PayloadTypeId {
       value == null ? null : PayloadTypeId.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 19;
+  static const int maxValue = 21;
   static const fb.Reader<PayloadTypeId> reader = _PayloadTypeIdReader();
 }
 
@@ -3961,6 +3967,79 @@ class ShortcutDenialActionTargetObjectBuilder extends fb.ObjectBuilder {
     return fbBuilder.buffer;
   }
 }
+class ShortcutPluginActionTarget {
+  ShortcutPluginActionTarget._(this._bc, this._bcOffset);
+  factory ShortcutPluginActionTarget(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<ShortcutPluginActionTarget> reader = _ShortcutPluginActionTargetReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  String? get id => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 4);
+
+  @override
+  String toString() {
+    return 'ShortcutPluginActionTarget{id: ${id}}';
+  }
+}
+
+class _ShortcutPluginActionTargetReader extends fb.TableReader<ShortcutPluginActionTarget> {
+  const _ShortcutPluginActionTargetReader();
+
+  @override
+  ShortcutPluginActionTarget createObject(fb.BufferContext bc, int offset) => 
+    ShortcutPluginActionTarget._(bc, offset);
+}
+
+class ShortcutPluginActionTargetBuilder {
+  ShortcutPluginActionTargetBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(1);
+  }
+
+  int addIdOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class ShortcutPluginActionTargetObjectBuilder extends fb.ObjectBuilder {
+  final String? _id;
+
+  ShortcutPluginActionTargetObjectBuilder({
+    String? id,
+  })
+      : _id = id;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? idOffset = _id == null ? null
+        : fbBuilder.writeString(_id!);
+    fbBuilder.startTable(1);
+    fbBuilder.addOffset(0, idOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
 class ShortcutSpawnTarget {
   ShortcutSpawnTarget._(this._bc, this._bcOffset);
   factory ShortcutSpawnTarget(List<int> bytes) {
@@ -4137,6 +4216,7 @@ class ShortcutBinding {
       case 1: return ShortcutDenialActionTarget.reader.vTableGetNullable(_bc, _bcOffset, 8);
       case 2: return ShortcutSpawnTarget.reader.vTableGetNullable(_bc, _bcOffset, 8);
       case 3: return ShortcutSpawnShTarget.reader.vTableGetNullable(_bc, _bcOffset, 8);
+      case 4: return ShortcutPluginActionTarget.reader.vTableGetNullable(_bc, _bcOffset, 8);
       default: return null;
     }
   }
@@ -4334,10 +4414,12 @@ class ShortcutConfiguration {
   List<ShortcutBinding>? get shortcuts => const fb.ListReader<ShortcutBinding>(ShortcutBinding.reader).vTableGetNullable(_bc, _bcOffset, 4);
   List<ShortcutActionKind>? get supportedActions => const fb.ListReader<ShortcutActionKind>(ShortcutActionKind.reader).vTableGetNullable(_bc, _bcOffset, 6);
   List<ShortcutInput>? get supportedInputs => const fb.ListReader<ShortcutInput>(ShortcutInput.reader).vTableGetNullable(_bc, _bcOffset, 8);
+  String? get pluginActionsJson => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 10);
+  int get actionGeneration => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 12, 0);
 
   @override
   String toString() {
-    return 'ShortcutConfiguration{shortcuts: ${shortcuts}, supportedActions: ${supportedActions}, supportedInputs: ${supportedInputs}}';
+    return 'ShortcutConfiguration{shortcuts: ${shortcuts}, supportedActions: ${supportedActions}, supportedInputs: ${supportedInputs}, pluginActionsJson: ${pluginActionsJson}, actionGeneration: ${actionGeneration}}';
   }
 }
 
@@ -4355,7 +4437,7 @@ class ShortcutConfigurationBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(3);
+    fbBuilder.startTable(5);
   }
 
   int addShortcutsOffset(int? offset) {
@@ -4370,6 +4452,14 @@ class ShortcutConfigurationBuilder {
     fbBuilder.addOffset(2, offset);
     return fbBuilder.offset;
   }
+  int addPluginActionsJsonOffset(int? offset) {
+    fbBuilder.addOffset(3, offset);
+    return fbBuilder.offset;
+  }
+  int addActionGeneration(int? actionGeneration) {
+    fbBuilder.addUint64(4, actionGeneration);
+    return fbBuilder.offset;
+  }
 
   int finish() {
     return fbBuilder.endTable();
@@ -4380,15 +4470,21 @@ class ShortcutConfigurationObjectBuilder extends fb.ObjectBuilder {
   final List<ShortcutBindingObjectBuilder>? _shortcuts;
   final List<ShortcutActionKind>? _supportedActions;
   final List<ShortcutInputObjectBuilder>? _supportedInputs;
+  final String? _pluginActionsJson;
+  final int? _actionGeneration;
 
   ShortcutConfigurationObjectBuilder({
     List<ShortcutBindingObjectBuilder>? shortcuts,
     List<ShortcutActionKind>? supportedActions,
     List<ShortcutInputObjectBuilder>? supportedInputs,
+    String? pluginActionsJson,
+    int? actionGeneration,
   })
       : _shortcuts = shortcuts,
         _supportedActions = supportedActions,
-        _supportedInputs = supportedInputs;
+        _supportedInputs = supportedInputs,
+        _pluginActionsJson = pluginActionsJson,
+        _actionGeneration = actionGeneration;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -4399,10 +4495,14 @@ class ShortcutConfigurationObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeListUint8(_supportedActions!.map((f) => f.value).toList());
     final int? supportedInputsOffset = _supportedInputs == null ? null
         : fbBuilder.writeList(_supportedInputs!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    fbBuilder.startTable(3);
+    final int? pluginActionsJsonOffset = _pluginActionsJson == null ? null
+        : fbBuilder.writeString(_pluginActionsJson!);
+    fbBuilder.startTable(5);
     fbBuilder.addOffset(0, shortcutsOffset);
     fbBuilder.addOffset(1, supportedActionsOffset);
     fbBuilder.addOffset(2, supportedInputsOffset);
+    fbBuilder.addOffset(3, pluginActionsJsonOffset);
+    fbBuilder.addUint64(4, _actionGeneration);
     return fbBuilder.endTable();
   }
 
@@ -6151,6 +6251,179 @@ class ThemeStateObjectBuilder extends fb.ObjectBuilder {
     return fbBuilder.buffer;
   }
 }
+class PluginActionCatalog {
+  PluginActionCatalog._(this._bc, this._bcOffset);
+  factory PluginActionCatalog(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<PluginActionCatalog> reader = _PluginActionCatalogReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  int get generation => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 4, 0);
+  String? get actionsJson => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 6);
+
+  @override
+  String toString() {
+    return 'PluginActionCatalog{generation: ${generation}, actionsJson: ${actionsJson}}';
+  }
+}
+
+class _PluginActionCatalogReader extends fb.TableReader<PluginActionCatalog> {
+  const _PluginActionCatalogReader();
+
+  @override
+  PluginActionCatalog createObject(fb.BufferContext bc, int offset) => 
+    PluginActionCatalog._(bc, offset);
+}
+
+class PluginActionCatalogBuilder {
+  PluginActionCatalogBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(2);
+  }
+
+  int addGeneration(int? generation) {
+    fbBuilder.addUint64(0, generation);
+    return fbBuilder.offset;
+  }
+  int addActionsJsonOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class PluginActionCatalogObjectBuilder extends fb.ObjectBuilder {
+  final int? _generation;
+  final String? _actionsJson;
+
+  PluginActionCatalogObjectBuilder({
+    int? generation,
+    String? actionsJson,
+  })
+      : _generation = generation,
+        _actionsJson = actionsJson;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? actionsJsonOffset = _actionsJson == null ? null
+        : fbBuilder.writeString(_actionsJson!);
+    fbBuilder.startTable(2);
+    fbBuilder.addUint64(0, _generation);
+    fbBuilder.addOffset(1, actionsJsonOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+class PluginActionInvocation {
+  PluginActionInvocation._(this._bc, this._bcOffset);
+  factory PluginActionInvocation(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<PluginActionInvocation> reader = _PluginActionInvocationReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  int get generation => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 4, 0);
+  String? get id => const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 6);
+  int get monitorId => const fb.Int64Reader().vTableGet(_bc, _bcOffset, 8, -1);
+
+  @override
+  String toString() {
+    return 'PluginActionInvocation{generation: ${generation}, id: ${id}, monitorId: ${monitorId}}';
+  }
+}
+
+class _PluginActionInvocationReader extends fb.TableReader<PluginActionInvocation> {
+  const _PluginActionInvocationReader();
+
+  @override
+  PluginActionInvocation createObject(fb.BufferContext bc, int offset) => 
+    PluginActionInvocation._(bc, offset);
+}
+
+class PluginActionInvocationBuilder {
+  PluginActionInvocationBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(3);
+  }
+
+  int addGeneration(int? generation) {
+    fbBuilder.addUint64(0, generation);
+    return fbBuilder.offset;
+  }
+  int addIdOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+  int addMonitorId(int? monitorId) {
+    fbBuilder.addInt64(2, monitorId);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class PluginActionInvocationObjectBuilder extends fb.ObjectBuilder {
+  final int? _generation;
+  final String? _id;
+  final int? _monitorId;
+
+  PluginActionInvocationObjectBuilder({
+    int? generation,
+    String? id,
+    int? monitorId,
+  })
+      : _generation = generation,
+        _id = id,
+        _monitorId = monitorId;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? idOffset = _id == null ? null
+        : fbBuilder.writeString(_id!);
+    fbBuilder.startTable(3);
+    fbBuilder.addUint64(0, _generation);
+    fbBuilder.addOffset(1, idOffset);
+    fbBuilder.addInt64(2, _monitorId);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
 class Envelope {
   Envelope._(this._bc, this._bcOffset);
   factory Envelope(List<int> bytes) {
@@ -6188,6 +6461,8 @@ class Envelope {
       case 17: return XembedTrayCommand.reader.vTableGetNullable(_bc, _bcOffset, 12);
       case 18: return ThemeState.reader.vTableGetNullable(_bc, _bcOffset, 12);
       case 19: return CursorState.reader.vTableGetNullable(_bc, _bcOffset, 12);
+      case 20: return PluginActionCatalog.reader.vTableGetNullable(_bc, _bcOffset, 12);
+      case 21: return PluginActionInvocation.reader.vTableGetNullable(_bc, _bcOffset, 12);
       default: return null;
     }
   }

@@ -54,7 +54,7 @@ sh -n "$SUSPEND_MODE_HOOK"
 
 dart_schema="$({
     sed -n 's/.*schemaVersion = \([0-9][0-9]*\).*/\1/p' \
-        "$ROOT/dart_shell/lib/src/settings/shell_settings.dart"
+        "$ROOT/packages/denial_flutter_sdk/lib/src/settings/shell_settings.dart"
 } | head -n 1)"
 rust_schema="$({
     sed -n 's/.*SETTINGS_SCHEMA_VERSION: u64 = \([0-9][0-9]*\).*/\1/p' \
@@ -83,17 +83,19 @@ engine_sha="$(sha256sum "$engine" | cut -d' ' -f1)"
 mkdir -p -- "$ARTIFACT_STORE"
 shell_source_inputs=(
     "$ROOT/dart_shell/lib"
-    "$ROOT/dart_shell/assets"
+    "$ROOT/packages/denial_flutter_sdk/assets"
     "$ROOT/dart_shell/pubspec.yaml"
     "$ROOT/dart_shell/pubspec.lock"
     "$ROOT/packages/denial_sdk/lib"
     "$ROOT/packages/denial_sdk/pubspec.yaml"
     "$ROOT/packages/denial_flutter_sdk/lib"
     "$ROOT/packages/denial_flutter_sdk/pubspec.yaml"
+    "$ROOT/plugins/denial_desktop/lib"
+    "$ROOT/plugins/denial_desktop/pubspec.yaml"
+    "$ROOT/plugins/denial_launcher/lib"
+    "$ROOT/plugins/denial_launcher/pubspec.yaml"
     "$ROOT/plugins/denial_top_bar/lib"
-    "$ROOT/../denial_taskbar_plugin/lib"
     "$ROOT/plugins/denial_top_bar/pubspec.yaml"
-    "$ROOT/../denial_taskbar_plugin/pubspec.yaml"
     "$ROOT/protocol/generated/dart/lib"
 )
 settings_source_inputs=(

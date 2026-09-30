@@ -130,8 +130,8 @@ mapfile -d '' candidate_packages < <(
     -print0 \
     | sort -z
 )
-((${#candidate_packages[@]} == 2)) \
-  || fail "expected two candidate packages, found ${#candidate_packages[@]}"
+((${#candidate_packages[@]} == 3)) \
+  || fail "expected three candidate packages, found ${#candidate_packages[@]}"
 
 for package in "${candidate_packages[@]}"; do
   package_info="$(bsdtar -xOf "$package" .PKGINFO)"
@@ -149,7 +149,7 @@ for package in "${candidate_packages[@]}"; do
   [[ "$package_version" == *-0 ]] \
     || fail "$(basename -- "$package") is not a package-release 0 candidate"
   case "$package_name" in
-    denial | denial-flutter-engine) ;;
+    denial | denial-flutter-engine | denial-plugin-manager) ;;
     *) fail "unexpected candidate package: ${package_name:-unset}" ;;
   esac
   [[ -z "${candidate_package_by_name[$package_name]:-}" ]] \
@@ -158,7 +158,8 @@ for package in "${candidate_packages[@]}"; do
 done
 for package_name in \
   denial \
-  denial-flutter-engine; do
+  denial-flutter-engine \
+  denial-plugin-manager; do
   [[ -n "${candidate_package_by_name[$package_name]:-}" ]] \
     || fail "candidate package is missing: $package_name"
 done
@@ -215,6 +216,9 @@ package_directory() {
     denial-flutter-engine)
       printf '%s\n' "$ROOT/packaging/arch/flutter-engine"
       ;;
+    denial-plugin-manager)
+      printf '%s\n' "$ROOT/packaging/arch/plugin-manager"
+      ;;
     *) return 1 ;;
   esac
 }
@@ -228,6 +232,10 @@ expected_release_package() {
     denial-flutter-engine)
       printf '%s\n' \
         "$OUTPUT_ROOT/denial-flutter-engine-1:${release_version}-1-x86_64.pkg.tar.zst"
+      ;;
+    denial-plugin-manager)
+      printf '%s\n' \
+        "$OUTPUT_ROOT/denial-plugin-manager-${release_version}-1-x86_64.pkg.tar.zst"
       ;;
     *) return 1 ;;
   esac
@@ -246,6 +254,7 @@ expected_release_package() {
 
 for package_name in \
   denial-flutter-engine \
+  denial-plugin-manager \
   denial; do
   candidate_package="${candidate_package_by_name[$package_name]}"
   candidate_payload="$work_root/candidate-payload/$package_name"
@@ -323,8 +332,8 @@ mapfile -d '' release_packages < <(
     -print0 \
     | sort -z
 )
-((${#release_packages[@]} == 2)) \
-  || fail "expected two promoted packages, found ${#release_packages[@]}"
+((${#release_packages[@]} == 3)) \
+  || fail "expected three promoted packages, found ${#release_packages[@]}"
 
 denial_package="$(expected_release_package denial)"
 engine_package="$(expected_release_package denial-flutter-engine)"
