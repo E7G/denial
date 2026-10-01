@@ -951,6 +951,7 @@ test_compositor() {
         cd -- "$COMPOSITOR_ROOT"
         DENIAL_NOTIFICATION_TEST_BUS=1 \
         DENIAL_FPRINT_TEST_BUS=1 \
+        DENIAL_SESSION_LOCK_TEST_BUS=1 \
         CARGO_TARGET_DIR="$RUST_TARGET" \
         dbus-run-session -- cargo test \
             --locked \
