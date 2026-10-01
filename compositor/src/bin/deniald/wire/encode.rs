@@ -515,18 +515,34 @@ impl WireBridge {
         Ok(self.outbound_builder.finished_data())
     }
 
-    pub fn encode_plugin_action(&mut self, generation: u64, id: &str, monitor: Option<i64>) -> Result<&[u8], WireError> {
+    pub fn encode_plugin_action(
+        &mut self,
+        generation: u64,
+        id: &str,
+        monitor: Option<i64>,
+    ) -> Result<&[u8], WireError> {
         let sequence = self.take_sequence();
         self.outbound_builder.reset();
         let builder = &mut self.outbound_builder;
         let id = builder.create_string(id);
-        let action = fb::PluginActionInvocation::create(builder, &fb::PluginActionInvocationArgs {
-            generation, id: Some(id), monitor_id: monitor.unwrap_or(-1),
-        });
-        let envelope = fb::Envelope::create(builder, &fb::EnvelopeArgs {
-            protocol_version: PROTOCOL_VERSION, sequence, request_id: 0,
-            payload_type: fb::Payload::PluginActionInvocation, payload: Some(action.as_union_value()),
-        });
+        let action = fb::PluginActionInvocation::create(
+            builder,
+            &fb::PluginActionInvocationArgs {
+                generation,
+                id: Some(id),
+                monitor_id: monitor.unwrap_or(-1),
+            },
+        );
+        let envelope = fb::Envelope::create(
+            builder,
+            &fb::EnvelopeArgs {
+                protocol_version: PROTOCOL_VERSION,
+                sequence,
+                request_id: 0,
+                payload_type: fb::Payload::PluginActionInvocation,
+                payload: Some(action.as_union_value()),
+            },
+        );
         fb::finish_envelope_buffer(builder, envelope);
         Ok(builder.finished_data())
     }
@@ -1059,7 +1075,11 @@ fn encode_settings_response(
     keyboard: Option<&KeyboardSettings>,
     display_names: &[String],
     active_layout: usize,
-    shortcut_configuration: Option<(&[ShortcutBinding], &[ShortcutInputDefinition], &crate::plugin_actions::ActionCatalog)>,
+    shortcut_configuration: Option<(
+        &[ShortcutBinding],
+        &[ShortcutInputDefinition],
+        &crate::plugin_actions::ActionCatalog,
+    )>,
     shortcut_validation: Option<&ShortcutValidation>,
     error: Option<&str>,
 ) -> Result<(), WireError> {
@@ -1104,7 +1124,11 @@ fn encode_settings_response(
             .map(|binding| encode_shortcut_binding(builder, binding))
             .collect::<Vec<_>>();
         let bindings = builder.create_vector(&bindings);
-        let actions = ShortcutAction::ALL.into_iter().filter(|a| *a != ShortcutAction::OpenApplications).map(shortcut_action_to_wire).collect::<Vec<_>>();
+        let actions = ShortcutAction::ALL
+            .into_iter()
+            .filter(|a| *a != ShortcutAction::OpenApplications)
+            .map(shortcut_action_to_wire)
+            .collect::<Vec<_>>();
         let actions = builder.create_vector(&actions);
         let inputs = inputs
             .iter()
@@ -1128,7 +1152,9 @@ fn encode_settings_response(
             })
             .collect::<Vec<_>>();
         let inputs = builder.create_vector(&inputs);
-        let plugin_actions_json = builder.create_string(&serde_json::to_string(&plugin_actions.actions).expect("action descriptors"));
+        let plugin_actions_json = builder.create_string(
+            &serde_json::to_string(&plugin_actions.actions).expect("action descriptors"),
+        );
         fb::ShortcutConfiguration::create(
             builder,
             &fb::ShortcutConfigurationArgs {
@@ -1210,8 +1236,14 @@ fn encode_shortcut_binding<'a>(
     let (target_type, target) = match &binding.target {
         ShortcutTarget::PluginAction { id } => {
             let id = builder.create_string(id);
-            let target = fb::ShortcutPluginActionTarget::create(builder, &fb::ShortcutPluginActionTargetArgs { id: Some(id) });
-            (fb::ShortcutTarget::ShortcutPluginActionTarget, target.as_union_value())
+            let target = fb::ShortcutPluginActionTarget::create(
+                builder,
+                &fb::ShortcutPluginActionTargetArgs { id: Some(id) },
+            );
+            (
+                fb::ShortcutTarget::ShortcutPluginActionTarget,
+                target.as_union_value(),
+            )
         }
         ShortcutTarget::DenialAction { action } => {
             let target = fb::ShortcutDenialActionTarget::create(
