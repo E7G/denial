@@ -1437,7 +1437,7 @@ void main(List<String> args) {
       jsonDecode(jsonEncode(loadYaml(File(path).readAsStringSync())))
           as Map<String, dynamic>;
   final manifest = read(args[0]);
-  manifest['dependencies']['denial_taskbar'] = {'path': '../plugins/denial_taskbar'};
+  manifest['dev_dependencies']['denial_taskbar'] = {'path': '../plugins/denial_taskbar'};
   final lock = read(args[1]);
   final taskbar = lock['packages']['denial_taskbar'];
   taskbar['source'] = 'path';

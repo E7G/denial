@@ -338,6 +338,9 @@ class _DesktopSceneState extends ConsumerState<DesktopScene> {
   final Map<int, ClosingDesktopWindow> _closingWindows =
       <int, ClosingDesktopWindow>{};
   final Map<int, Rect> _minimizedPlacementExitFrames = <int, Rect>{};
+  // Overview and restore move minimized windows between sibling scene planes.
+  // Retain the whole frame subtree so its position and opacity tweens survive.
+  final Map<int, GlobalKey> _windowFrameKeys = <int, GlobalKey>{};
   final DesktopWindowRevealMountRegistry _windowRevealRegistry =
       DesktopWindowRevealMountRegistry();
   late final DesktopMinimizeLayerHandoffController _minimizeLayerHandoff;
@@ -428,6 +431,9 @@ class _DesktopSceneState extends ConsumerState<DesktopScene> {
       for (final window in widget.windows) window.objectId,
     };
     _windowRevealRegistry.retainOnly(activeObjectIds);
+    _windowFrameKeys.removeWhere(
+      (objectId, _) => !activeObjectIds.contains(objectId),
+    );
     _minimizeLayerHandoff.retainOnly(activeObjectIds);
     final animateMinimize = !MediaQuery.disableAnimationsOf(context);
     for (final placement in widget.desktop.placements.values) {
@@ -658,6 +664,7 @@ class _DesktopSceneState extends ConsumerState<DesktopScene> {
         minimizedPlacementTransition: _minimizedPlacementTransition,
         minimizedPlacementExitFrames: _minimizedPlacementExitFrames,
         windowRevealRegistry: _windowRevealRegistry,
+        windowFrameKeys: _windowFrameKeys,
         onActivateWindow: onActivateWindow,
         onCloseWindow: onCloseWindow,
         onBeginOverviewDrag: onBeginOverviewDrag,
@@ -796,6 +803,7 @@ class _DesktopSceneState extends ConsumerState<DesktopScene> {
                         displayLayout: displayLayout,
                         devicePixelRatio: devicePixelRatio,
                         windowRevealRegistry: _windowRevealRegistry,
+                        windowFrameKeys: _windowFrameKeys,
                         onActivateWindow: onActivateWindow,
                         onCloseWindow: onCloseWindow,
                         onBeginOverviewDrag: onBeginOverviewDrag,
@@ -852,6 +860,7 @@ class _DesktopSceneState extends ConsumerState<DesktopScene> {
                         displayLayout: displayLayout,
                         devicePixelRatio: devicePixelRatio,
                         windowRevealRegistry: _windowRevealRegistry,
+                        windowFrameKeys: _windowFrameKeys,
                         onActivateWindow: onActivateWindow,
                         onCloseWindow: onCloseWindow,
                         onBeginOverviewDrag: onBeginOverviewDrag,

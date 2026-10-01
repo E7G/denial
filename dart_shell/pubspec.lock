@@ -164,7 +164,7 @@ packages:
     source: path
     version: "0.0.0"
   denial_taskbar:
-    dependency: "direct main"
+    dependency: "direct dev"
     description:
       path: "plugins/denial_taskbar"
       ref: "4b7adf998852b09b9a91c1cfab48be58debf2e80"
@@ -173,7 +173,7 @@ packages:
     source: git
     version: "0.0.0"
   denial_top_bar:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       path: "../plugins/denial_top_bar"
       relative: true

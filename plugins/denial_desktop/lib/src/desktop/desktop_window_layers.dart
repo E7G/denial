@@ -33,6 +33,7 @@ List<Widget> buildDesktopWindowLayers({
   required DisplayLayout? displayLayout,
   required double devicePixelRatio,
   required DesktopWindowRevealMountRegistry windowRevealRegistry,
+  required Map<int, GlobalKey> windowFrameKeys,
   required ValueChanged<DenialWindow> onActivateWindow,
   required ValueChanged<DenialWindow> onCloseWindow,
   required ValueChanged<DenialWindow> onBeginOverviewDrag,
@@ -148,7 +149,7 @@ List<Widget> buildDesktopWindowLayers({
         overview && desktop.overview?.selectedObjectId == placement.objectId;
     layers.add(
       DesktopWindowFrame(
-        key: ValueKey<int>(placement.objectId),
+        key: windowFrameKeys.putIfAbsent(placement.objectId, () => GlobalKey()),
         window: window,
         placement: placement,
         frame: frame,

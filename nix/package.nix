@@ -41,11 +41,11 @@ let
     ];
     inherit version buildIdentity;
   };
-  # Vendor the package selected from the locked multi-package collection.
+  # Vendor the development dependency from the locked multi-package collection.
   uiSourceFor =
     roots:
     assert lib.assertMsg (taskbarSrc != null) ''
-      The default composition requires plugins/denial_taskbar from the locked
+      The development workspace requires plugins/denial_taskbar from the locked
       denial-plugins collection. Supply taskbarSrc when using this expression directly.
     '';
     runCommand "source" { nativeBuildInputs = [ yq-go ]; } ''
@@ -68,7 +68,7 @@ let
       } $out/plugins/denial_taskbar
       chmod -R u+w $out
       if [ -f "$out/dart_shell/pubspec.yaml" ]; then
-        yq -i '.dependencies.denial_taskbar = {"path": "../plugins/denial_taskbar"}' \
+        yq -i '.dev_dependencies.denial_taskbar = {"path": "../plugins/denial_taskbar"}' \
           "$out/dart_shell/pubspec.yaml"
         yq -i '.packages.denial_taskbar.source = "path" |
           .packages.denial_taskbar.description = {"path": "../plugins/denial_taskbar", "relative": true}' \

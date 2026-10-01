@@ -1,5 +1,5 @@
 {
-  "source_sha256": "5d0959b555a2ab04844fa69e083c2783fa23f590a47e4d21c9ab58de10cff895",
+  "source_sha256": "7082190d29e181d2af8203093da5c0b7e535bca5b464b4d3f6cddcf5c14fd5c9",
   "packages": {
     "_fe_analyzer_shared": {
       "dependency": "transitive",
@@ -206,7 +206,7 @@
       "version": "0.0.0"
     },
     "denial_taskbar": {
-      "dependency": "direct main",
+      "dependency": "direct dev",
       "description": {
         "path": "plugins/denial_taskbar",
         "ref": "4b7adf998852b09b9a91c1cfab48be58debf2e80",
@@ -217,7 +217,7 @@
       "version": "0.0.0"
     },
     "denial_top_bar": {
-      "dependency": "direct dev",
+      "dependency": "direct main",
       "description": {
         "path": "../plugins/denial_top_bar",
         "relative": true

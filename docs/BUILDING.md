@@ -70,10 +70,12 @@ This resolves each package's locked dependencies and checks formatting and stati
 analysis. The normal release bundle build compiles their shell integration.
 It is also included in `tools/denial-pc test` and branch validation.
 
-The current local composition selects `plugins/denial_taskbar` from the locked
+The default composition selects the built-in top bar. Taskbar is a development
+dependency for alternative-composition validation, resolved from the locked
 [`denialwm/denial-plugins`](https://github.com/denialwm/denial-plugins)
-collection. Pub records its exact Git commit in `dart_shell/pubspec.lock`; no
-adjacent checkout is required. UI development snapshots and Nix sources vendor
+collection at `plugins/denial_taskbar`. Pub records its exact Git commit in
+`dart_shell/pubspec.lock`; no adjacent checkout is required. UI development
+snapshots and Nix sources vendor
 that package into `plugins/denial_taskbar` so their offline builds remain
 self-contained. The flake pins the same collection commit as an explicit input.
 
