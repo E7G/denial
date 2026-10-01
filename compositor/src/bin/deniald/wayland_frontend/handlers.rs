@@ -1,6 +1,7 @@
 #[cfg(feature = "flutter")]
 use super::super::render_audit_enabled;
 use super::focus::request_keyboard_focus;
+use super::managed_window::ManagedWindow;
 use super::window_management::{
     ManagedClientStateRequest, activate_window, apply_managed_client_state_request,
     managed_client_grab_allowed,
@@ -1420,6 +1421,14 @@ impl CompositorHandler for RuntimeState {
                 #[cfg(not(feature = "flutter"))]
                 let _ = restored;
                 window.on_commit();
+                if root_committed
+                    && !buffer_removed
+                    && let Some(managed) = ManagedWindow::new(&window)
+                {
+                    // The latest coalesced size remains in Smithay's pending
+                    // state until the preceding request reaches this commit.
+                    managed.flush_pending_resize();
+                }
                 #[cfg(feature = "flutter")]
                 if frontend.mobile_shell && frontend.exact_window_geometry(&window).is_none() {
                     frontend.configure_mobile_window(&window);
