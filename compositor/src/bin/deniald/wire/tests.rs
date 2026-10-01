@@ -581,18 +581,22 @@ fn encodes_atomic_cursor_states_and_rejects_invalid_values_without_sequence_gaps
         hotspot_x: 0.0,
         hotspot_y: 0.0,
         surfaces: Vec::new(),
+        drag_active: false,
+        drag_surfaces: Vec::new(),
     };
     assert!(matches!(
         bridge.encode_cursor_state(&invalid_named),
         Err(WireError::Payload)
     ));
 
-    let state = CursorStateDescription {
+    let mut state = CursorStateDescription {
         epoch: 27,
         kind: CursorStateKind::Surface,
         shape: String::new(),
         hotspot_x: 4.5,
         hotspot_y: 7.25,
+        drag_active: false,
+        drag_surfaces: Vec::new(),
         surfaces: vec![SurfaceLayerDescription {
             surface_id: 91,
             parent_surface_id: 0,
@@ -643,6 +647,83 @@ fn encodes_atomic_cursor_states_and_rejects_invalid_values_without_sequence_gaps
         envelope.payload_as_cursor_state().unwrap().shape(),
         Some("text")
     );
+
+    // Drag textures can accompany a themed cursor. A subsurface tree and
+    // negative attachment offset survive the same atomic cursor epoch.
+    let mut root = state.surfaces[0].clone();
+    root.surface_id = 92;
+    root.texture_id = 502;
+    root.surface_x = -12.0;
+    root.surface_y = -18.0;
+    let mut child = root.clone();
+    child.surface_id = 93;
+    child.texture_id = 503;
+    child.parent_surface_id = 92;
+    child.role = SurfaceRoleDescription::Subsurface;
+    child.surface_x = 3.0;
+    child.surface_y = 4.0;
+    child.composition_order = 1;
+    state = CursorStateDescription {
+        epoch: 29,
+        drag_active: true,
+        drag_surfaces: vec![root, child],
+        ..CursorStateDescription::named("default")
+    };
+    let bytes = bridge.encode_cursor_state(&state).unwrap();
+    let cursor = fb::root_as_envelope(bytes)
+        .unwrap()
+        .payload_as_cursor_state()
+        .unwrap();
+    assert_eq!(cursor.epoch(), 29);
+    assert!(cursor.drag_active());
+    assert_eq!(cursor.kind(), fb::CursorStateKind::Named);
+    assert!(cursor.surfaces().unwrap().is_empty());
+    let drag = cursor.drag_surfaces().unwrap();
+    assert_eq!(drag.len(), 2);
+    assert_eq!(drag.get(0).surface_x(), -12.0);
+    assert_eq!(drag.get(0).surface_y(), -18.0);
+    assert_eq!(drag.get(0).transform(), 0);
+    assert_eq!(drag.get(0).scale_120(), 240);
+    assert_eq!(drag.get(1).parent_surface_id(), 92);
+
+    let mut invalid = state.clone();
+    invalid.drag_active = false;
+    assert!(matches!(
+        bridge.encode_cursor_state(&invalid),
+        Err(WireError::Payload)
+    ));
+    invalid = state.clone();
+    invalid.drag_surfaces[1].parent_surface_id = 99;
+    assert!(matches!(
+        bridge.encode_cursor_state(&invalid),
+        Err(WireError::Payload)
+    ));
+    invalid = state.clone();
+    invalid.drag_surfaces[1].surface_id = 92;
+    assert!(matches!(
+        bridge.encode_cursor_state(&invalid),
+        Err(WireError::Payload)
+    ));
+
+    // A drag need not supply artwork; completion/cancellation clears both
+    // the active flag and the texture tree without leaving a stale icon.
+    state.epoch += 1;
+    state.drag_surfaces.clear();
+    let bytes = bridge.encode_cursor_state(&state).unwrap();
+    let cursor = fb::root_as_envelope(bytes)
+        .unwrap()
+        .payload_as_cursor_state()
+        .unwrap();
+    assert!(cursor.drag_active());
+    assert!(cursor.drag_surfaces().unwrap().is_empty());
+    state.epoch += 1;
+    state.drag_active = false;
+    let bytes = bridge.encode_cursor_state(&state).unwrap();
+    let envelope = fb::root_as_envelope(bytes).unwrap();
+    let cursor = envelope.payload_as_cursor_state().unwrap();
+    assert!(!cursor.drag_active());
+    assert!(cursor.drag_surfaces().unwrap().is_empty());
+    assert_eq!(envelope.sequence(), 5);
 }
 
 #[test]

@@ -1357,6 +1357,25 @@ impl CompositorHandler for RuntimeState {
             .then(|| frontend.active_cursor_root_for(surface))
             .flatten();
         #[cfg(feature = "flutter")]
+        let drag_icon_root = (!synchronized)
+            .then(|| frontend.drag_icon_root_for(surface))
+            .flatten();
+        #[cfg(feature = "flutter")]
+        if frontend.drag_icon.as_ref() == Some(surface) {
+            let delta = with_states(surface, |states| {
+                states
+                    .cached_state
+                    .get::<SurfaceAttributes>()
+                    .current()
+                    .buffer_delta
+                    .take()
+            });
+            if let Some(delta) = delta {
+                frontend.drag_icon_offset = saturating_point_add(frontend.drag_icon_offset, delta);
+                frontend.pending_drag_icon = true;
+            }
+        }
+        #[cfg(feature = "flutter")]
         let cursor_callback_root = (!synchronized)
             .then(|| frontend.cursor_root_for(surface))
             .flatten();
@@ -1366,7 +1385,10 @@ impl CompositorHandler for RuntimeState {
                 // A callback-only Chromium commit must not create a new
                 // external-texture generation. Pending synchronized child
                 // damage is still published by this parent transaction.
-                if let Some(cursor_root) = active_cursor_root.as_ref() {
+                if let Some(icon_root) = drag_icon_root.as_ref() {
+                    let commits = frontend.publish_surface_commits(icon_root);
+                    frontend.record_drag_icon_commits(commits);
+                } else if let Some(cursor_root) = active_cursor_root.as_ref() {
                     let commits = frontend.publish_cursor_surface_commits(cursor_root);
                     frontend.record_cursor_surface_commits(cursor_root, commits);
                 } else {
@@ -1466,7 +1488,11 @@ impl CompositorHandler for RuntimeState {
             // whether policy currently lets Flutter display its artwork.
             // Xwayland retains one cursor upload until this callback arrives
             // and otherwise cannot submit a later non-null X cursor.
-            if let Some(cursor_root) = cursor_callback_root.as_ref() {
+            if let Some(icon_root) = drag_icon_root.as_ref() {
+                frontend
+                    .pending_drag_frame_callback_roots
+                    .insert(icon_root.id());
+            } else if let Some(cursor_root) = cursor_callback_root.as_ref() {
                 frontend
                     .pending_cursor_frame_callback_roots
                     .insert(cursor_root.id());
@@ -1584,6 +1610,11 @@ impl CompositorHandler for RuntimeState {
         }
         let frontend = self.wayland.as_mut().expect("missing Wayland frontend");
         frontend.remove_foreign_toplevel(surface);
+        #[cfg(feature = "flutter")]
+        if frontend.drag_icon.as_ref() == Some(surface) {
+            frontend.drag_icon = None;
+            frontend.pending_drag_icon = true;
+        }
         frontend.remove_surface_state(surface, true);
         self.scene_sync.mark_dirty();
     }
@@ -1879,13 +1910,35 @@ impl WlrDataControlHandler for RuntimeState {
     }
 }
 
-impl DndGrabHandler for RuntimeState {}
+impl DndGrabHandler for RuntimeState {
+    fn dropped(
+        &mut self,
+        _target: Option<smithay::input::dnd::DndTarget<'_, Self>>,
+        _validated: bool,
+        _seat: Seat<Self>,
+        _location: Point<f64, Logical>,
+    ) {
+        #[cfg(feature = "flutter")]
+        self.wayland
+            .as_mut()
+            .expect("missing Wayland frontend")
+            .finish_drag();
+    }
+
+    fn cancelled(&mut self, _seat: Seat<Self>, _location: Point<f64, Logical>) {
+        #[cfg(feature = "flutter")]
+        self.wayland
+            .as_mut()
+            .expect("missing Wayland frontend")
+            .finish_drag();
+    }
+}
 
 impl WaylandDndGrabHandler for RuntimeState {
     fn dnd_requested<S: Source>(
         &mut self,
         source: S,
-        _icon: Option<WlSurface>,
+        icon: Option<WlSurface>,
         seat: Seat<Self>,
         serial: Serial,
         type_: GrabType,
@@ -1915,6 +1968,13 @@ impl WaylandDndGrabHandler for RuntimeState {
                     .clone();
                 let grab = DnDGrab::new_pointer(&display_handle, start_data, source, seat);
                 pointer.set_grab(self, grab, serial, Focus::Keep);
+                #[cfg(feature = "flutter")]
+                self.wayland
+                    .as_mut()
+                    .expect("missing Wayland frontend")
+                    .start_client_drag(icon);
+                #[cfg(not(feature = "flutter"))]
+                let _ = icon;
             }
             GrabType::Touch => source.cancel(),
         }

@@ -887,9 +887,25 @@ pub(super) fn validate_cursor_state_payload(
         }
     }
 
-    let mut identities = HashSet::with_capacity(state.surfaces.len());
+    if (!state.drag_active && !state.drag_surfaces.is_empty())
+        || state.drag_surfaces.len() > MAX_SURFACES
+        || state.drag_surfaces.iter().any(|drag| {
+            state
+                .surfaces
+                .iter()
+                .any(|cursor| cursor.surface_id == drag.surface_id)
+        })
+    {
+        return Err(WireError::Payload);
+    }
+    validate_cursor_surface_tree(&state.surfaces)?;
+    validate_cursor_surface_tree(&state.drag_surfaces)
+}
+
+fn validate_cursor_surface_tree(surfaces: &[SurfaceLayerDescription]) -> Result<(), WireError> {
+    let mut identities = HashSet::with_capacity(surfaces.len());
     let mut previous_order = None;
-    for (index, surface) in state.surfaces.iter().enumerate() {
+    for (index, surface) in surfaces.iter().enumerate() {
         if surface.surface_id == 0
             || !identities.insert(surface.surface_id)
             || surface.transform > 7
@@ -979,6 +995,12 @@ fn encode_cursor_state(
         .map(|surface| create_surface_layer(builder, surface))
         .collect::<Vec<_>>();
     let surfaces = builder.create_vector(&surfaces);
+    let drag_surfaces = state
+        .drag_surfaces
+        .iter()
+        .map(|surface| create_surface_layer(builder, surface))
+        .collect::<Vec<_>>();
+    let drag_surfaces = builder.create_vector(&drag_surfaces);
     let hotspot = fb::WirePoint::new(state.hotspot_x, state.hotspot_y);
     let cursor = fb::CursorState::create(
         builder,
@@ -992,6 +1014,8 @@ fn encode_cursor_state(
             shape,
             hotspot: Some(&hotspot),
             surfaces: Some(surfaces),
+            drag_active: state.drag_active,
+            drag_surfaces: Some(drag_surfaces),
         },
     );
     let envelope = fb::Envelope::create(
