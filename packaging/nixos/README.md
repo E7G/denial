@@ -1,9 +1,10 @@
 # NixOS
 
 Denial ships its Nix package, overlay, and NixOS module in this repository.
-The package builds the Rust compositor, the locked Denial Flutter engine, the
-embedded shell, and Settings from source. It does not download Denial release
-binaries.
+The Nix derivations build the Rust compositor, locked Denial Flutter engine,
+embedded shell, and Settings from source. Normal installations reuse a separately
+cached engine and adapt it to the host's dependencies; a cache miss builds that
+same engine derivation from source. Denial release archives are not build inputs.
 
 Add Denial to the flake that owns the NixOS system:
 
@@ -57,9 +58,25 @@ contain the Plugin Manager or compiler kit.
 
 Flutter and Skia source revisions remain pinned by `SOURCE_LOCK.json`.
 Denial takes its private Flutter build helper definitions from its locked
-Nixpkgs source, but evaluates them with the host's package set; it does not
-reuse an engine binary built against another Nixpkgs revision. There is no
-need to make Denial's Nixpkgs input follow the host's input.
+Nixpkgs source. The expensive engine/compiler build uses that pinned package set
+so its cache identity survives host updates. A small host-specific derivation
+verifies the complete artifact manifest and adapts the engine and its matching
+Dart SDK to the host's loader and libraries. Compiler snapshots require the exact
+SDK hash, so the SDK stays paired with the engine even when another SDK reports
+the same Dart version. The compositor, shell and native Flutter apps use the
+host's package set. There is no need to make Denial's
+Nixpkgs input follow the host's input; doing so also changes the engine cache key.
+
+Hosts below the producer's glibc or GNU compiler-runtime baseline, or using a
+different compiler family, build the engine with their own package set. To
+deliberately use this path on any host:
+
+```nix
+programs.denial.engine.buildFromSource = true;
+```
+
+Both paths consume the same exact source locks. The source option rebuilds the
+engine and does not affect the compositor's host dependency alignment.
 
 The standalone `denial.packages.x86_64-linux.denial` output still builds with
 Denial's own Nixpkgs lock for reproducible CI and direct flake builds. Use the
@@ -128,21 +145,32 @@ and signing key because Nix does not apply the `nixConfig` of a flake used only
 as an input. Direct commands against the Denial flake can accept its identical
 checked-in configuration with `--accept-flake-config`.
 
-An exact cache hit downloads the package instead of compiling the pinned
-Flutter engine. A host using another Nixpkgs revision or package overrides
-produces different derivations and may need to rebuild the engine. A cache
-hit does not guarantee compatibility with a different host graphics stack.
+The separately published `denial-flutter-engine-raw` output contains the locked
+release engine, matching Dart SDK and compiler assets, with a complete checksum/mode
+inventory, architecture, source-lock and fetch-lock hashes, and the actual GN configuration
+hash. Its producer derivation is independent of the consumer's Nixpkgs and
+overlays. Nix verifies the signed cache output against that exact derivation;
+host adaptation verifies the manifest and every file before modifying copies.
+It removes producer library/loader paths and selects the host's dependencies.
+
+A newer compatible host normally downloads that raw output and builds only the
+small adaptation step, compositor and Dart applications. Cache misses build the
+pinned producer from its locked sources automatically. Older or explicitly
+source-selected hosts build the engine with their host package set instead.
+
+A complete package cache hit still does not guarantee compatibility with a
+different host graphics stack.
 Overriding `programs.denial.package` with
 `denial.packages.${system}.denial` retains Denial's pinned native dependencies;
 after a host update, drivers loaded from `/run/opengl-driver` can require glibc
 symbols that the cached package's libc does not provide. Keep the module's
 default package for host dependency alignment.
 
-A lab-only experiment reuses a verified engine artifact while adapting its ELF
-dependencies and rebuilding the applications with the host's package set. See
-the [experiment instructions](../../nix/experiments/README.md) and
-[validation results](VALIDATION.md#portable-engine-experiment-2026-10-02).
-This is not yet a supported package selection or public cache contract.
+CI checks stable and the separately locked unstable package set, requiring one
+identical raw engine producer, host libc alignment, complete artifact verification
+and engine/AOT/Mesa loading. Its negative test models an older process loading a
+newer Mesa driver when the libc baselines differ. Actual graphics/session tests
+are recorded in [the validation results](VALIDATION.md).
 
 If startup reports GBM backend initialization failure for an already-open DRM
 device, the device was opened successfully. A GBM `No such file or directory`

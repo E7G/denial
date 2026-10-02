@@ -1,7 +1,8 @@
 # Portable engine experiment
 
-This is a lab experiment, not a supported package selection or a public cache
-contract. Normal Denial packages still build the locked engine from source.
+This retains the original lab experiment, not a supported package selection or
+public cache contract. Normal packages now use the source-built pinned producer
+and verified host adapter in `nix/flutter-engine-{raw,adapt}.nix`.
 The internal `releaseEngineOverride` argument lets a test overlay reuse verified
 release engine/compiler outputs while building the compositor and Dart apps
 with the host's Nixpkgs.
@@ -87,10 +88,10 @@ The lab uses `nix copy` to round-trip the raw store path through an isolated fil
 binary cache. This proves reuse of the same bytes; it does not publish to Cachix
 or establish a production artifact supply chain.
 
-Before enabling this by default, the producer must bind the complete artifact
-manifest and compiler assets to the exact source lock, configuration and
-architecture, publish verified immutable outputs, and provide a source-build
-fallback and host compatibility checks. The experiment validates the engine
+The normal producer binds a complete manifest to the locked sources and recorded
+build configuration and relies on Nix's exact derivation/cache signature contract.
+It has a source-build fallback and host compatibility checks. This retained
+experiment validates the engine
 checksum and rejects an override stamped with a different source-lock hash;
 that stamp is supplied by the test harness, not independently authenticated
 producer provenance. Only x86_64 release mode is covered here.

@@ -1,14 +1,88 @@
 # NixOS source package and module validation
 
-Validated on 2026-09-18. This record covers the first-party Nix source build,
-module integration, package contracts, and non-visual runtime health. Visual
-validation remains user-owned and was not performed.
+This record covers first-party Nix builds, module integration, cache and package
+contracts, and non-visual runtime health. Visual validation remains user-owned
+and was not performed. The newest supported-path validation appears first;
+earlier sections describe the implementations tested at those dates.
+
+## Supported engine cache (2026-10-03)
+
+The default module was built and booted on `.18` with the production packaging
+split: one pure Nix, source-built engine and matching Dart SDK/compiler kit,
+followed by host adaptation and host-native compositor and application builds.
+Neither configuration overrode `programs.denial.package` or the engine.
+
+| Host package set | Kernel | Runtime glibc | Runtime Mesa | Result |
+| --- | --- | --- | --- | --- |
+| NixOS 26.05.7443.70cc4559b10a | 7.1.8 | 2.42-67 | 26.1.5 | Fresh boot, session health and GBM/EGL probe passed |
+| Nixpkgs unstable `b4fd65b198c599cbe814fcb9f42d25d021595ec9` | 7.2.8 | 2.44-25 | 26.2.3 | Fresh boot, session health and GBM/EGL probe passed |
+
+Both selected the exact same producer derivation and raw output:
+`/nix/store/av5b51sxq54vikxgb9s9hjxskg8k0c3r-denial-flutter-engine-raw-af7e796e161ae0bb1ff0758c71a7105418bd9ded`.
+The producer compiled the locked Flutter/Skia sources with Denial's pinned
+Nixpkgs; the completed release build had 8,904 Ninja steps. It did not repackage
+the development workstation's engine. Its source-lock SHA-256 was
+`13bd80e89eeec9139c44043cfb1b0f8f0f0b1db7d11e13969838a35e52c7dd3c`,
+and its actual GN configuration SHA-256 was
+`f9f88ace1cd8b9372b529f28ef64f32d4400eab94e8faefe14917e273d3e23e6`.
+The producer baselines were glibc 2.42 and GCC runtime 15.2.
+
+The raw object has zero Nix-store references. Its manifest inventories all 1,383
+files, including the source-built Dart SDK, with hashes, sizes and executable
+modes. The manifest SHA-256 was
+`19fe5d2cee4eb37a116cd9bd16cdcdfff0c72937c8fcb56bff1c99881e90f277`.
+An isolated signed file cache transferred this object into a fresh local store;
+signature, NAR contents and complete manifest verification passed. The NAR was
+687,381,968 bytes, compressed to 165,434,512 bytes, with hash
+`sha256-Fh9BIY7xg7Dx4wmbPU/7RX8if9IoKdVgwAYaBvDYAKk=`. This round trip
+used a disposable test signing key, not the production Cachix key.
+
+The tested stable and unstable packages were respectively
+`/nix/store/6p4szbgdjbfhg9xyhm0h9m5npgwm5fvn-denial-0.0.0+src.15b5b0aed566`
+and
+`/nix/store/cf4vpqdpjdbrgpm0l0xq9hri5apibhsp-denial-0.0.0+src.15b5b0aed566`.
+Each running process mapped its expected package engine and AOT bundle, the
+host's exact libc and Mesa, and no producer libc. The host-adapted engine hashes
+were `f22e4c958df815b34a2f3875036efe53bcd2f1c66e65571cd678d75441ab2234`
+(stable) and
+`f7c8d010bb0dfe2108e38fa5bf2c7051476929e9fa4ffebcf1cee2f540bc6dd5`
+(unstable); installed copies matched exactly. Greetd, the Denial session target,
+portal and PolicyKit agent were active, and system and user failed-unit lists
+were empty. The AMD render-node probe loaded the engine and AOT data and
+created GBM and surfaceless EGL/GLES 3 contexts without a window or scanout.
+
+The complete 11-output CI build matrix passed, including both full packages,
+both module checks, both engine/cache contracts, source locks, manifest tests
+and installed paths. All executed release-profile Rust tests passed, including
+386 tests in the main suite. The 12 manifest tests cover tampering, omitted or
+extra files, executable modes, symlinks and mismatched identity. Module checks
+verify the paired Dart SDK, older-libc/compiler and non-GNU fallback selection,
+and explicit source selection. A complete forced-source package and its
+installed-path check also passed. Final lock verification and flake evaluation
+passed.
+
+Using the stable probe against unstable's Mesa reproduced `GLIBC_2.43` not
+found followed by GBM's `ENOENT`, while the unstable-adapted probe passed.
+The preceding experiment below validated the corrected startup diagnostic in
+an actual failing session. Settings, PolicyKit and Plugin Manager were built;
+their GUIs were not launched for validation. These results cover x86_64 release
+mode on the AMD device, not NVIDIA, other architectures or visual behavior.
+
+Both system boots used separate additive Limine entries, with kernel and
+initramfs BLAKE2b-512 hashes independently checked immediately before reboot.
+The original NixOS system profile, configuration and Limine default were
+preserved. Evidence is retained under
+`/home/logix/denial-engine-cache-20261002/`, including frozen sources, all build
+logs, the signed cache, manifest and host identity records, process maps,
+service checks, render probes and boot hash checks. This local validation
+precedes production cache publication by the `dev` workflow.
 
 ## Portable engine experiment (2026-10-02)
 
 The Firefox/Electron-style split was tested on `.18` with one verified release
-engine/compiler artifact and two host-native package sets. This is experimental;
-normal packages still build the engine from source. The adapter and reproduction
+engine/compiler artifact and two host-native package sets. At that point the
+split was experimental and normal packages still built the engine from source.
+The adapter and reproduction
 instructions are in [`nix/experiments`](../../nix/experiments/README.md).
 
 | Host package set | Kernel | Runtime glibc | Runtime Mesa | Result |
@@ -102,10 +176,10 @@ artifact inputs, system expressions, complete build logs, module-check results,
 cache round-trip logs, process maps, runtime status, boot hash checks,
 `stable-probe-on-unstable.log` and `mismatched-package-stderr.log`.
 
-Before making this a default or supported cache path, the producer still needs
+The experiment identified these requirements before a supported cache path:
 a complete verified artifact manifest tied to the source lock, configuration
 and architecture, immutable publication, a source-build fallback and a supported
-host compatibility matrix. The harness-supplied source-lock stamp is not
+host compatibility matrix. The harness-supplied source-lock stamp was not
 independently authenticated provenance. These results cover x86_64 release mode
 on one AMD graphics device; they do not establish universal glibc, NVIDIA,
 other-architecture or visual compatibility.

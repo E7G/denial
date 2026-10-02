@@ -41,7 +41,10 @@ static void print_maps(void) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 4) fail("usage: probe ENGINE_SO AOT_SO RENDER_NODE");
+  if (argc != 3 && argc != 4 && argc != 5)
+    fail("usage: probe ENGINE_SO AOT_SO [RENDER_NODE | --driver DRIVER_SO]");
+  if (argc == 5 && strcmp(argv[3], "--driver") != 0)
+    fail("expected --driver DRIVER_SO");
   printf("loaded glibc: %s\n", gnu_get_libc_version());
   void *library = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
   if (library == NULL) fail(dlerror());
@@ -89,6 +92,20 @@ int main(int argc, char **argv) {
   if (table.CreateAOTData(&source, &aot) != kSuccess || aot == NULL)
     fail("AOT data loading failed");
   puts("Flutter and Denial ABI and AOT data loading: passed");
+
+  if (argc == 5) {
+    void *driver = dlopen(argv[4], RTLD_NOW | RTLD_LOCAL);
+    if (driver == NULL) fail(dlerror());
+    puts("Mesa driver loading in the engine process: passed");
+    print_maps();
+    dlclose(driver);
+  }
+  if (argc != 4) {
+    if (table.CollectAOTData(aot) != kSuccess) fail("AOT data release failed");
+    dlclose(library);
+    puts("non-visual ABI/AOT probe: passed");
+    return EXIT_SUCCESS;
+  }
 
   int fd = open(argv[3], O_RDWR | O_CLOEXEC);
   if (fd < 0) { perror("open render node"); return EXIT_FAILURE; }

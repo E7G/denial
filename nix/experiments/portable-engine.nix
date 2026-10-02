@@ -78,7 +78,7 @@ let
     buildPhase = ''
       cp ${embedderHeader} flutter_embedder.h
       $CC -std=c11 -Wall -Wextra -Werror -O2 -I. \
-        ${./portable-engine-probe.c} -o probe \
+        ${../tests/engine-probe.c} -o probe \
         $(pkg-config --cflags --libs gbm egl glesv2) -ldl
     '';
     installPhase = ''

@@ -13,6 +13,17 @@ in
     enable = lib.mkEnableOption "Denial, a Flutter-native Wayland compositor";
     package = lib.mkPackageOption pkgs "denial" { };
 
+    engine.buildFromSource = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Build the locked release engine with the host's package set instead of
+        reusing the pinned cache producer. Older libc or compiler runtimes
+        automatically use this path. A cache miss otherwise builds the pinned
+        producer from source without requiring this option.
+      '';
+    };
+
     plugins = {
       enable = lib.mkEnableOption "Denial's plugin development and composition tools";
       package = lib.mkPackageOption pkgs "denialPluginManager" { };
@@ -47,6 +58,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    nixpkgs.overlays = lib.mkAfter (
+      lib.optional cfg.engine.buildFromSource (
+        final: _prev: { denialFlutter = final.denialFlutterSource; }
+      )
+    );
     environment.systemPackages = [
       cfg.package
       pkgs.zenity
