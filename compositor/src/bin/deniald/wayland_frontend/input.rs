@@ -1713,8 +1713,9 @@ fn reset_input_devices(state: &mut RuntimeState, reset: InputDeviceReset) {
         for keycode in pressed_keys {
             let raw_keycode = keycode.raw();
             let was_retired = previously_retired_keys.contains(&raw_keycode);
-            keyboard.input::<(), _>(
+            super::input_method::input_key(
                 state,
+                &keyboard,
                 keycode,
                 KeyState::Released,
                 SERIAL_COUNTER.next_serial(),
@@ -1937,8 +1938,9 @@ fn dispatch_flutter_repeat(state: &mut RuntimeState, keycode: u32) -> bool {
         .as_ref()
         .map(|frontend| frontend.start_time.elapsed().as_millis() as u32)
         .unwrap_or_default();
-    keyboard.input_forward(
+    super::input_method::forward_key(
         state,
+        &keyboard,
         Keycode::new(keycode),
         KeyState::Pressed,
         SERIAL_COUNTER.next_serial(),
@@ -2629,8 +2631,9 @@ fn process_flutter_keyboard_transition(
             keyboard.current_focus(),
             Some(super::focus::KeyboardFocusTarget::Flutter)
         );
-    keyboard.input::<(), _>(
+    super::input_method::input_key(
         state,
+        &keyboard,
         keycode,
         key_state,
         SERIAL_COUNTER.next_serial(),

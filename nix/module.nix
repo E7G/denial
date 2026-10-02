@@ -29,9 +29,9 @@ in
       };
       command = lib.mkOption {
         type = lib.types.str;
-        default = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
+        default = "${cfg.package}/bin/denial-polkit-agent";
         defaultText = lib.literalExpression ''
-          "''${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
+          "''${config.programs.denial.package}/bin/denial-polkit-agent"
         '';
         description = "Absolute command used for the PolicyKit authentication agent.";
       };
@@ -62,12 +62,13 @@ in
     programs.dconf.enable = lib.mkDefault true;
     programs.xwayland.enable = lib.mkDefault true;
 
-    systemd.user.services.denial-polkit-agent = lib.mkIf cfg.polkitAgent.enable {
+    systemd.user.services.denial-polkit-agent = {
+      enable = cfg.polkitAgent.enable;
       description = "PolicyKit authentication agent for Denial";
       documentation = [ "https://github.com/denialwm/denial" ];
       wantedBy = [ "denial-session.target" ];
       partOf = [ "denial-session.target" ];
-      after = [ "denial-session.target" ];
+      after = [ "graphical-session-pre.target" ];
       serviceConfig = {
         ExecStart = cfg.polkitAgent.command;
         Restart = "on-failure";

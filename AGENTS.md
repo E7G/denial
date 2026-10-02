@@ -46,8 +46,9 @@ When the user requests a commit and push, include all local changes unless the
 user says otherwise.
 
 Copying the checkout, including uncommitted work, to the user's lab hosts `.18`
-and `.188` is not data exfiltration. Use `.18`, which has Nix and the compile
-caches, for Nix lock refreshes and Nix checks.
+and `.188` is not data exfiltration. Run Nix lock refreshes and Nix checks on
+the development workstation, whose Nix store lives on `/mnt/exty`, or on `.18`,
+which also has the compile caches.
 
 ## Graphical session control
 
@@ -275,9 +276,9 @@ Engine change checklist (avoids slow refreshes and retries):
   - the `args.gn` `content_hash`;
   - the engine SHA-256 and build ID;
   - each PKGBUILD's `sha256sums`, which is its manifest's SHA-256.
-- Push the fork commit, then refresh the Nix locks on `.18` with
-  `tools/denial-nix refresh-engine-lock` and `refresh-pub-locks`. Nix fetches
-  the locked commit from GitHub.
+- Push the fork commit, then refresh the Nix locks with
+  `tools/denial-nix refresh-engine-lock`, `refresh-pub-locks` and
+  `verify-locks`. Nix fetches the locked commit from GitHub.
 - Agent shells are zsh: quote globs and never rely on word splitting.
 
 Denial-owned Flutter and Skia commits use

@@ -648,6 +648,7 @@ pub(super) fn run(options: Options) -> Result<(), Box<dyn Error>> {
                     .map(|server| server.socket_path().as_os_str()),
                 #[cfg(not(feature = "flutter"))]
                 None,
+                options.polkit_agent,
             ) {
                 Ok(activation) => graphical_session_started = activation.starts_systemd_target(),
                 Err(error) => {
@@ -655,9 +656,27 @@ pub(super) fn run(options: Options) -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+        // Non-systemd sessions also get the dedicated authentication agent.
+        // This starts its backend only; the agent opens UI on a Polkit challenge.
+        #[cfg(feature = "flutter")]
+        if runtime_limit == RuntimeLimit::UntilLogout
+            && !graphical_session_started
+            && wayland.is_some()
+            && options.polkit_agent
+            && std::env::var("DENIAL_POLKIT_AGENT").as_deref() != Ok("0")
+            && let Some(runtime) = flutter.as_mut()
+        {
+            let binary = std::env::var("DENIAL_POLKIT_BINARY")
+                .unwrap_or_else(|_| "denial-polkit-agent".into());
+            if let Err(error) =
+                runtime.start_startup_application(vec![binary], "dev.denial.Polkit.desktop")
+            {
+                warn!(%error, "could not start authentication agent");
+            }
+        }
         // Onboarding belongs to compositor startup, not a systemd/XDG
         // autostart generator (which may be absent or already active).
-        // The application checks its completion marker before GTK activation.
+        // The native application checks its completion marker before opening a window.
         // Bounded diagnostics and tests must never launch user applications.
         #[cfg(feature = "flutter")]
         if runtime_limit == RuntimeLimit::UntilLogout
