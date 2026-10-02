@@ -618,6 +618,7 @@ fn encodes_atomic_cursor_states_and_rejects_invalid_values_without_sequence_gaps
             composition_order: 0,
             opacity: 1.0,
             opaque: false,
+            window_geometry: None,
         }],
     };
     let bytes = bridge.encode_cursor_state(&state).unwrap();

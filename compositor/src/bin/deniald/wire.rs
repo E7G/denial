@@ -448,6 +448,9 @@ pub struct SurfaceLayerDescription {
     pub composition_order: u32,
     pub opacity: f32,
     pub opaque: bool,
+    /// A popup root's declared xdg window geometry in surface-local logical
+    /// coordinates, when it excludes part of the surface (a client shadow).
+    pub window_geometry: Option<WindowGeometry>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
