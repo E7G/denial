@@ -122,6 +122,8 @@ use super::frame_scheduler::FrameTick;
 use super::local_windows::{LocalFlutterWindows, LocalWindowError};
 use super::native_shortcut::ShortcutManager;
 use super::settings::SettingsManager;
+#[cfg(feature = "xwayland")]
+use super::window_grab::pointer_grab_drives_window;
 use super::window_grab::{
     MoveSurfaceGrab, ResizeEdges, ResizeSurfaceGrab, checked_pointer_grab, constrain_dimension,
 };

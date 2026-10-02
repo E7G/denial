@@ -9,6 +9,8 @@ use smithay::input::pointer::{
     GestureSwipeUpdateEvent, GrabStartData, MotionEvent, PointerGrab, PointerInnerHandle,
     RelativeMotionEvent,
 };
+#[cfg(feature = "xwayland")]
+use smithay::input::pointer::PointerHandle;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::Resource;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
@@ -206,6 +208,29 @@ pub(super) fn checked_pointer_grab(
         .id()
         .same_client_as(&surface.id())
         .then_some(start_data)
+}
+
+/// Whether `pointer` already drives an interactive move or resize of `window`.
+///
+/// Chromium-based X11 clients such as Steam can send `_NET_WM_MOVERESIZE`
+/// twice for one press. Replacing the active grab would end its placement
+/// transaction, which leaves Flutter painting the window at its pre-drag
+/// position until release, and would restart the delta from the original
+/// press with an already-moved origin.
+#[cfg(feature = "xwayland")]
+pub(super) fn pointer_grab_drives_window(
+    pointer: &PointerHandle<RuntimeState>,
+    window: &Window,
+) -> bool {
+    pointer
+        .with_grab(|_, grab| {
+            grab.downcast_ref::<MoveSurfaceGrab>()
+                .is_some_and(|grab| &grab.window == window)
+                || grab
+                    .downcast_ref::<ResizeSurfaceGrab>()
+                    .is_some_and(|grab| &grab.window == window)
+        })
+        .unwrap_or(false)
 }
 
 fn window_is_mapped(data: &RuntimeState, window: &Window) -> bool {
