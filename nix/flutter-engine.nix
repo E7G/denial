@@ -8,6 +8,8 @@
   runCommand,
   flutterNixpkgs ? pkgs.path,
   maintenanceOnly ? false,
+  # Internal experiment input; normal packages continue building from source.
+  releaseEngineOverride ? null,
 }:
 
 let
@@ -153,17 +155,31 @@ let
       "release"
     ];
   };
-  releaseEngine = rawEngine.overrideAttrs (_: {
-    runtimeModes = [ "release" ];
-    altRuntimeMode = "release";
-    installPhase = ''
-      runHook preInstall
-      mkdir --parents $out/out
-      ln --symbolic ${rawEngine.release}/out/${rawEngine.release.outName} \
-        $out/out/${rawEngine.release.outName}
-      runHook postInstall
-    '';
-  });
+  releaseEngine =
+    if releaseEngineOverride != null then
+      releaseEngineOverride
+    else
+      rawEngine.overrideAttrs (_: {
+        runtimeModes = [ "release" ];
+        altRuntimeMode = "release";
+        installPhase = ''
+          runHook preInstall
+          mkdir --parents $out/out
+          ln --symbolic ${rawEngine.release}/out/${rawEngine.release.outName} \
+            $out/out/${rawEngine.release.outName}
+          runHook postInstall
+        '';
+      });
+  # The experiment already supplies the compiled artifacts. Its compiler kit
+  # needs Flutter GPU declarations, not another checkout of engine dependencies.
+  applicationEngineSource =
+    if releaseEngineOverride == null then
+      rawEngine.src
+    else
+      runCommand "denial-portable-engine-source-projection" { } ''
+        mkdir -p $out/src
+        ln -s ${fetchedFlutter}/engine/src/flutter $out/src/flutter
+      '';
 
   # Lock maintenance must remain evaluable after SOURCE_LOCK.json advances and
   # before the Flutter application lock has been regenerated. In particular,
@@ -243,7 +259,7 @@ let
           '';
           passthru = oldAttrs.passthru // {
             engine = releaseEngine;
-            engineSource = rawEngine.src;
+            engineSource = applicationEngineSource;
             depotToolsSource = engineTools.depot_tools;
             inherit fetchedFlutter flutterSource;
             buildFlutterApplication =
@@ -261,13 +277,17 @@ let
     wrapped = wrappedBase // {
       override = _: packages.wrapped;
       engine = releaseEngine;
-      engineSource = rawEngine.src;
+      engineSource = applicationEngineSource;
       depotToolsSource = engineTools.depot_tools;
       frameworkRevision = flutterRevision;
       inherit dart;
       inherit fetchedFlutter flutterSource;
     };
-    wrappedBase = (pkgs.flutterPackages.wrapFlutter packages.unwrapped).override {
+    # The host's wrapper can change its local-engine interface independently
+    # of the pinned tool helper. Keep their definitions coupled while still
+    # resolving every native dependency through the host package set.
+    wrappedBase = pkgs.callPackage (flutterNix + "/wrapper.nix") {
+      flutter = packages.unwrapped;
       supportedTargetFlutterPlatforms = [ ];
     };
   };
@@ -275,6 +295,9 @@ in
 if maintenanceOnly then
   maintenanceSources
 else
+  assert lib.assertMsg (
+    releaseEngineOverride == null || (releaseEngineOverride.sourceLockSha256 or null) == sourceLockHash
+  ) "Experimental engine artifacts do not match SOURCE_LOCK.json";
   assert lib.assertMsg (
     nixLock.schema_version == 1
   ) "unsupported nix/flutter-engine-lock.json schema";

@@ -334,8 +334,16 @@ pub(super) fn run(options: Options) -> Result<(), Box<dyn Error>> {
 
     let cross_device_rendering = render_device != options.device;
     let gbm = GbmDevice::new(render_fd.clone()).map_err(|error| {
+        // This fd is already open. GBM can return ENOENT when loading its
+        // backend fails, so its errno must not imply a missing DRM node.
         format!(
-            "could not create GBM device for {}: {error}",
+            "GBM backend initialization failed for already-open DRM device {}: {error}. \
+             The DRM device was opened successfully; the GBM error can instead refer to \
+             loading a graphics driver or its dependencies. Check preceding Mesa loader \
+             messages on stderr or in the display manager's session logs. On NixOS, \
+             a package built with another Nixpkgs revision can use a glibc incompatible \
+             with drivers in /run/opengl-driver; use the programs.denial module's \
+             default package (pkgs.denial) to build against the host's dependencies.",
             render_device.display()
         )
     })?;

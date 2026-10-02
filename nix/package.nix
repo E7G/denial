@@ -184,6 +184,7 @@ let
     "packaging/arch/session.conf"
     "packaging/arch/xdg-desktop-portal-wlr-Denial"
     "packaging/denial-session.target"
+    "packaging/denial-polkit-agent.service"
     "packaging/denial-suspend-mode"
   ];
   runtimeLibraryPath = lib.makeLibraryPath [

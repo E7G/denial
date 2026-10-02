@@ -50,7 +50,8 @@ in
     environment.systemPackages = [
       cfg.package
       pkgs.zenity
-    ] ++ lib.optional cfg.plugins.enable cfg.plugins.package;
+    ]
+    ++ lib.optional cfg.plugins.enable cfg.plugins.package;
     fonts.packages = [ pkgs.source-han-sans ];
 
     services.displayManager.sessionPackages = [ cfg.package ];
@@ -70,7 +71,12 @@ in
       partOf = [ "denial-session.target" ];
       after = [ "graphical-session-pre.target" ];
       serviceConfig = {
-        ExecStart = cfg.polkitAgent.command;
+        # This becomes a drop-in for the packaged unit. Clear its command
+        # before applying the configurable one; simple services allow only one.
+        ExecStart = [
+          ""
+          cfg.polkitAgent.command
+        ];
         Restart = "on-failure";
         RestartSec = "250ms";
       };

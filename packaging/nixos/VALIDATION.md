@@ -4,6 +4,112 @@ Validated on 2026-09-18. This record covers the first-party Nix source build,
 module integration, package contracts, and non-visual runtime health. Visual
 validation remains user-owned and was not performed.
 
+## Portable engine experiment (2026-10-02)
+
+The Firefox/Electron-style split was tested on `.18` with one verified release
+engine/compiler artifact and two host-native package sets. This is experimental;
+normal packages still build the engine from source. The adapter and reproduction
+instructions are in [`nix/experiments`](../../nix/experiments/README.md).
+
+| Host package set | Kernel | Runtime glibc | Runtime Mesa | Result |
+| --- | --- | --- | --- | --- |
+| NixOS 26.05.7443.70cc4559b10a | 7.1.8 | 2.42-67 | 26.1.5 | Fresh boot, Denial session and render-node probe passed |
+| Nixpkgs unstable `b4fd65b198c599cbe814fcb9f42d25d021595ec9` | 7.2.8 | 2.44-25 | 26.2.3 | Fresh boot, Denial session and render-node probe passed |
+
+The engine came from the release artifact cache verified against Flutter commit
+`ca061606416467424b546da68a662e897f9e19a2`, coupled to Flutter 3.47.5 and Dart
+3.13.4. The source-lock SHA-256 was
+`13bd80e89eeec9139c44043cfb1b0f8f0f0b1db7d11e13969838a35e52c7dd3c`;
+the unmodified engine SHA-256 was
+`dea4ca4b6d2fabcab57c91dc61b3214f0517fc659d214a70ae8d663f11811de8`.
+Preparing the required compiler and GTK artifacts reused the existing release
+Ninja output with no work to do; neither host package build compiled the engine.
+The compositor and Dart applications were rebuilt against each host package set.
+
+Both selected the same raw store object:
+`/nix/store/7nj0sv3ahpaj0b7aaajq86ic85s1gn1c-denial-portable-engine-raw`
+(83,318,304 bytes including compiler assets). It was uploaded to an isolated file
+binary cache and downloaded into a separate local store; the fetched engine was
+byte-identical to the verified input. No artifact was published to Cachix.
+Host adaptation removed old ELF search paths on copies and used each host's
+`autoPatchelfHook`. Adapted engine SHA-256 values were
+`9e947c5a3a4e64da473ba6432fd6b4cb73a359ace165e353d7439d4812f93c74`
+(stable) and
+`d51d81e32c4188b79a643494cb849d02a2375c5acc1bdeb1a7b6b7626af26754`
+(unstable). Each installed engine matched its adapted artifact exactly. Each
+complete runtime package closure contained only its host's glibc version.
+
+The tested packages were:
+
+- Stable: `/nix/store/fyl4z8b9nqr6mfldwcmak7md1vl7hc99-denial-0.0.0+src.d7d0b29ad165`.
+- Unstable: `/nix/store/h4m43lmvh6jniiyz21rkb6jygkal1fs9-denial-0.0.0+src.a541ee4e4b49`.
+
+The source was frozen before concurrent compositor edits in the development
+checkout. The package identities differ because the unstable build includes the
+subsequent pinned Flutter-wrapper correction. A standalone copy of the corrected
+NixOS module was used for both system tests without rebuilding their packages.
+This does not validate later unrelated checkout edits.
+
+Both full package builds passed their executed release-profile Rust checks and
+installed-path checks. The default source-package module regression checks also
+passed on both package sets, including host libc alignment and enabled/disabled
+PolicyKit integration. The experiment rejected an override stamped with a wrong
+source-lock hash. The render-node probe checked the Denial extension symbols,
+Flutter procedure table, AOT data loading, GBM and surfaceless EGL/GLES 3; it
+created no window or scanout. The actual sessions exercised engine initialization
+and Dart execution. Process maps confirmed the expected package's engine and
+`libapp.so`, the host libc, and the host Mesa driver. The display manager, Denial
+session target, portal and PolicyKit agent were active; final system and user
+failed-unit lists were empty. Settings was built and checked, but its GUI was
+not launched. No visual validation or interactive test event was performed.
+
+The negative test reproduced the report exactly: the stable-built probe on the
+unstable graphics stack failed because Mesa required `GLIBC_2.43`, followed by
+GBM's `ENOENT`. A brief session with the stable package reproduced the same
+failure and verified the new fatal diagnostic identifies an **already-open** DRM
+device and directs the user to Mesa loader output and host dependency alignment.
+Session stderr was captured explicitly because greetd normally sends it to the
+terminal. The working unstable session was restored and verified afterward.
+
+A second adaptation check used the lab's previously source-built Nix Flutter
+3.44.7 engine, retaining its original glibc 2.42 paths in the raw input. Removing
+those paths on the copy and adapting it to unstable allowed `dlopen(RTLD_NOW)`
+and Flutter symbol lookup under glibc 2.44. This was a library-loading check;
+that old engine was not run with the newer AOT bundle.
+
+Full builds uncovered three integration defects, corrected in this checkout:
+the host's newer Flutter wrapper no longer honored the pinned helper's local
+engine interface; the package source fileset omitted the installed PolicyKit
+unit; and the module's PolicyKit drop-in appended a second `ExecStart` instead
+of clearing the packaged command first. The wrapper now comes from the pinned
+helper definitions while resolving native dependencies from the host. The
+module check was updated for Denial's bundled authentication agent and verifies
+that disabling it disables the generated unit.
+
+The existing NixOS root LV was extended online from 64 to 96 GiB after the two
+system closures filled its remaining space. Stable and unstable test systems
+share that root and have separate Limine entries with explicit immutable system
+paths; no second partition was needed. Both kernel and initramfs URI hashes
+were independently checked with BLAKE2b-512 immediately before each reboot.
+The disposable test configurations mount the existing main EFI partition at
+`/boot`, as required by unstable's boot-seed service. The original NixOS
+configuration, original system profile and Limine default remain unchanged.
+`.18` was left running the unstable test session.
+
+Evidence is retained under
+`/home/logix/denial-portable-engine-test-20261002/`, including the frozen source,
+artifact inputs, system expressions, complete build logs, module-check results,
+cache round-trip logs, process maps, runtime status, boot hash checks,
+`stable-probe-on-unstable.log` and `mismatched-package-stderr.log`.
+
+Before making this a default or supported cache path, the producer still needs
+a complete verified artifact manifest tied to the source lock, configuration
+and architecture, immutable publication, a source-build fallback and a supported
+host compatibility matrix. The harness-supplied source-lock stamp is not
+independently authenticated provenance. These results cover x86_64 release mode
+on one AMD graphics device; they do not establish universal glibc, NVIDIA,
+other-architecture or visual compatibility.
+
 ## Host dependency validation (2026-09-30)
 
 The host-native overlay and module change was source-built and activated on

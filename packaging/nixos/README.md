@@ -131,7 +131,26 @@ checked-in configuration with `--accept-flake-config`.
 An exact cache hit downloads the package instead of compiling the pinned
 Flutter engine. A host using another Nixpkgs revision or package overrides
 produces different derivations and may need to rebuild the engine. A cache
-miss still performs the complete source build and has
+hit does not guarantee compatibility with a different host graphics stack.
+Overriding `programs.denial.package` with
+`denial.packages.${system}.denial` retains Denial's pinned native dependencies;
+after a host update, drivers loaded from `/run/opengl-driver` can require glibc
+symbols that the cached package's libc does not provide. Keep the module's
+default package for host dependency alignment.
+
+A lab-only experiment reuses a verified engine artifact while adapting its ELF
+dependencies and rebuilding the applications with the host's package set. See
+the [experiment instructions](../../nix/experiments/README.md) and
+[validation results](VALIDATION.md#portable-engine-experiment-2026-10-02).
+This is not yet a supported package selection or public cache contract.
+
+If startup reports GBM backend initialization failure for an already-open DRM
+device, the device was opened successfully. A GBM `No such file or directory`
+error can refer to loading a driver or its dependencies. Check the preceding
+Mesa loader output on stderr or in the display manager's session logs for the
+underlying error, including missing `GLIBC_*` symbols.
+
+A cache miss still performs the complete source build and has
 required more than 48 GiB of temporary Nix store space on the validation host;
 plan a builder with at least 64 GiB of free working space. Subsequent builds
 reuse Nix store objects, and source filtering keeps the engine and unrelated

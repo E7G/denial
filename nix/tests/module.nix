@@ -81,12 +81,14 @@ pkgs.runCommand "denial-module-evaluation" { } ''
   test '${toString (cfg.xdg.portal.wlr.settings.screencast.chooser_cmd == expectedChooser)}' = 1
   test '${
     toString (
-      cfg.systemd.user.services.denial-polkit-agent.serviceConfig.ExecStart
-      == "${hostPkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
+      cfg.systemd.user.services.denial-polkit-agent.serviceConfig.ExecStart == [
+        ""
+        "${cfg.programs.denial.package}/bin/denial-polkit-agent"
+      ]
     )
   }' = 1
   test '${toString (builtins.elem "denial-session.target" cfg.systemd.user.services.denial-polkit-agent.wantedBy)}' = 1
   test '${toString (!disabledCfg.hardware.i2c.enable)}' = 1
-  test '${toString (!builtins.hasAttr "denial-polkit-agent" disabledCfg.systemd.user.services)}' = 1
+  test '${toString (!disabledCfg.systemd.user.units."denial-polkit-agent.service".enable)}' = 1
   touch $out
 ''
