@@ -1140,10 +1140,13 @@ pub(super) fn queue_restored_window_state(
     restored: RestoredWindowPlacement,
     target: Rectangle<i32, Logical>,
 ) {
-    queue_window_placement_for_monitor(
+    // Rust retains the normal restore rectangle. Flutter mirrors the applied
+    // target; publishing the restore rectangle here would shrink a maximized
+    // or fullscreen window after its authoritative snapshot arrives.
+    queue_client_window_placement_for_monitor(
         state,
         window,
-        restored.geometry,
+        target,
         target,
         WindowPlacementPhase::End,
         WindowPlacementChange::Resize,
@@ -2334,15 +2337,13 @@ fn store_client_restore_geometry(
     state: &mut RuntimeState,
     root: &WlSurface,
     current: Rectangle<i32, Logical>,
-) -> Option<Rectangle<i32, Logical>> {
+) {
     let restore = bound_geometry_size(current);
     let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
-    match frontend.ensure_window_record_for_surface(&root.id()) {
-        Some(record) if record.restore_geometry.is_none() => {
-            record.restore_geometry = Some(restore);
-            Some(restore)
-        }
-        _ => None,
+    if let Some(record) = frontend.ensure_window_record_for_surface(&root.id())
+        && record.restore_geometry.is_none()
+    {
+        record.restore_geometry = Some(restore);
     }
 }
 
@@ -2351,7 +2352,6 @@ fn apply_client_state_geometry(
     window: &Window,
     target: Option<Rectangle<i32, Logical>>,
     restore: Option<Rectangle<i32, Logical>>,
-    restore_to_publish: Option<Rectangle<i32, Logical>>,
     unconstrained_after: bool,
 ) {
     if let Some(target) = target {
@@ -2365,18 +2365,16 @@ fn apply_client_state_geometry(
                 WindowGeometryAuthority::ClientState,
             );
         #[cfg(feature = "flutter")]
-        if let Some(restore) = restore_to_publish {
-            queue_client_window_placement_for_monitor(
-                state,
-                window,
-                restore,
-                target,
-                WindowPlacementPhase::End,
-                WindowPlacementChange::Resize,
-            );
-        }
-        #[cfg(not(feature = "flutter"))]
-        let _ = restore_to_publish;
+        // State entry has already happened in Rust. This packet describes the
+        // current rectangle, not the normal rectangle retained for state exit.
+        queue_client_window_placement_for_monitor(
+            state,
+            window,
+            target,
+            target,
+            WindowPlacementPhase::End,
+            WindowPlacementChange::Resize,
+        );
         return;
     }
     if !unconstrained_after {
@@ -2537,17 +2535,15 @@ pub(super) fn apply_managed_client_state_request(
         (None, None)
     };
 
-    let restore_to_publish = if !before.fullscreen
+    if !before.fullscreen
         && !before.maximized
         && entering
         && managed.can_store_client_restore()
         && current.size.w > 0
         && current.size.h > 0
     {
-        store_client_restore_geometry(state, &root, current)
-    } else {
-        None
-    };
+        store_client_restore_geometry(state, &root, current);
+    }
     let restore = if !entering && unconstrained_after {
         state
             .wayland
@@ -2564,14 +2560,7 @@ pub(super) fn apply_managed_client_state_request(
         return false;
     }
 
-    apply_client_state_geometry(
-        state,
-        window,
-        target,
-        restore,
-        restore_to_publish,
-        unconstrained_after,
-    );
+    apply_client_state_geometry(state, window, target, restore, unconstrained_after);
     if scrolling_layout_maximize {
         state
             .wayland
