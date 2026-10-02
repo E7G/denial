@@ -1278,9 +1278,9 @@ fn render_persisted_output_config(
             ));
         }
     }
-    if !outputs.iter().any(|output| output.enabled) {
-        return Err("at least one persistent output must remain enabled".to_owned());
-    }
+    // Every connected output may be saved as disabled. That happens when a
+    // display lit only as a fallback keeps its saved preference while the
+    // preferred displays are away, and the display policy lights one anyway.
     if let Some(primary_output) = primary_output {
         validate_output_config_name(primary_output)?;
     }
