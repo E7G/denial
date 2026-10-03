@@ -914,11 +914,26 @@ find_denial_pid() {
     printf '%s\n' "$found"
 }
 
+# A process-directed signal goes to any thread that does not block it. deniald
+# reads its control signals from a signalfd, so a single unmasked thread would
+# take the default action and terminate the session.
+require_signal_masked() {
+    local pid="$1" signal="$2" name="$3" status mask blocked
+    for status in "/proc/$pid/task/"*/status; do
+        mask="$(awk '/^SigBlk:/ { print $2 }' "$status" 2>/dev/null)" || continue
+        [[ $mask =~ ^[0-9a-fA-F]{16}$ ]] || continue
+        blocked=$(( 16#${mask:12} >> (signal - 1) & 1 ))
+        ((blocked)) \
+            || die "deniald process $pid has a thread that does not block $name (${status%/status}); sending it would end the session. Restart Denial into a fixed build first"
+    done
+}
+
 require_bundle_refresh_support() {
     local pid="$1"
     "/proc/$pid/exe" --help 2>/dev/null \
         | grep -Fq "Control: SIGUSR1 safely refreshes the embedded Flutter bundle in process." \
         || die "running deniald process $pid predates safe in-process bundle refresh support; restart Denial once before using refresh"
+    require_signal_masked "$pid" 10 SIGUSR1
 }
 
 refresh_bundle() {
@@ -1232,6 +1247,7 @@ request_kms_reconfigure() {
         || die "expected exactly one deniald process for this user, found: ${pid:-none}"
     grep -aFq "live KMS reconfiguration requested" "/proc/$pid/exe" \
         || die "the running deniald predates live KMS re-evaluation; reboot into the rebuilt session first"
+    require_signal_masked "$pid" 12 SIGUSR2
     kill -USR2 "$pid"
     printf 'Requested live KMS re-evaluation from deniald PID %s\n' "$pid"
 }
