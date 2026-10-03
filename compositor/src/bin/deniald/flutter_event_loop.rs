@@ -7,10 +7,8 @@ use super::kms_session::{
     log_shutdown, recover_stalled_kms_presentation, service_session_lifecycle,
 };
 use super::*;
-use denial_core::volition;
-use smithay::reexports::calloop::channel::{
-    Event as ChannelEvent, SyncSender, channel, sync_channel,
-};
+use smithay::reexports::calloop::channel::{Event as ChannelEvent, channel};
+use smithay::reexports::calloop::ping::make_ping;
 
 const BACKGROUND_SERVICE_INTERVAL: Duration = Duration::from_nanos(1_000_000_000 / 30);
 const BACKGROUND_MAINTENANCE_INTERVAL: Duration = Duration::from_millis(100);
@@ -500,7 +498,7 @@ fn next_dispatch_timeout(
 
 fn create_frame_schedulers(
     drm: &DrmDevice,
-    volition_events: &SyncSender<volition::Event>,
+    volition_events: &output_scheduler::VolitionEvents,
     scanouts: &[Scanout],
     swapchain: &RenderSwapchains,
     flutter: &mut Option<flutter_runtime::FlutterRuntime>,
@@ -1024,7 +1022,7 @@ fn apply_hardware_output_configuration(
     active_output_confirmation: &mut Option<ActiveOutputConfirmation>,
     pending_output_success: &mut Option<PendingOutputApply>,
     retired_output_flips: &mut u64,
-    volition_event_sender: &SyncSender<volition::Event>,
+    volition_events: &output_scheduler::VolitionEvents,
 ) -> Result<(), Box<dyn Error>> {
     scheduler.prepare_reconfiguration(scanouts, events)?;
     let apply = if resident_mode_change {
@@ -1079,7 +1077,7 @@ fn apply_hardware_output_configuration(
         *retired_output_flips = retired_output_flips.saturating_add(scheduler.presented_frames());
         (*scheduler, *frame_scheduler) = create_frame_schedulers(
             drm,
-            volition_event_sender,
+            volition_events,
             scanouts,
             swapchain,
             flutter,
@@ -1099,7 +1097,7 @@ fn apply_hardware_output_configuration(
     events.output_control_dirty = true;
     (*scheduler, *frame_scheduler) = create_frame_schedulers(
         drm,
-        volition_event_sender,
+        volition_events,
         scanouts,
         swapchain,
         flutter,
@@ -1150,7 +1148,7 @@ fn apply_staged_output_configuration(
     active_output_confirmation: &mut Option<ActiveOutputConfirmation>,
     pending_output_success: &mut Option<PendingOutputApply>,
     retired_output_flips: &mut u64,
-    volition_event_sender: &SyncSender<volition::Event>,
+    volition_events: &output_scheduler::VolitionEvents,
 ) -> Result<(), Box<dyn Error>> {
     let StagedOutputApply {
         request,
@@ -1243,7 +1241,7 @@ fn apply_staged_output_configuration(
         active_output_confirmation,
         pending_output_success,
         retired_output_flips,
-        volition_event_sender,
+        volition_events,
     )
 }
 
@@ -1273,7 +1271,7 @@ fn service_ready_output_apply(
     active_output_confirmation: &mut Option<ActiveOutputConfirmation>,
     pending_output_success: &mut Option<PendingOutputApply>,
     retired_output_flips: &mut u64,
-    volition_event_sender: &SyncSender<volition::Event>,
+    volition_events: &output_scheduler::VolitionEvents,
     deadline: Option<Instant>,
 ) -> Result<bool, Box<dyn Error>> {
     if scanout_rebased {
@@ -1334,7 +1332,7 @@ fn service_ready_output_apply(
             active_output_confirmation,
             pending_output_success,
             retired_output_flips,
-            volition_event_sender,
+            volition_events,
         )?;
     }
     Ok(true)
@@ -1535,7 +1533,7 @@ fn apply_observed_output_topology(
     scheduler: &mut output_scheduler::OutputScheduler,
     frame_scheduler: &mut frame_scheduler::FrameScheduler,
     retired_output_flips: &mut u64,
-    volition_event_sender: &SyncSender<volition::Event>,
+    volition_events: &output_scheduler::VolitionEvents,
 ) -> Result<(), Box<dyn Error>> {
     let TopologyReconfigurationRequest {
         scanout_rebased,
@@ -1633,7 +1631,7 @@ fn apply_observed_output_topology(
     }
     (*scheduler, *frame_scheduler) = create_frame_schedulers(
         drm,
-        volition_event_sender,
+        volition_events,
         scanouts,
         swapchain,
         flutter,
@@ -1670,7 +1668,7 @@ fn service_flutter_reload(
     scheduler: &mut output_scheduler::OutputScheduler,
     frame_scheduler: &mut frame_scheduler::FrameScheduler,
     retired_output_flips: &mut u64,
-    volition_event_sender: &SyncSender<volition::Event>,
+    volition_events: &output_scheduler::VolitionEvents,
 ) -> Result<bool, Box<dyn Error>> {
     if !events.flutter_reload_requested {
         return Ok(false);
@@ -1715,7 +1713,7 @@ fn service_flutter_reload(
                 retired_output_flips.saturating_add(scheduler.presented_frames());
             (*scheduler, *frame_scheduler) = create_frame_schedulers(
                 drm,
-                volition_event_sender,
+                volition_events,
                 scanouts,
                 swapchain,
                 flutter,
@@ -2135,6 +2133,7 @@ fn acknowledge_render_events(
     events: &mut RuntimeState,
     flutter: &Option<flutter_runtime::FlutterRuntime>,
     scheduler: &mut output_scheduler::OutputScheduler,
+    volition_events: &output_scheduler::VolitionEvents,
 ) -> Result<bool, Box<dyn Error>> {
     if !events.sampled_buffer_releases.is_empty() {
         install_sampled_buffer_releases(event_loop, events)?;
@@ -2147,6 +2146,7 @@ fn acknowledge_render_events(
             events.ready_fence_signals.drain(..),
         )?;
     }
+    volition_events.drain_into(&mut events.volition_events);
     if events.volition_events.is_empty() {
         return Ok(false);
     }
@@ -2531,15 +2531,12 @@ pub(super) fn run_flutter_event_loop(
         warn!(%error, path = %settings_path.display(), "could not watch Denial settings for external edits");
     }
     let _orientation_sensor = start_orientation_sensor(event_loop)?;
-    let (volition_event_sender, volition_event_source) = sync_channel(8);
-    event_loop.handle().insert_source(
-        volition_event_source,
-        |event, _, state: &mut RuntimeState| {
-            if let ChannelEvent::Msg(event) = event {
-                state.volition_events.push(event);
-            }
-        },
-    )?;
+    let (volition_wake, volition_wake_source) = make_ping()?;
+    // Queued Volition records are acknowledged at the top of each iteration.
+    event_loop
+        .handle()
+        .insert_source(volition_wake_source, |(), _, _: &mut RuntimeState| {})?;
+    let volition_events = output_scheduler::VolitionEvents::new(volition_wake);
     let (lid_readings, lid_reading_source) = channel();
     event_loop.handle().insert_source(
         lid_reading_source,
@@ -2556,7 +2553,7 @@ pub(super) fn run_flutter_event_loop(
     let mut retired_output_flips = 0u64;
     let (mut scheduler, mut frame_scheduler) = create_frame_schedulers(
         drm,
-        &volition_event_sender,
+        &volition_events,
         scanouts,
         swapchain,
         flutter,
@@ -2632,6 +2629,7 @@ pub(super) fn run_flutter_event_loop(
             &mut events,
             flutter,
             &mut scheduler,
+            &volition_events,
         )? {
             continue;
         }
@@ -2847,7 +2845,7 @@ pub(super) fn run_flutter_event_loop(
             &mut active_output_confirmation,
             &mut pending_output_success,
             &mut retired_output_flips,
-            &volition_event_sender,
+            &volition_events,
             deadline,
         )? {
             continue;
@@ -2891,7 +2889,7 @@ pub(super) fn run_flutter_event_loop(
                         &mut scheduler,
                         &mut frame_scheduler,
                         &mut retired_output_flips,
-                        &volition_event_sender,
+                        &volition_events,
                     )?;
                     continue;
                 }
@@ -2916,7 +2914,7 @@ pub(super) fn run_flutter_event_loop(
             &mut scheduler,
             &mut frame_scheduler,
             &mut retired_output_flips,
-            &volition_event_sender,
+            &volition_events,
         )? {
             continue;
         }

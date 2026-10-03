@@ -1,12 +1,13 @@
 use std::error::Error;
 use std::os::fd::{AsFd, OwnedFd};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use denial_core::topology::{OutputId, OutputTransform, PixelRect, PixelSize, RenderViewId};
 use denial_core::volition::{self, CommitId, PlaneCommit, PlaneProperties, Submission, Volition};
 use smithay::backend::drm::DrmDevice;
-use smithay::reexports::calloop::channel::SyncSender as EventSender;
+use smithay::reexports::calloop::ping::Ping;
 use tracing::{info, warn};
 
 use super::flutter_runtime::{FlutterRuntime, ReadyOutputFrame};
@@ -299,6 +300,44 @@ pub(super) struct ReadyFenceWatch {
 impl ReadyFenceWatch {
     pub(super) fn into_parts(self) -> (OwnedFd, ReadyFenceSignal) {
         (self.fence, self.signal)
+    }
+}
+
+/// Volition completions waiting for the compositor thread.
+///
+/// Volition accepts a commit right after the preceding display edge, while
+/// its own page flip is still a full refresh away. `Submitted` only promotes
+/// that frame's bookkeeping, so it is collected on the compositor's next wake
+/// instead of causing one; the event loop's periodic service deadline bounds
+/// that delay. Stalls and failures still wake the loop immediately.
+#[derive(Clone)]
+pub(super) struct VolitionEvents {
+    queue: Arc<Mutex<Vec<volition::Event>>>,
+    wake: Ping,
+}
+
+impl VolitionEvents {
+    pub(super) fn new(wake: Ping) -> Self {
+        Self {
+            queue: Arc::default(),
+            wake,
+        }
+    }
+
+    fn report(&self, event: volition::Event) {
+        let wake = !matches!(event, volition::Event::Submitted { .. });
+        self.queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(event);
+        if wake {
+            self.wake.ping();
+        }
+    }
+
+    pub(super) fn drain_into(&self, events: &mut Vec<volition::Event>) {
+        let mut queue = self.queue.lock().unwrap_or_else(PoisonError::into_inner);
+        events.append(&mut queue);
     }
 }
 
@@ -938,7 +977,7 @@ pub(super) struct OutputScheduler {
 impl OutputScheduler {
     pub(super) fn new(
         drm: &DrmDevice,
-        volition_events: EventSender<volition::Event>,
+        volition_events: VolitionEvents,
         scanouts: &[Scanout],
         swapchains: &OutputSwapchains,
         runtime: &mut FlutterRuntime,
@@ -951,9 +990,7 @@ impl OutputScheduler {
             drm.as_fd(),
             scanouts.len().max(1),
             cpu_scheduling::promote_volition_thread,
-            move |event| {
-                let _ = volition_events.send(event);
-            },
+            move |event| volition_events.report(event),
         )?;
         let pipelines = scanouts
             .iter()
@@ -1453,7 +1490,7 @@ impl OutputScheduler {
         }
         let mut processing_error = None;
         // Process only the completions present when this pass began. A
-        // completion deferred behind Volition's independent Submitted channel
+        // completion deferred behind Volition's independent Submitted queue
         // must remain queued for the next calloop dispatch instead of being
         // popped and retried forever in this pass.
         let queued_completions = events.completed_page_flips.len();
