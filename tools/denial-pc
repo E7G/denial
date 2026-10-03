@@ -1156,6 +1156,12 @@ run_compositor() {
     export DENIAL_SHELL_PROFILE="$shell_profile"
     export DENIA_SHELL_PROFILE="$shell_profile"
     export DENIAL_SETTINGS_BINARY="$SETTINGS_BINARY"
+    # After a Denial update deniald rebuilds the user's plugins with the
+    # locally built Plugin Manager backend, when there is one.
+    if [[ -z "${DENIAL_PLUGINS_BINARY:-}" \
+        && -x "$BUILD_ROOT/plugin-manager/denial-plugins" ]]; then
+        export DENIAL_PLUGINS_BINARY="$BUILD_ROOT/plugin-manager/denial-plugins"
+    fi
     export RUST_BACKTRACE=1
     export RUST_LOG="${DENIAL_RUST_LOG-${DENIA_RUST_LOG-deniald=info,smithay=warn}}"
 

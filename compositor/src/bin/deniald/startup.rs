@@ -800,6 +800,29 @@ pub(super) fn run(options: Options) -> Result<(), Box<dyn Error>> {
         {
             warn!(%error, "could not start Welcome");
         }
+        // Denial was updated under a confirmed plugin composition. The plugin
+        // manager rebuilds it in the background, keeps the user informed and
+        // applies it at a quiet moment; the packaged shell runs meanwhile.
+        #[cfg(feature = "flutter")]
+        if runtime_limit == RuntimeLimit::UntilLogout
+            && wayland.is_some()
+            && flutter_launcher
+                .as_ref()
+                .is_some_and(FlutterLauncher::plugin_rebuild_needed)
+            && let Some(runtime) = flutter.as_mut()
+        {
+            if let Some(arguments) = plugin_bundle::resume_arguments() {
+                if let Err(error) =
+                    runtime.start_startup_application(arguments, "dev.denial.PluginManager.desktop")
+                {
+                    warn!(%error, "could not start the plugin rebuild after a Denial update");
+                }
+            } else {
+                info!(
+                    "plugins need a rebuild for this Denial version; the plugin manager is not installed"
+                );
+            }
+        }
         if options.flutter_bundle.is_some() {
             #[cfg(feature = "flutter")]
             {

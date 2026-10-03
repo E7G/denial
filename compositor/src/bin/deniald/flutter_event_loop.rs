@@ -230,6 +230,21 @@ fn handle_ui_development_requests(
         if reload_requested {
             events.flutter_reload_requested = true;
         }
+        // The plugin manager applies a rebuilt composition only while the
+        // user is not in the middle of something.
+        let state = state.with_session_activity(ui_development::SessionActivity {
+            locked: events.secure_session_locked(),
+            input_idle_ms: u64::try_from(events.idle_policy.idle_for(Instant::now()).as_millis())
+                .unwrap_or(u64::MAX),
+            shell_captures_keyboard: events
+                .wayland
+                .as_ref()
+                .is_some_and(|frontend| frontend.shell_captures_keyboard()),
+            idle_inhibited: events
+                .wayland
+                .as_mut()
+                .is_some_and(wayland_frontend::WaylandFrontend::idle_inhibited),
+        });
         if !is_query && let Some(error) = state.error_message() {
             request.reply(Err(output_control::OutputControlFailure::new(
                 "rejected", error,
