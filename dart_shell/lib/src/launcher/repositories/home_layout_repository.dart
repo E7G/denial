@@ -35,7 +35,7 @@ class HomeLayoutRepository {
     try {
       final file = await _paths.layoutFile();
       final payload = jsonEncode({
-        'version': 2,
+        'version': 3,
         'slots': slots.map(_encodeSlot).toList(growable: false),
       });
       await file.writeAsString('$payload\n', flush: true);
@@ -56,10 +56,12 @@ class HomeLayoutRepository {
       }
       final colSpan = item['colSpan'];
       final rowSpan = item['rowSpan'];
+      final tileColorValue = item['tileColorValue'];
       return HomeLayoutSlot(
         id: id,
         colSpan: colSpan is int ? colSpan : null,
         rowSpan: rowSpan is int ? rowSpan : null,
+        tileColorValue: tileColorValue is int ? tileColorValue : null,
       );
     }
 
@@ -71,10 +73,11 @@ class HomeLayoutRepository {
       return null;
     }
 
-    if (item.resizable) {
-      return {'id': item.id, 'colSpan': item.colSpan, 'rowSpan': item.rowSpan};
-    }
-
-    return item.id;
+    return <String, Object?>{
+      'id': item.id,
+      'colSpan': item.colSpan,
+      'rowSpan': item.rowSpan,
+      if (item.tileColorValue != null) 'tileColorValue': item.tileColorValue,
+    };
   }
 }

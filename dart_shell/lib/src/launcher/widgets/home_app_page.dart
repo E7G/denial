@@ -30,6 +30,8 @@ class HomeAppPage extends StatelessWidget {
     required this.onResizeStart,
     required this.onResizeUpdate,
     required this.onResizeEnd,
+    required this.onRemove,
+    required this.onCycleColor,
   });
 
   static const double childAspectRatio = 1.0;
@@ -79,6 +81,8 @@ class HomeAppPage extends StatelessWidget {
   onResizeStart;
   final ValueChanged<DragUpdateDetails> onResizeUpdate;
   final VoidCallback onResizeEnd;
+  final ValueChanged<HomeGridItem> onRemove;
+  final ValueChanged<HomeGridItem> onCycleColor;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +135,8 @@ class HomeAppPage extends StatelessWidget {
             onResizeStart: onResizeStart,
             onResizeUpdate: onResizeUpdate,
             onResizeEnd: onResizeEnd,
+            onRemove: onRemove,
+            onCycleColor: onCycleColor,
           ),
       ],
     );
@@ -161,6 +167,8 @@ class _PositionedGridItem extends StatelessWidget {
     required this.onResizeStart,
     required this.onResizeUpdate,
     required this.onResizeEnd,
+    required this.onRemove,
+    required this.onCycleColor,
   });
 
   final int index;
@@ -210,6 +218,8 @@ class _PositionedGridItem extends StatelessWidget {
   onResizeStart;
   final ValueChanged<DragUpdateDetails> onResizeUpdate;
   final VoidCallback onResizeEnd;
+  final ValueChanged<HomeGridItem> onRemove;
+  final ValueChanged<HomeGridItem> onCycleColor;
 
   @override
   Widget build(BuildContext context) {
@@ -268,6 +278,29 @@ class _PositionedGridItem extends StatelessWidget {
             ),
           ),
           Align(
+            alignment: Alignment.topLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4, top: 4),
+              child: _HomeEditButton(
+                semanticLabel: 'Remove from Start',
+                icon: Icons.close_rounded,
+                onTap: () => onRemove(item),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4, top: 4),
+              child: _HomeEditButton(
+                semanticLabel: 'Change tile color',
+                icon: Icons.palette_outlined,
+                swatch: metroTileColor(item.id, item.tileColorValue),
+                onTap: () => onCycleColor(item),
+              ),
+            ),
+          ),
+          Align(
             alignment: Alignment.bottomRight,
             child: Padding(
               padding: const EdgeInsets.only(right: 4, bottom: 4),
@@ -315,6 +348,72 @@ class _ResizeFramePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ResizeFramePainter oldDelegate) {
     return oldDelegate.radius != radius;
+  }
+}
+
+class _HomeEditButton extends StatelessWidget {
+  const _HomeEditButton({
+    required this.semanticLabel,
+    required this.icon,
+    required this.onTap,
+    this.swatch,
+  });
+
+  final String semanticLabel;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? swatch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: 70,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: ShellMediaColors.lightForeground.withValues(alpha: 0.90),
+                borderRadius: context.shellTheme.borderRadius(16),
+                border: Border.all(
+                  color: ShellMediaColors.darkSurface.withValues(alpha: 0.54),
+                ),
+              ),
+              child: SizedBox.square(
+                dimension: 50,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(icon, size: 22, color: ShellMediaColors.darkSurface),
+                    if (swatch != null)
+                      Positioned(
+                        right: 5,
+                        bottom: 5,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: swatch,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: ShellMediaColors.darkSurface,
+                              width: 1,
+                            ),
+                          ),
+                          child: const SizedBox.square(dimension: 12),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

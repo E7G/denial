@@ -375,6 +375,87 @@ class ShellLayoutSettings {
   );
 }
 
+enum TabletTileDensity { compact, comfortable, spacious }
+
+enum TabletNavigationMode { gesture, threeButton }
+
+@immutable
+class ShellTabletSettings {
+  const ShellTabletSettings({
+    this.enabled = true,
+    this.tileDensity = TabletTileDensity.comfortable,
+    this.tileOpacity = 1,
+    this.animationStrength = 1,
+    this.showStartHeader = true,
+    this.showSystemTiles = true,
+    this.showQuickSettingsHint = true,
+    this.portraitCompact = true,
+    this.navigationMode = TabletNavigationMode.gesture,
+  });
+
+  final bool enabled;
+  final TabletTileDensity tileDensity;
+  final double tileOpacity;
+  final double animationStrength;
+  final bool showStartHeader;
+  final bool showSystemTiles;
+  final bool showQuickSettingsHint;
+  final bool portraitCompact;
+  final TabletNavigationMode navigationMode;
+
+  ShellTabletSettings copyWith({
+    bool? enabled,
+    TabletTileDensity? tileDensity,
+    double? tileOpacity,
+    double? animationStrength,
+    bool? showStartHeader,
+    bool? showSystemTiles,
+    bool? showQuickSettingsHint,
+    bool? portraitCompact,
+    TabletNavigationMode? navigationMode,
+  }) {
+    return ShellTabletSettings(
+      enabled: enabled ?? this.enabled,
+      tileDensity: tileDensity ?? this.tileDensity,
+      tileOpacity: tileOpacity ?? this.tileOpacity,
+      animationStrength: animationStrength ?? this.animationStrength,
+      showStartHeader: showStartHeader ?? this.showStartHeader,
+      showSystemTiles: showSystemTiles ?? this.showSystemTiles,
+      showQuickSettingsHint:
+          showQuickSettingsHint ?? this.showQuickSettingsHint,
+      portraitCompact: portraitCompact ?? this.portraitCompact,
+      navigationMode: navigationMode ?? this.navigationMode,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ShellTabletSettings &&
+        other.enabled == enabled &&
+        other.tileDensity == tileDensity &&
+        other.tileOpacity == tileOpacity &&
+        other.animationStrength == animationStrength &&
+        other.showStartHeader == showStartHeader &&
+        other.showSystemTiles == showSystemTiles &&
+        other.showQuickSettingsHint == showQuickSettingsHint &&
+        other.portraitCompact == portraitCompact &&
+        other.navigationMode == navigationMode;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    enabled,
+    tileDensity,
+    tileOpacity,
+    animationStrength,
+    showStartHeader,
+    showSystemTiles,
+    showQuickSettingsHint,
+    portraitCompact,
+    navigationMode,
+  );
+}
+
 @immutable
 class ShellOverlaySettings {
   const ShellOverlaySettings({
@@ -837,6 +918,7 @@ class ShellSettings {
     this.localization = const ShellLocalizationSettings(),
     this.appearance = const ShellAppearanceSettings(),
     this.layout = const ShellLayoutSettings(),
+    this.tablet = const ShellTabletSettings(),
     this.overlays = const ShellOverlaySettings(),
     this.animations = const ShellAnimationSettings(),
     this.lockScreen = const ShellLockScreenSettings(),
@@ -846,11 +928,12 @@ class ShellSettings {
 
   // Blur levels are additive in schema 9. Keep emitting the derived legacy
   // sigma so older shells can read settings written by this version.
-  static const int schemaVersion = 28;
+  static const int schemaVersion = 29;
 
   final ShellLocalizationSettings localization;
   final ShellAppearanceSettings appearance;
   final ShellLayoutSettings layout;
+  final ShellTabletSettings tablet;
   final ShellOverlaySettings overlays;
   final ShellAnimationSettings animations;
   final ShellLockScreenSettings lockScreen;
@@ -861,6 +944,7 @@ class ShellSettings {
     ShellLocalizationSettings? localization,
     ShellAppearanceSettings? appearance,
     ShellLayoutSettings? layout,
+    ShellTabletSettings? tablet,
     ShellOverlaySettings? overlays,
     ShellAnimationSettings? animations,
     ShellLockScreenSettings? lockScreen,
@@ -871,6 +955,7 @@ class ShellSettings {
       localization: localization ?? this.localization,
       appearance: appearance ?? this.appearance,
       layout: layout ?? this.layout,
+      tablet: tablet ?? this.tablet,
       overlays: overlays ?? this.overlays,
       animations: animations ?? this.animations,
       lockScreen: lockScreen ?? this.lockScreen,
@@ -1016,6 +1101,39 @@ class ShellSettings {
       patch['layout'] = section;
     }
 
+    if (tablet != previous.tablet) {
+      final before = previous.tablet;
+      final section = <String, Object?>{};
+      if (tablet.enabled != before.enabled) {
+        section['enabled'] = tablet.enabled;
+      }
+      if (tablet.tileDensity != before.tileDensity) {
+        section['tileDensity'] = tablet.tileDensity.name;
+      }
+      if (tablet.tileOpacity != before.tileOpacity) {
+        section['tileOpacity'] = tablet.tileOpacity;
+      }
+      if (tablet.animationStrength != before.animationStrength) {
+        section['animationStrength'] = tablet.animationStrength;
+      }
+      if (tablet.showStartHeader != before.showStartHeader) {
+        section['showStartHeader'] = tablet.showStartHeader;
+      }
+      if (tablet.showSystemTiles != before.showSystemTiles) {
+        section['showSystemTiles'] = tablet.showSystemTiles;
+      }
+      if (tablet.showQuickSettingsHint != before.showQuickSettingsHint) {
+        section['showQuickSettingsHint'] = tablet.showQuickSettingsHint;
+      }
+      if (tablet.portraitCompact != before.portraitCompact) {
+        section['portraitCompact'] = tablet.portraitCompact;
+      }
+      if (tablet.navigationMode != before.navigationMode) {
+        section['navigationMode'] = tablet.navigationMode.name;
+      }
+      patch['tablet'] = section;
+    }
+
     if (overlays != previous.overlays) {
       final before = previous.overlays;
       final section = <String, Object?>{};
@@ -1154,6 +1272,17 @@ class ShellSettings {
         'clipboardTrayEdge': layout.clipboardTrayEdge.name,
         'clipboardTrayExtent': layout.clipboardTrayExtent,
       },
+      'tablet': <String, Object>{
+        'enabled': tablet.enabled,
+        'tileDensity': tablet.tileDensity.name,
+        'tileOpacity': tablet.tileOpacity,
+        'animationStrength': tablet.animationStrength,
+        'showStartHeader': tablet.showStartHeader,
+        'showSystemTiles': tablet.showSystemTiles,
+        'showQuickSettingsHint': tablet.showQuickSettingsHint,
+        'portraitCompact': tablet.portraitCompact,
+        'navigationMode': tablet.navigationMode.name,
+      },
       'overlays': <String, Object>{
         'launcher': _placementToJson(overlays.launcher),
         'dashboard': _placementToJson(overlays.dashboard),
@@ -1192,6 +1321,7 @@ class ShellSettings {
     final localizationJson = _map(json['localization']);
     final appearanceJson = _map(json['appearance']);
     final layoutJson = _map(json['layout']);
+    final tabletJson = _map(json['tablet']);
     final overlaysJson = _map(json['overlays']);
     final animationsJson = _map(json['animations']);
     final lockJson = _map(json['lockScreen']);
@@ -1435,6 +1565,45 @@ class ShellSettings {
           clipboardTrayMaximumExtent,
         ),
       ),
+      tablet: ShellTabletSettings(
+        enabled: tabletJson['enabled'] is bool
+            ? tabletJson['enabled'] as bool
+            : defaults.tablet.enabled,
+        tileDensity: _enumValue(
+          TabletTileDensity.values,
+          tabletJson['tileDensity'],
+          defaults.tablet.tileDensity,
+        ),
+        tileOpacity: _number(
+          tabletJson['tileOpacity'],
+          defaults.tablet.tileOpacity,
+          0.55,
+          1,
+        ),
+        animationStrength: _number(
+          tabletJson['animationStrength'],
+          defaults.tablet.animationStrength,
+          0,
+          1.5,
+        ),
+        showStartHeader: tabletJson['showStartHeader'] is bool
+            ? tabletJson['showStartHeader'] as bool
+            : defaults.tablet.showStartHeader,
+        showSystemTiles: tabletJson['showSystemTiles'] is bool
+            ? tabletJson['showSystemTiles'] as bool
+            : defaults.tablet.showSystemTiles,
+        showQuickSettingsHint: tabletJson['showQuickSettingsHint'] is bool
+            ? tabletJson['showQuickSettingsHint'] as bool
+            : defaults.tablet.showQuickSettingsHint,
+        portraitCompact: tabletJson['portraitCompact'] is bool
+            ? tabletJson['portraitCompact'] as bool
+            : defaults.tablet.portraitCompact,
+        navigationMode: _enumValue(
+          TabletNavigationMode.values,
+          tabletJson['navigationMode'],
+          defaults.tablet.navigationMode,
+        ),
+      ),
       overlays: ShellOverlaySettings(
         launcher: _placement(
           overlaysJson['launcher'],
@@ -1545,6 +1714,7 @@ class ShellSettings {
         other.localization == localization &&
         other.appearance == appearance &&
         other.layout == layout &&
+        other.tablet == tablet &&
         other.overlays == overlays &&
         other.animations == animations &&
         other.lockScreen == lockScreen &&
@@ -1557,6 +1727,7 @@ class ShellSettings {
     localization,
     appearance,
     layout,
+    tablet,
     overlays,
     animations,
     lockScreen,

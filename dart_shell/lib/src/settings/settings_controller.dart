@@ -399,6 +399,66 @@ class ShellSettingsController extends Notifier<ShellSettings> {
     );
   }
 
+  void setTabletEnabled(bool value) {
+    _update(state.copyWith(tablet: state.tablet.copyWith(enabled: value)));
+  }
+
+  void setTabletTileDensity(TabletTileDensity value) {
+    _update(state.copyWith(tablet: state.tablet.copyWith(tileDensity: value)));
+  }
+
+  void setTabletTileOpacity(double value) {
+    _update(
+      state.copyWith(
+        tablet: state.tablet.copyWith(
+          tileOpacity: value.clamp(0.55, 1).toDouble(),
+        ),
+      ),
+    );
+  }
+
+  void setTabletAnimationStrength(double value) {
+    _update(
+      state.copyWith(
+        tablet: state.tablet.copyWith(
+          animationStrength: value.clamp(0, 1.5).toDouble(),
+        ),
+      ),
+    );
+  }
+
+  void setTabletShowStartHeader(bool value) {
+    _update(
+      state.copyWith(tablet: state.tablet.copyWith(showStartHeader: value)),
+    );
+  }
+
+  void setTabletShowSystemTiles(bool value) {
+    _update(
+      state.copyWith(tablet: state.tablet.copyWith(showSystemTiles: value)),
+    );
+  }
+
+  void setTabletShowQuickSettingsHint(bool value) {
+    _update(
+      state.copyWith(
+        tablet: state.tablet.copyWith(showQuickSettingsHint: value),
+      ),
+    );
+  }
+
+  void setTabletPortraitCompact(bool value) {
+    _update(
+      state.copyWith(tablet: state.tablet.copyWith(portraitCompact: value)),
+    );
+  }
+
+  void setTabletNavigationMode(TabletNavigationMode value) {
+    _update(
+      state.copyWith(tablet: state.tablet.copyWith(navigationMode: value)),
+    );
+  }
+
   void setOverlayPlacement(
     ShellOverlaySurface surface,
     ShellPopupPlacement placement,
@@ -612,6 +672,10 @@ class ShellSettingsController extends Notifier<ShellSettings> {
 
   void resetLayout() {
     _update(state.copyWith(layout: const ShellLayoutSettings()));
+  }
+
+  void resetTablet() {
+    _update(state.copyWith(tablet: const ShellTabletSettings()));
   }
 
   void resetOverlays() {

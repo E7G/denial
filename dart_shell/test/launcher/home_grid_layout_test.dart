@@ -67,6 +67,100 @@ void main() {
     expect(item.resize(colSpan: 9, rowSpan: 9).rowSpan, 2);
   });
 
+  test('saved Start layout stays authoritative when new apps appear', () {
+    HomeGridLayout.columns = 4;
+    const pinned = DesktopApp(
+      id: 'org.example.Pinned',
+      name: 'Pinned',
+      exec: 'pinned',
+      desktopPath: '/usr/share/applications/pinned.desktop',
+      categories: <String>[],
+    );
+    const newlyInstalled = DesktopApp(
+      id: 'org.example.New',
+      name: 'New',
+      exec: 'new',
+      desktopPath: '/usr/share/applications/new.desktop',
+      categories: <String>[],
+    );
+
+    final slots = HomeGridLayout.initialSlotsForApps(
+      const <DesktopApp>[pinned, newlyInstalled],
+      const [],
+      const <HomeLayoutSlot?>[
+        HomeLayoutSlot(
+          id: 'app:org.example.Pinned',
+          colSpan: 2,
+          rowSpan: 1,
+          tileColorValue: 0xff5c2d91,
+        ),
+      ],
+    );
+
+    final items = slots.whereType<HomeGridItem>().toList(growable: false);
+    expect(items.map((item) => item.id), <String>['app:org.example.Pinned']);
+    expect(items.single.colSpan, 2);
+    expect(items.single.rowSpan, 1);
+    expect(items.single.tileColorValue, 0xff5c2d91);
+  });
+
+  test('first run creates live system tiles and only a starter app set', () {
+    HomeGridLayout.columns = 4;
+    final apps = <DesktopApp>[
+      for (var index = 0; index < 12; index++)
+        DesktopApp(
+          id: 'org.example.$index',
+          name: 'App $index',
+          exec: 'app-$index',
+          desktopPath: '/usr/share/applications/app-$index.desktop',
+          categories: const <String>[],
+        ),
+    ];
+
+    final slots = HomeGridLayout.initialSlotsForApps(apps, const [], null);
+    final ids = slots
+        .whereType<HomeGridItem>()
+        .map((item) => item.id)
+        .toList(growable: false);
+
+    expect(ids.take(4), <String>[
+      'widget:clock',
+      'widget:date',
+      'widget:battery',
+      'widget:network',
+    ]);
+    expect(ids.where((id) => id.startsWith('app:')).length, 8);
+    expect(ids, isNot(contains('app:org.example.11')));
+  });
+
+  test('application refresh does not auto-pin newly installed apps', () {
+    HomeGridLayout.columns = 4;
+    const pinned = DesktopApp(
+      id: 'org.example.Pinned',
+      name: 'Pinned',
+      exec: 'pinned',
+      desktopPath: '/usr/share/applications/pinned.desktop',
+      categories: <String>[],
+    );
+    const newlyInstalled = DesktopApp(
+      id: 'org.example.New',
+      name: 'New',
+      exec: 'new',
+      desktopPath: '/usr/share/applications/new.desktop',
+      categories: <String>[],
+    );
+
+    final refreshed = HomeGridLayout.refreshSlotsForApps(
+      <HomeGridItem?>[HomeGridItem.app(pinned)],
+      const <DesktopApp>[pinned, newlyInstalled],
+      const [],
+    );
+
+    expect(refreshed.whereType<HomeGridItem>().map((item) => item.id), <String>[
+      'app:org.example.Pinned',
+    ]);
+  });
+
   test('bounded hit lookup matches occupied cells for every widget span', () {
     for (final columns in [4, 7, 14]) {
       HomeGridLayout.columns = columns;

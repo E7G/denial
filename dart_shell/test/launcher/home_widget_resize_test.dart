@@ -65,6 +65,8 @@ void main() {
                       onResizeUpdate: (details) =>
                           latest = details.globalPosition,
                       onResizeEnd: () => ended++,
+                      onRemove: (_) {},
+                      onCycleColor: (_) {},
                     ),
                     const SizedBox.expand(),
                   ],

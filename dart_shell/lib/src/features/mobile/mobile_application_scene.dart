@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../widgets/bottom_gesture_handle.dart';
+import '../../widgets/three_button_navigation.dart';
 import '../../widgets/edge_panel_layer.dart';
 import '../../widgets/shade/system_shade_layer.dart';
 import 'mobile_launcher_layer.dart';
@@ -75,10 +76,18 @@ class MobileShellChrome extends ConsumerWidget {
     final launchActive = ref.watch(
       shellControllerProvider.select((state) => state.launchRequest != null),
     );
+    final navigationMode = ref.watch(
+      shellSettingsProvider.select(
+        (settings) => settings.tablet.navigationMode,
+      ),
+    );
     return Stack(
       fit: StackFit.expand,
       children: [
-        const BottomGestureHandle(),
+        if (navigationMode == TabletNavigationMode.threeButton)
+          const ThreeButtonNavigation()
+        else
+          const BottomGestureHandle(),
         SystemShadeLayer(ignoring: launchActive),
       ],
     );

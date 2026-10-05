@@ -386,8 +386,8 @@ class _NoLockFiles extends LockStateRepository {
 
 class _RecentsGrid extends HomeGridController {
   @override
-  Future<HomeGridState> build() async => HomeGridState(
-    slots: [
+  Future<HomeGridState> build() async {
+    final slots = <HomeGridItem?>[
       HomeGridItem.clock(),
       null,
       for (var id = 0; id < 50; id++)
@@ -400,8 +400,12 @@ class _RecentsGrid extends HomeGridController {
             categories: const [],
           ),
         ),
-    ],
-  );
+    ];
+    return HomeGridState(
+      slots: slots,
+      allItems: slots.whereType<HomeGridItem>().toList(growable: false),
+    );
+  }
 
   @override
   void setLauncherActive(bool active) {}

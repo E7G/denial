@@ -9,6 +9,8 @@ import '../local_apps/local_flutter_application.dart';
 import '../localization/denial_localizations.dart';
 import '../state/display_layout.dart';
 import '../state/shell_controller.dart';
+import '../settings/settings_controller.dart';
+import '../settings/shell_settings.dart';
 import '../widgets/retained_translation.dart';
 import 'controllers/application_recents_controller.dart';
 import 'controllers/home_grid_controller.dart';
@@ -219,6 +221,40 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   void _launchFromAppDrawer(HomeGridItem item, Rect sourceRect) {
     _closeAppDrawer();
     unawaited(_launchApp(item, sourceRect));
+  }
+
+  void _togglePinFromAppDrawer(HomeGridItem item) {
+    final controller = ref.read(homeGridControllerProvider.notifier);
+    final state = ref.read(homeGridControllerProvider).asData?.value;
+    if (state == null) {
+      return;
+    }
+    if (state.isPinned(item.id)) {
+      controller.unpinItem(item.id);
+    } else {
+      controller.pinItem(item);
+    }
+  }
+
+  void _removeFromStart(HomeGridItem item) {
+    _clearResizeMode();
+    ref.read(homeGridControllerProvider.notifier).unpinItem(item.id);
+  }
+
+  void _cycleTileColor(HomeGridItem item) {
+    final current = item.tileColorValue;
+    int? next;
+    if (current == null) {
+      next = metroTilePalette.first.toARGB32();
+    } else {
+      final index = metroTilePalette.indexWhere(
+        (color) => color.toARGB32() == current,
+      );
+      next = index < 0 || index == metroTilePalette.length - 1
+          ? null
+          : metroTilePalette[index + 1].toARGB32();
+    }
+    ref.read(homeGridControllerProvider.notifier).setTileColor(item.id, next);
   }
 
   Future<void> _launchApp(HomeGridItem item, Rect sourceRect) async {
@@ -1035,6 +1071,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       homeGridControllerProvider.select(
         (value) => (
           slots: value.asData?.value.slots,
+          allItems: value.asData?.value.allItems,
           draggingSourceIndex: value.asData?.value.draggingSourceIndex,
           hasError: value.hasError,
         ),

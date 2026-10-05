@@ -2,18 +2,46 @@ part of 'home_surface.dart';
 
 typedef _HomePageContents = ({
   List<HomeGridItem?>? slots,
+  List<HomeGridItem>? allItems,
   int? draggingSourceIndex,
   bool hasError,
 });
 
-class _HomePager extends StatelessWidget {
+class _HomePager extends ConsumerWidget {
   const _HomePager({required this.owner, required this.contents});
 
   final _HomeSurfaceState owner;
   final _HomePageContents contents;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tabletSettings = ref.watch(
+      shellSettingsProvider.select((settings) => settings.tablet),
+    );
+    final viewSize = MediaQuery.sizeOf(context);
+    final compactPortrait =
+        tabletSettings.enabled &&
+        tabletSettings.portraitCompact &&
+        viewSize.height > viewSize.width;
+
+    final density = compactPortrait
+        ? TabletTileDensity.compact
+        : tabletSettings.tileDensity;
+    switch (density) {
+      case TabletTileDensity.compact:
+        HomeGridLayout.gridGap = 8;
+        HomeGridLayout.maxTileWidth = 154;
+        HomeGridLayout.maxTileHeight = 154;
+      case TabletTileDensity.comfortable:
+        HomeGridLayout.gridGap = 10;
+        HomeGridLayout.maxTileWidth = 184;
+        HomeGridLayout.maxTileHeight = 184;
+      case TabletTileDensity.spacious:
+        HomeGridLayout.gridGap = 14;
+        HomeGridLayout.maxTileWidth = 214;
+        HomeGridLayout.maxTileHeight = 202;
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final gridWidth =
@@ -104,6 +132,8 @@ class _HomePager extends StatelessWidget {
                       onResizeStart: owner._handleItemResizeStart,
                       onResizeUpdate: owner._handleItemResizeUpdate,
                       onResizeEnd: owner._handleItemResizeEnd,
+                      onRemove: owner._removeFromStart,
+                      onCycleColor: owner._cycleTileColor,
                     ),
                   );
                 },

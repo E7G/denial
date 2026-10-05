@@ -31,6 +31,7 @@ import 'widgets/settings_developer_page.dart';
 import 'widgets/settings_displays_page.dart';
 import 'widgets/settings_environment_page.dart';
 import 'widgets/settings_layout_page.dart';
+import 'widgets/settings_tablet_metro_page.dart';
 import 'widgets/settings_keyboard_page.dart';
 import 'widgets/settings_language_page.dart';
 import 'widgets/settings_lock_screen_page.dart';
@@ -465,6 +466,26 @@ class _SettingsPageBody extends ConsumerWidget {
           onClipboardTrayEdgeChanged: controller.setClipboardTrayEdge,
           onClipboardTrayExtentChanged: controller.setClipboardTrayExtent,
           onReset: controller.resetLayout,
+        );
+      case SettingsPageId.tabletMetro:
+        final settings = ref.watch(
+          shellSettingsProvider.select((settings) => settings.tablet),
+        );
+        return SettingsTabletMetroPage(
+          settings: settings,
+          onEnabledChanged: controller.setTabletEnabled,
+          onTileDensityChanged: controller.setTabletTileDensity,
+          onTileOpacityChanged: controller.setTabletTileOpacity,
+          onAnimationStrengthChanged: controller.setTabletAnimationStrength,
+          onShowStartHeaderChanged: controller.setTabletShowStartHeader,
+          onShowSystemTilesChanged: controller.setTabletShowSystemTiles,
+          onShowQuickSettingsHintChanged:
+              controller.setTabletShowQuickSettingsHint,
+          onPortraitCompactChanged: controller.setTabletPortraitCompact,
+          onNavigationModeChanged: controller.setTabletNavigationMode,
+          onResetStartLayout: () =>
+              ref.read(homeGridControllerProvider.notifier).resetStartLayout(),
+          onReset: controller.resetTablet,
         );
       case SettingsPageId.animations:
         final settings = ref.watch(

@@ -78,8 +78,10 @@ HomeGridItem _item(int id) => HomeGridItem.app(
 
 class _PagingGrid extends HomeGridController {
   @override
-  Future<HomeGridState> build() async =>
-      HomeGridState(slots: [for (var id = 0; id < 100; id++) _item(id)]);
+  Future<HomeGridState> build() async {
+    final items = [for (var id = 0; id < 100; id++) _item(id)];
+    return HomeGridState(slots: items, allItems: items);
+  }
 
   @override
   void setLauncherActive(bool active) {}

@@ -1,7 +1,7 @@
 part of 'home_surface.dart';
 
 /// Home lifecycle and input boundary; paging and drag feedback stay separate.
-class _HomeSurfaceView extends StatelessWidget {
+class _HomeSurfaceView extends ConsumerWidget {
   const _HomeSurfaceView({
     required this.owner,
     required this.active,
@@ -15,18 +15,32 @@ class _HomeSurfaceView extends StatelessWidget {
   final _HomePageContents contents;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final viewSize = MediaQuery.sizeOf(context);
-    final tabletMode = viewSize.width >= 700;
-    final contentPadding = tabletMode
+    final tabletSettings = ref.watch(
+      shellSettingsProvider.select((settings) => settings.tablet),
+    );
+    final tabletMode = tabletSettings.enabled && viewSize.width >= 700;
+    final compactPortrait =
+        tabletMode &&
+        tabletSettings.portraitCompact &&
+        viewSize.height > viewSize.width;
+    final showHeader =
+        tabletMode && tabletSettings.showStartHeader && !compactPortrait;
+    final contentPadding = showHeader
         ? const EdgeInsets.fromLTRB(0, 104, 0, 8)
         : _HomeSurfaceState._contentPadding;
-    final appItems =
-        contents.slots
-            ?.whereType<HomeGridItem>()
-            .where((item) => item.type == HomeGridItemType.app)
-            .toList(growable: false) ??
-        const <HomeGridItem>[];
+    final allItems = contents.allItems ?? const <HomeGridItem>[];
+    final appItems = allItems
+        .where((item) => item.isApplication)
+        .toList(growable: false);
+    final systemItems = tabletSettings.showSystemTiles
+        ? allItems.where((item) => item.isSystemTile).toList(growable: false)
+        : const <HomeGridItem>[];
+    final pinnedIds = <String>{
+      for (final item in contents.slots ?? const <HomeGridItem?>[])
+        if (item != null) item.id,
+    };
 
     final content = Stack(
       fit: StackFit.expand,
@@ -35,20 +49,36 @@ class _HomeSurfaceView extends StatelessWidget {
           padding: contentPadding,
           child: _HomePager(owner: owner, contents: contents),
         ),
-        if (tabletMode)
+        if (showHeader)
           Positioned(
             left: _HomeSurfaceState._pageHorizontalPadding,
             right: _HomeSurfaceState._pageHorizontalPadding,
             top: ShellMetrics.statusBarHeight + 8,
-            child: _MetroStartHeader(onAllApps: owner._openAppDrawer),
+            child: _MetroStartHeader(
+              onAllApps: owner._openAppDrawer,
+              showQuickSettingsHint: tabletSettings.showQuickSettingsHint,
+            ),
+          )
+        else
+          Positioned(
+            right: _HomeSurfaceState._pageHorizontalPadding,
+            top: ShellMetrics.statusBarHeight + 6,
+            child: _MetroHeaderAction(
+              icon: Icons.apps_rounded,
+              label: 'Apps',
+              onTap: owner._openAppDrawer,
+            ),
           ),
         _HomeDragOverlay(owner: owner),
         if (owner._appDrawerOpen)
           Positioned.fill(
             child: _MetroAppDrawer(
               items: appItems,
+              systemItems: systemItems,
+              pinnedIds: pinnedIds,
               onClose: owner._closeAppDrawer,
               onLaunch: owner._launchFromAppDrawer,
+              onTogglePin: owner._togglePinFromAppDrawer,
             ),
           ),
       ],
@@ -85,9 +115,13 @@ class _HomeSurfaceView extends StatelessWidget {
 }
 
 class _MetroStartHeader extends StatelessWidget {
-  const _MetroStartHeader({required this.onAllApps});
+  const _MetroStartHeader({
+    required this.onAllApps,
+    required this.showQuickSettingsHint,
+  });
 
   final VoidCallback onAllApps;
+  final bool showQuickSettingsHint;
 
   @override
   Widget build(BuildContext context) {
@@ -131,29 +165,31 @@ class _MetroStartHeader extends StatelessWidget {
           label: 'All apps',
           onTap: onAllApps,
         ),
-        const SizedBox(width: 18),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.swipe_down_alt_rounded,
-                size: 17,
-                color: Colors.white.withValues(alpha: 0.72),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Quick settings',
-                style: TextStyle(
+        if (showQuickSettingsHint) ...[
+          const SizedBox(width: 18),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.swipe_down_alt_rounded,
+                  size: 17,
                   color: Colors.white.withValues(alpha: 0.72),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  'Quick settings',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -218,13 +254,19 @@ class _MetroHeaderActionState extends State<_MetroHeaderAction> {
 class _MetroAppDrawer extends StatefulWidget {
   const _MetroAppDrawer({
     required this.items,
+    required this.systemItems,
+    required this.pinnedIds,
     required this.onClose,
     required this.onLaunch,
+    required this.onTogglePin,
   });
 
   final List<HomeGridItem> items;
+  final List<HomeGridItem> systemItems;
+  final Set<String> pinnedIds;
   final VoidCallback onClose;
   final void Function(HomeGridItem item, Rect sourceRect) onLaunch;
+  final ValueChanged<HomeGridItem> onTogglePin;
 
   @override
   State<_MetroAppDrawer> createState() => _MetroAppDrawerState();
@@ -242,14 +284,6 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
 
   String _titleFor(BuildContext context, HomeGridItem item) {
     return item.localApp?.titleFor(context) ?? item.app?.name ?? item.id;
-  }
-
-  HomeGridItem _visualItem(HomeGridItem item) {
-    final desktopApp = item.app;
-    if (desktopApp != null) {
-      return HomeGridItem.app(desktopApp);
-    }
-    return HomeGridItem.localApp(item.localApp!);
   }
 
   @override
@@ -366,6 +400,38 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                 ],
               ),
               const SizedBox(height: 20),
+              if (normalized.isEmpty && widget.systemItems.isNotEmpty) ...[
+                Text(
+                  'System tiles',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.72),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 116,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.systemItems.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final item = widget.systemItems[index];
+                      return SizedBox.square(
+                        dimension: 108,
+                        child: _MetroDrawerTile(
+                          item: item,
+                          pinned: widget.pinnedIds.contains(item.id),
+                          onTogglePin: () => widget.onTogglePin(item),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 18),
+              ],
               Expanded(
                 child: items.isEmpty
                     ? Center(
@@ -391,9 +457,11 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                         itemCount: items.length,
                         itemBuilder: (context, index) {
                           final item = items[index];
-                          return HomeGridItemCard(
-                            item: _visualItem(item),
-                            onLaunch: (_, sourceRect) =>
+                          return _MetroDrawerTile(
+                            item: item,
+                            pinned: widget.pinnedIds.contains(item.id),
+                            onTogglePin: () => widget.onTogglePin(item),
+                            onLaunch: (sourceRect) =>
                                 widget.onLaunch(item, sourceRect),
                           );
                         },
@@ -410,6 +478,72 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetroDrawerTile extends StatelessWidget {
+  const _MetroDrawerTile({
+    required this.item,
+    required this.pinned,
+    required this.onTogglePin,
+    this.onLaunch,
+  });
+
+  final HomeGridItem item;
+  final bool pinned;
+  final VoidCallback onTogglePin;
+  final ValueChanged<Rect>? onLaunch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: pinned ? 'Pinned to Start' : 'Not pinned to Start',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: onTogglePin,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            HomeGridItemCard(
+              item: item,
+              launchEnabled: onLaunch != null,
+              onLaunch: (_, sourceRect) => onLaunch?.call(sourceRect),
+            ),
+            Positioned(
+              top: 5,
+              right: 5,
+              child: Semantics(
+                button: true,
+                label: pinned ? 'Unpin from Start' : 'Pin to Start',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTogglePin,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xCC101419),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    child: SizedBox.square(
+                      dimension: 34,
+                      child: Icon(
+                        pinned
+                            ? Icons.push_pin_rounded
+                            : Icons.push_pin_outlined,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -67,33 +67,43 @@ class HomeDragSessionController extends Notifier<HomeDragSession?> {
 class HomeGridState {
   HomeGridState({
     required List<HomeGridItem?> slots,
+    required List<HomeGridItem> allItems,
     this.page = 0,
     this.draggingSourceIndex,
-  }) : slots = List.unmodifiable(slots);
+  }) : slots = List.unmodifiable(slots),
+       allItems = List.unmodifiable(allItems);
 
   HomeGridState._({
     required this.slots,
+    required this.allItems,
     required this.page,
     required this.draggingSourceIndex,
   });
 
   final List<HomeGridItem?> slots;
+
+  /// Complete catalog for All apps/System tiles. Start only renders [slots].
+  final List<HomeGridItem> allItems;
   final int page;
   final int? draggingSourceIndex;
 
   HomeGridState copyWith({
     List<HomeGridItem?>? slots,
+    List<HomeGridItem>? allItems,
     int? page,
     Object? draggingSourceIndex = _unset,
   }) {
     return HomeGridState._(
       slots: slots == null ? this.slots : List.unmodifiable(slots),
+      allItems: allItems == null ? this.allItems : List.unmodifiable(allItems),
       page: page ?? this.page,
       draggingSourceIndex: identical(draggingSourceIndex, _unset)
           ? this.draggingSourceIndex
           : draggingSourceIndex as int?,
     );
   }
+
+  bool isPinned(String id) => slots.any((item) => item?.id == id);
 }
 
 class HomeGridController extends AsyncNotifier<HomeGridState> {
@@ -154,15 +164,19 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
         localApps,
         savedLayout,
       );
+      final allItems = <HomeGridItem>[
+        ...HomeGridLayout.systemTileCatalog(),
+        ...HomeGridLayout.allLaunchableItems(apps, localApps),
+      ];
       if (!_isBuildActive(generation)) {
-        return HomeGridState(slots: slots);
+        return HomeGridState(slots: slots, allItems: allItems);
       }
       _lastDesktopRefresh = DateTime.now();
       if (_savedLayoutNeedsRefresh(apps, localApps, savedLayout, slots)) {
         unawaited(layoutRepository.saveLayout(slots));
       }
       unawaited(_startDesktopRefreshTriggers(generation, appsRepository));
-      return HomeGridState(slots: slots);
+      return HomeGridState(slots: slots, allItems: allItems);
     } on Object catch (error, stackTrace) {
       Error.throwWithStackTrace(error, stackTrace);
     }
@@ -205,7 +219,7 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
         return;
       }
 
-      final currentApps = _appsByGridId(current.slots);
+      final currentApps = _appsByGridId(current.allItems);
       final refreshedApps = _appsByGridId([
         for (final app in apps) HomeGridItem.app(app),
       ]);
@@ -236,7 +250,11 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
         apps,
         localApps,
       );
-      state = AsyncData(current.copyWith(slots: slots));
+      final allItems = <HomeGridItem>[
+        ...HomeGridLayout.systemTileCatalog(),
+        ...HomeGridLayout.allLaunchableItems(apps, localApps),
+      ];
+      state = AsyncData(current.copyWith(slots: slots, allItems: allItems));
       unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
     } finally {
       if (_isBuildActive(generation)) {
@@ -348,6 +366,85 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
     state = AsyncData(current.copyWith(draggingSourceIndex: index));
   }
 
+  void pinItem(HomeGridItem requestedItem) {
+    final current = state.asData?.value;
+    if (current == null || current.isPinned(requestedItem.id)) {
+      return;
+    }
+    HomeGridItem? item;
+    for (final candidate in current.allItems) {
+      if (candidate.id == requestedItem.id) {
+        item = candidate;
+        break;
+      }
+    }
+    if (item == null) {
+      return;
+    }
+    final slots = HomeGridLayout.placeItemInFirstFreeSlot(current.slots, item);
+    state = AsyncData(current.copyWith(slots: slots));
+    unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
+  }
+
+  void unpinItem(String id) {
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+    final index = current.slots.indexWhere((item) => item?.id == id);
+    if (index < 0) {
+      return;
+    }
+    final slots = [...current.slots]..[index] = null;
+    while (slots.isNotEmpty && slots.last == null) {
+      slots.removeLast();
+    }
+    state = AsyncData(
+      current.copyWith(slots: slots, draggingSourceIndex: null),
+    );
+    unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
+  }
+
+  void setTileColor(String id, int? tileColorValue) {
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+    final index = current.slots.indexWhere((item) => item?.id == id);
+    if (index < 0) {
+      return;
+    }
+    final item = current.slots[index];
+    if (item == null) {
+      return;
+    }
+    final slots = [...current.slots]
+      ..[index] = item.withTileColor(tileColorValue);
+    state = AsyncData(current.copyWith(slots: slots));
+    unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
+  }
+
+  void resetStartLayout() {
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+    var slots = <HomeGridItem?>[];
+    final systemTiles = current.allItems
+        .where((item) => item.isSystemTile)
+        .toList(growable: false);
+    final applications = current.allItems
+        .where((item) => item.isApplication)
+        .take(8);
+    for (final item in [...systemTiles, ...applications]) {
+      slots = HomeGridLayout.placeItemInFirstFreeSlot(slots, item);
+    }
+    state = AsyncData(
+      current.copyWith(slots: slots, page: 0, draggingSourceIndex: null),
+    );
+    unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
+  }
+
   bool canMoveSlot(int fromIndex, int toIndex, int pageSize) {
     final current = state.asData?.value;
     if (current == null) {
@@ -425,7 +522,7 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
   }
 }
 
-Map<String, DesktopApp> _appsByGridId(List<HomeGridItem?> slots) {
+Map<String, DesktopApp> _appsByGridId(Iterable<HomeGridItem?> slots) {
   final appsById = <String, DesktopApp>{};
   for (final item in slots) {
     final app = item?.app;
@@ -479,15 +576,12 @@ bool _savedLayoutNeedsRefresh(
     return true;
   }
 
-  final currentAppIds = <String>{
+  final validIds = <String>{
+    for (final item in HomeGridLayout.systemTileCatalog()) item.id,
     for (final app in apps) 'app:${app.id}',
     for (final app in localApps) 'local:${app.id}',
   };
-  if (!savedIds.containsAll(currentAppIds)) {
-    return true;
-  }
-
   return savedIds
-      .where((id) => id.startsWith('app:') || id.startsWith('local:'))
-      .any((id) => !currentAppIds.contains(id));
+      .where((id) => id.isNotEmpty)
+      .any((id) => !validIds.contains(id));
 }

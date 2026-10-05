@@ -26,15 +26,15 @@ class HomeGridLayout {
   /// [columnsForViewport] raises it on wide panels (set once per layout pass
   /// by HomeSurface) so pages stay full-bleed instead of overflowing rows.
   static int columns = 4;
-  static const double gridGap = 10;
+  static double gridGap = 10;
   static const int minPages = 2;
 
   /// Tile content is fixed-size (92px icon + label ~= 131 tall), so cells
   /// gain nothing from growing: cap their footprint and let wide panels get
   /// more columns/rows instead. Phone-width viewports stay at 4 columns
   /// with uncapped-equivalent sizes.
-  static const double maxTileWidth = 184;
-  static const double maxTileHeight = 184;
+  static double maxTileWidth = 184;
+  static double maxTileHeight = 184;
 
   /// Column count so tiles stay at or under [maxTileWidth].
   static int columnsForViewport(double width) {
@@ -56,16 +56,31 @@ class HomeGridLayout {
     return math.max(minPages, (slots.length / pageSize).ceil());
   }
 
+  static List<HomeGridItem> systemTileCatalog() => <HomeGridItem>[
+    HomeGridItem.clock(),
+    HomeGridItem.date(),
+    HomeGridItem.battery(),
+    HomeGridItem.network(),
+  ];
+
+  static List<HomeGridItem> allLaunchableItems(
+    List<DesktopApp> apps,
+    Iterable<LocalFlutterApplication> localApps,
+  ) => <HomeGridItem>[
+    for (final app in apps) HomeGridItem.app(app),
+    for (final app in localApps) HomeGridItem.localApp(app),
+  ];
+
   static List<HomeGridItem?> initialSlotsForApps(
     List<DesktopApp> apps,
     Iterable<LocalFlutterApplication> localApps,
     List<HomeLayoutSlot?>? savedLayout,
   ) {
+    final systemTiles = systemTileCatalog();
+    final launchableItems = allLaunchableItems(apps, localApps);
     final itemsById = <String, HomeGridItem>{
-      'widget:clock': HomeGridItem.clock(),
-      for (final app in apps) 'app:${app.id}': HomeGridItem.app(app),
-      for (final app in localApps)
-        'local:${app.id}': HomeGridItem.localApp(app),
+      for (final item in systemTiles) item.id: item,
+      for (final item in launchableItems) item.id: item,
     };
     final used = <String>{};
     var slots = <HomeGridItem?>[];
@@ -81,12 +96,12 @@ class HomeGridLayout {
         if (item == null) {
           continue;
         }
-        if (item.resizable) {
-          item = item.resize(
-            colSpan: slot.colSpan ?? item.colSpan,
-            rowSpan: slot.rowSpan ?? item.rowSpan,
-          );
-        }
+        item = item
+            .resize(
+              colSpan: slot.colSpan ?? item.colSpan,
+              rowSpan: slot.rowSpan ?? item.rowSpan,
+            )
+            .withTileColor(slot.tileColorValue);
 
         final placed = placeItemAt(slots, index, item);
         if (identical(placed, slots)) {
@@ -95,17 +110,20 @@ class HomeGridLayout {
         slots = placed;
         used.add(slot.id);
       }
+      // Saved layouts are authoritative: newly installed applications stay in
+      // All apps until the user explicitly pins them to Start.
+      return slots;
     }
 
-    for (final item in itemsById.values) {
-      if (used.contains(item.id)) {
-        continue;
-      }
-      if (savedLayout != null && item.type == HomeGridItemType.app) {
-        slots = placeItemAfter(slots, savedLayout.length, item);
-      } else {
-        slots = placeItemInFirstFreeSlot(slots, item);
-      }
+    // A clean tablet-friendly first-run layout: useful live system tiles plus
+    // a small starter set instead of flooding Start with every application.
+    for (final item in systemTiles) {
+      slots = placeItemInFirstFreeSlot(slots, item);
+      used.add(item.id);
+    }
+    for (final item in launchableItems.take(8)) {
+      slots = placeItemInFirstFreeSlot(slots, item);
+      used.add(item.id);
     }
     return slots;
   }
@@ -135,10 +153,10 @@ class HomeGridLayout {
       if (item == null) {
         continue;
       }
-      if (item.resizable &&
-          (item.colSpan != current.colSpan ||
-              item.rowSpan != current.rowSpan)) {
-        item = item.resize(colSpan: current.colSpan, rowSpan: current.rowSpan);
+      if (item.resizable) {
+        item = item
+            .resize(colSpan: current.colSpan, rowSpan: current.rowSpan)
+            .withTileColor(current.tileColorValue);
       }
 
       final placed = placeItemAt(next, index, item);
@@ -148,13 +166,8 @@ class HomeGridLayout {
       placedIds.add(item.id);
     }
 
-    for (final item in appItemsById.values) {
-      if (placedIds.contains(item.id)) {
-        continue;
-      }
-      next = placeItemAfter(next, currentSlots.length, item);
-      placedIds.add(item.id);
-    }
+    // Do not auto-pin newly installed applications. They remain discoverable
+    // in All apps and can be explicitly pinned by the user.
     return next;
   }
 

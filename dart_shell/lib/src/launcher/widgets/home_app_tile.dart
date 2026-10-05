@@ -8,6 +8,10 @@ class _HomeAppTile extends StatefulWidget {
     required this.icon,
     required this.colSpan,
     required this.rowSpan,
+    required this.tileColorValue,
+    required this.tileOpacity,
+    required this.metroEnabled,
+    required this.animationStrength,
     required this.onTap,
   });
 
@@ -17,6 +21,10 @@ class _HomeAppTile extends StatefulWidget {
   final IconData? icon;
   final int colSpan;
   final int rowSpan;
+  final int? tileColorValue;
+  final double tileOpacity;
+  final bool metroEnabled;
+  final double animationStrength;
   final ValueChanged<Rect>? onTap;
 
   @override
@@ -51,14 +59,23 @@ class _HomeAppTileState extends State<_HomeAppTile> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
-    final tileColor = _metroTileColor(widget.identity);
+    final tileColor = widget.metroEnabled
+        ? metroTileColor(
+            widget.identity,
+            widget.tileColorValue,
+          ).withValues(alpha: widget.tileOpacity)
+        : const Color(0x33101419);
+    final pressScale = 1 - 0.035 * widget.animationStrength.clamp(0.0, 1.5);
+    final pressDuration = Duration(
+      milliseconds: (90 * widget.animationStrength).round(),
+    );
     return Semantics(
       button: true,
       enabled: enabled,
       label: widget.name,
       child: AnimatedScale(
-        scale: _pressed ? 0.965 : 1.0,
-        duration: const Duration(milliseconds: 90),
+        scale: _pressed ? pressScale : 1.0,
+        duration: pressDuration,
         curve: Curves.easeOutCubic,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,

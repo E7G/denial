@@ -180,6 +180,41 @@ void main() {
     expect(settings.toJson()['version'], ShellSettings.schemaVersion);
   });
 
+  test('tablet Metro settings survive JSON round trips', () {
+    const tablet = ShellTabletSettings(
+      enabled: false,
+      tileDensity: TabletTileDensity.spacious,
+      tileOpacity: 0.72,
+      animationStrength: 0.4,
+      showStartHeader: false,
+      showSystemTiles: false,
+      showQuickSettingsHint: false,
+      portraitCompact: false,
+      navigationMode: TabletNavigationMode.threeButton,
+    );
+    final restored = ShellSettings.fromJson(
+      const ShellSettings(tablet: tablet).toJson(),
+    );
+
+    expect(restored.tablet, tablet);
+  });
+
+  test('tablet Metro settings clamp invalid numeric values', () {
+    final settings = ShellSettings.fromJson(<String, dynamic>{
+      'tablet': <String, dynamic>{
+        'tileOpacity': -1,
+        'animationStrength': 9,
+        'tileDensity': 'unknown',
+        'navigationMode': 'unknown',
+      },
+    });
+
+    expect(settings.tablet.tileOpacity, 0.55);
+    expect(settings.tablet.animationStrength, 1.5);
+    expect(settings.tablet.tileDensity, TabletTileDensity.comfortable);
+    expect(settings.tablet.navigationMode, TabletNavigationMode.gesture);
+  });
+
   test('suspend mode persists and produces a typed patch', () {
     const previous = ShellSettings();
     final next = previous.copyWith(

@@ -531,6 +531,29 @@ class ShellController extends Notifier<ShellState>
     );
   }
 
+  /// Android-style compatibility back action for the tablet shell.
+  ///
+  /// Linux clients do not expose a universal application "back" protocol, so
+  /// shell-owned surfaces are dismissed first and an ordinary foreground
+  /// application falls back to Home instead of synthesizing arbitrary keys.
+  void navigateBack() {
+    if (state.quickSettingsVisible || state.quickSettingsDrag != Offset.zero) {
+      closeQuickSettings();
+      return;
+    }
+    if (state.edgePanelVisible || state.edgePanelDrag != Offset.zero) {
+      closeEdgePanel();
+      return;
+    }
+    if (state.overviewVisible) {
+      closeOverview();
+      return;
+    }
+    if (state.foregroundWindow != null || state.launchRequest != null) {
+      goHome();
+    }
+  }
+
   void openOverview() {
     if (!state.overviewVisible) {
       _rawGestureDrag = Offset.zero;
