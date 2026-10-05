@@ -58,10 +58,10 @@ class HomeSurface extends ConsumerStatefulWidget {
 }
 
 class _HomeSurfaceState extends ConsumerState<HomeSurface> {
-  static const double _pageHorizontalPadding = 22;
-  static const double _appRowVisualHeight = 126;
-  static const double _pageDotsReservedHeight = 7;
-  static const EdgeInsets _contentPadding = EdgeInsets.fromLTRB(0, 66, 0, 4);
+  static const double _pageHorizontalPadding = 28;
+  static const double _appRowVisualHeight = 184;
+  static const double _pageDotsReservedHeight = 12;
+  static const EdgeInsets _contentPadding = EdgeInsets.fromLTRB(0, 66, 0, 8);
   static const Duration _backgroundTapMaxDuration = Duration(milliseconds: 260);
   static const Duration _doubleTapMaxInterval = Duration(milliseconds: 360);
   static const double _tapMoveTolerance = 18;
@@ -72,6 +72,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   final GlobalKey _gridViewportKey = GlobalKey();
   _HomeResizeSession? _resizeSession;
   int? _resizeModeIndex;
+  bool _appDrawerOpen = false;
   double _currentTileWidth = 0;
   double _currentTileHeight = 0;
   int _currentRows = 0;
@@ -127,6 +128,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
 
   void _cancelInteraction() {
     _dragEndTimer?.cancel();
+    _appDrawerOpen = false;
     _dragEndTimer = null;
     _activePointer = null;
     _resetTapTracking();
@@ -160,7 +162,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     _tapStartTime = event.timeStamp;
     _tapMoved = false;
     _tapStartedOnInteractiveItem =
-        resizeModeWasActive || _pointerInsideHomeItem(event.position);
+        _appDrawerOpen ||
+        resizeModeWasActive ||
+        _pointerInsideHomeItem(event.position);
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
@@ -195,6 +199,26 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       }
       _resetTapTracking();
     }
+  }
+
+  void _openAppDrawer() {
+    if (_appDrawerOpen) {
+      return;
+    }
+    _clearResizeMode();
+    setState(() => _appDrawerOpen = true);
+  }
+
+  void _closeAppDrawer() {
+    if (!_appDrawerOpen) {
+      return;
+    }
+    setState(() => _appDrawerOpen = false);
+  }
+
+  void _launchFromAppDrawer(HomeGridItem item, Rect sourceRect) {
+    _closeAppDrawer();
+    unawaited(_launchApp(item, sourceRect));
   }
 
   Future<void> _launchApp(HomeGridItem item, Rect sourceRect) async {

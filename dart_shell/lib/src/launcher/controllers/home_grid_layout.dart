@@ -26,15 +26,15 @@ class HomeGridLayout {
   /// [columnsForViewport] raises it on wide panels (set once per layout pass
   /// by HomeSurface) so pages stay full-bleed instead of overflowing rows.
   static int columns = 4;
-  static const double gridGap = 22;
+  static const double gridGap = 10;
   static const int minPages = 2;
 
   /// Tile content is fixed-size (92px icon + label ~= 131 tall), so cells
   /// gain nothing from growing: cap their footprint and let wide panels get
   /// more columns/rows instead. Phone-width viewports stay at 4 columns
   /// with uncapped-equivalent sizes.
-  static const double maxTileWidth = 224;
-  static const double maxTileHeight = 240;
+  static const double maxTileWidth = 184;
+  static const double maxTileHeight = 184;
 
   /// Column count so tiles stay at or under [maxTileWidth].
   static int columnsForViewport(double width) {
@@ -129,11 +129,16 @@ class HomeGridLayout {
         continue;
       }
 
-      final item = current.type == HomeGridItemType.app
+      var item = current.type == HomeGridItemType.app
           ? appItemsById[current.id]
           : current;
       if (item == null) {
         continue;
+      }
+      if (item.resizable &&
+          (item.colSpan != current.colSpan ||
+              item.rowSpan != current.rowSpan)) {
+        item = item.resize(colSpan: current.colSpan, rowSpan: current.rowSpan);
       }
 
       final placed = placeItemAt(next, index, item);

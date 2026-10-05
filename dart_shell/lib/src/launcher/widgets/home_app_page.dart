@@ -32,7 +32,7 @@ class HomeAppPage extends StatelessWidget {
     required this.onResizeEnd,
   });
 
-  static const double childAspectRatio = 0.78;
+  static const double childAspectRatio = 1.0;
 
   final List<HomeGridItem?> slots;
   final int startIndex;

@@ -35,27 +35,42 @@ class HomeGridItem {
     );
   }
 
-  factory HomeGridItem.app(DesktopApp desktopApp) {
+  factory HomeGridItem.app(
+    DesktopApp desktopApp, {
+    int colSpan = defaultAppColSpan,
+    int rowSpan = defaultAppRowSpan,
+  }) {
     return HomeGridItem._(
       type: HomeGridItemType.app,
       id: 'app:${desktopApp.id}',
-      colSpan: 1,
-      rowSpan: 1,
+      colSpan: colSpan.clamp(appMinColSpan, appMaxColSpan).toInt(),
+      rowSpan: rowSpan.clamp(appMinRowSpan, appMaxRowSpan).toInt(),
       app: desktopApp,
       localApp: null,
     );
   }
 
-  factory HomeGridItem.localApp(LocalFlutterApplication localApp) {
+  factory HomeGridItem.localApp(
+    LocalFlutterApplication localApp, {
+    int colSpan = defaultAppColSpan,
+    int rowSpan = defaultAppRowSpan,
+  }) {
     return HomeGridItem._(
       type: HomeGridItemType.app,
       id: 'local:${localApp.id}',
-      colSpan: 1,
-      rowSpan: 1,
+      colSpan: colSpan.clamp(appMinColSpan, appMaxColSpan).toInt(),
+      rowSpan: rowSpan.clamp(appMinRowSpan, appMaxRowSpan).toInt(),
       app: null,
       localApp: localApp,
     );
   }
+
+  static const int defaultAppColSpan = 1;
+  static const int defaultAppRowSpan = 1;
+  static const int appMinColSpan = 1;
+  static const int appMaxColSpan = 2;
+  static const int appMinRowSpan = 1;
+  static const int appMaxRowSpan = 2;
 
   static const int defaultClockColSpan = 2;
   static const int defaultClockRowSpan = 1;
@@ -71,33 +86,33 @@ class HomeGridItem {
   final DesktopApp? app;
   final LocalFlutterApplication? localApp;
 
-  bool get resizable => type != HomeGridItemType.app;
+  bool get resizable => true;
 
   int get minColSpan {
     return switch (type) {
       HomeGridItemType.clock => clockMinColSpan,
-      HomeGridItemType.app => 1,
+      HomeGridItemType.app => appMinColSpan,
     };
   }
 
   int get maxColSpan {
     return switch (type) {
       HomeGridItemType.clock => clockMaxColSpan,
-      HomeGridItemType.app => 1,
+      HomeGridItemType.app => appMaxColSpan,
     };
   }
 
   int get minRowSpan {
     return switch (type) {
       HomeGridItemType.clock => clockMinRowSpan,
-      HomeGridItemType.app => 1,
+      HomeGridItemType.app => appMinRowSpan,
     };
   }
 
   int get maxRowSpan {
     return switch (type) {
       HomeGridItemType.clock => clockMaxRowSpan,
-      HomeGridItemType.app => 1,
+      HomeGridItemType.app => appMaxRowSpan,
     };
   }
 
@@ -110,7 +125,14 @@ class HomeGridItem {
         colSpan: colSpan,
         rowSpan: rowSpan,
       ),
-      HomeGridItemType.app => this,
+      HomeGridItemType.app =>
+        app != null
+            ? HomeGridItem.app(app!, colSpan: colSpan, rowSpan: rowSpan)
+            : HomeGridItem.localApp(
+                localApp!,
+                colSpan: colSpan,
+                rowSpan: rowSpan,
+              ),
     };
   }
 }

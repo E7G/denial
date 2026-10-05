@@ -1,4 +1,5 @@
 import 'package:denial_dart_shell/src/launcher/controllers/home_grid_layout.dart';
+import 'package:denial_dart_shell/src/launcher/models/desktop_app.dart';
 import 'package:denial_dart_shell/src/launcher/models/home_grid_item.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,6 +24,47 @@ void main() {
     expect(slots[8]!.colSpan, 3);
     expect(slots[8]!.rowSpan, 2);
     expect(slots.take(8), everyElement(isNull));
+  });
+
+  test('application tile size survives application refresh', () {
+    HomeGridLayout.columns = 4;
+    const app = DesktopApp(
+      id: 'org.example.Metro',
+      name: 'Metro',
+      exec: 'metro',
+      desktopPath: '/usr/share/applications/metro.desktop',
+      categories: <String>[],
+    );
+    final current = <HomeGridItem?>[
+      HomeGridItem.app(app, colSpan: 2, rowSpan: 2),
+    ];
+    final refreshed = HomeGridLayout.refreshSlotsForApps(
+      current,
+      const <DesktopApp>[app],
+      const [],
+    );
+
+    expect(refreshed.first, isNotNull);
+    expect(refreshed.first!.id, 'app:org.example.Metro');
+    expect(refreshed.first!.colSpan, 2);
+    expect(refreshed.first!.rowSpan, 2);
+  });
+
+  test('application tiles expose Square Home style resize bounds', () {
+    const app = DesktopApp(
+      id: 'org.example.Tile',
+      name: 'Tile',
+      exec: 'tile',
+      desktopPath: '/usr/share/applications/tile.desktop',
+      categories: <String>[],
+    );
+    final item = HomeGridItem.app(app);
+
+    expect(item.resizable, isTrue);
+    expect(item.resize(colSpan: 2, rowSpan: 2).colSpan, 2);
+    expect(item.resize(colSpan: 2, rowSpan: 2).rowSpan, 2);
+    expect(item.resize(colSpan: 9, rowSpan: 9).colSpan, 2);
+    expect(item.resize(colSpan: 9, rowSpan: 9).rowSpan, 2);
   });
 
   test('bounded hit lookup matches occupied cells for every widget span', () {
