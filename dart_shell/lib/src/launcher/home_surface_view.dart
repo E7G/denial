@@ -1220,3 +1220,322 @@ class _MetroCharmButtonState extends State<_MetroCharmButton> {
     );
   }
 }
+
+
+class _MetroAlphabeticalApps extends StatelessWidget {
+  const _MetroAlphabeticalApps({
+    required this.controller,
+    required this.groups,
+    required this.letterKeys,
+    required this.titleFor,
+    required this.pinnedIds,
+    required this.selectionMode,
+    required this.selectedIds,
+    required this.onSelect,
+    required this.onTogglePin,
+    required this.onLaunch,
+  });
+
+  final ScrollController controller;
+  final Map<String, List<HomeGridItem>> groups;
+  final Map<String, GlobalKey> letterKeys;
+  final String Function(HomeGridItem item) titleFor;
+  final Set<String> pinnedIds;
+  final bool selectionMode;
+  final Set<String> selectedIds;
+  final ValueChanged<HomeGridItem> onSelect;
+  final ValueChanged<HomeGridItem> onTogglePin;
+  final void Function(HomeGridItem item, Rect sourceRect)? onLaunch;
+
+  List<String> get _letters {
+    final result = groups.keys.toList(growable: false)
+      ..sort((a, b) {
+        if (a == '#') return -1;
+        if (b == '#') return 1;
+        return a.compareTo(b);
+      });
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final portrait = MediaQuery.sizeOf(context).height >
+        MediaQuery.sizeOf(context).width;
+    return ListView(
+      controller: controller,
+      padding: const EdgeInsets.only(bottom: 28),
+      children: [
+        for (final letter in _letters) ...[
+          Padding(
+            key: letterKeys[letter],
+            padding: EdgeInsets.fromLTRB(
+              portrait ? 4 : 2,
+              10,
+              0,
+              portrait ? 6 : 10,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: portrait ? 42 : 50,
+                  height: portrait ? 42 : 50,
+                  alignment: Alignment.center,
+                  color: const Color(0xFF0078D7),
+                  child: Text(
+                    letter,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: portrait ? 20 : 23,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+                if (!portrait) ...[
+                  const SizedBox(width: 12),
+                  Text(
+                    letter == '#' ? 'Other' : letter,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (portrait)
+            for (final item in groups[letter]!)
+              _MetroPhoneAppRow(
+                item: item,
+                title: titleFor(item),
+                pinned: pinnedIds.contains(item.id),
+                selectionMode: selectionMode,
+                selected: selectedIds.contains(item.id),
+                onSelect: () => onSelect(item),
+                onTogglePin: () => onTogglePin(item),
+                onLaunch: onLaunch == null
+                    ? null
+                    : (sourceRect) => onLaunch!(item, sourceRect),
+              )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 18),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final item in groups[letter]!)
+                    SizedBox.square(
+                      dimension: 126,
+                      child: _MetroDrawerTile(
+                        item: item,
+                        pinned: pinnedIds.contains(item.id),
+                        selectionMode: selectionMode,
+                        selected: selectedIds.contains(item.id),
+                        onSelect: () => onSelect(item),
+                        onTogglePin: () => onTogglePin(item),
+                        onLaunch: onLaunch == null
+                            ? null
+                            : (sourceRect) => onLaunch!(item, sourceRect),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MetroPhoneAppRow extends StatelessWidget {
+  _MetroPhoneAppRow({
+    required this.item,
+    required this.title,
+    required this.pinned,
+    required this.selectionMode,
+    required this.selected,
+    required this.onSelect,
+    required this.onTogglePin,
+    required this.onLaunch,
+  });
+
+  final GlobalKey _rowKey = GlobalKey();
+  final HomeGridItem item;
+  final String title;
+  final bool pinned;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onTogglePin;
+  final ValueChanged<Rect>? onLaunch;
+
+  void _launch() {
+    final render = _rowKey.currentContext?.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) {
+      return;
+    }
+    onLaunch?.call(
+      MatrixUtils.transformRect(
+        render.getTransformTo(null),
+        Offset.zero & render.size,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final localIcon = item.localApp?.icon;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: selectionMode ? onSelect : (onLaunch == null ? null : _launch),
+      onLongPress: selectionMode ? onSelect : onTogglePin,
+      child: Container(
+        key: _rowKey,
+        height: 64,
+        margin: const EdgeInsets.only(bottom: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        color: selected
+            ? const Color(0x330078D7)
+            : Colors.transparent,
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: 48,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: metroTileColor(item.id, item.tileColorValue),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: localIcon != null
+                      ? Icon(localIcon, color: Colors.white, size: 30)
+                      : AppIconImage(iconPath: item.app?.iconPath),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            if (selectionMode)
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.circle_outlined,
+                color: Colors.white,
+                size: 24,
+              )
+            else
+              IconButton(
+                tooltip: pinned ? 'Unpin from Start' : 'Pin to Start',
+                onPressed: onTogglePin,
+                icon: Icon(
+                  pinned
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
+                  color: Colors.white.withValues(alpha: 0.78),
+                  size: 20,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetroAlphabetJumpDialog extends StatelessWidget {
+  const _MetroAlphabetJumpDialog({required this.availableLetters});
+
+  final Set<String> availableLetters;
+
+  @override
+  Widget build(BuildContext context) {
+    const letters = <String>[
+      '#',
+      'A',
+      'B',
+      'C',
+      'D',
+      'E',
+      'F',
+      'G',
+      'H',
+      'I',
+      'J',
+      'K',
+      'L',
+      'M',
+      'N',
+      'O',
+      'P',
+      'Q',
+      'R',
+      'S',
+      'T',
+      'U',
+      'V',
+      'W',
+      'X',
+      'Y',
+      'Z',
+    ];
+    return Dialog(
+      backgroundColor: const Color(0xFF10151B),
+      shape: const RoundedRectangleBorder(),
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 430),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 6,
+            mainAxisSpacing: 7,
+            crossAxisSpacing: 7,
+            children: [
+              for (final letter in letters)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: availableLetters.contains(letter)
+                      ? () => Navigator.of(context).pop(letter)
+                      : null,
+                  child: ColoredBox(
+                    color: availableLetters.contains(letter)
+                        ? const Color(0xFF0078D7)
+                        : const Color(0xFF20262D),
+                    child: Center(
+                      child: Text(
+                        letter,
+                        style: TextStyle(
+                          color: Colors.white.withValues(
+                            alpha: availableLetters.contains(letter)
+                                ? 1
+                                : 0.24,
+                          ),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
