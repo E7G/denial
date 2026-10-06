@@ -11,8 +11,11 @@ import '../state/display_layout.dart';
 import '../state/output_configuration.dart';
 import '../state/shell_controller.dart';
 import '../settings/settings_controller.dart';
+import '../settings/embedded_settings_surface.dart';
 import '../settings/shell_settings.dart';
 import '../widgets/retained_translation.dart';
+import '../widgets/connectivity/bluetooth_detail_surface.dart';
+import '../widgets/shell_surface_host.dart';
 import 'controllers/application_recents_controller.dart';
 import 'controllers/home_grid_controller.dart';
 import 'controllers/home_grid_layout.dart';
@@ -77,6 +80,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   _HomeResizeSession? _resizeSession;
   int? _resizeModeIndex;
   bool _appDrawerOpen = false;
+  bool _appDrawerFocusSearch = false;
+  bool _semanticZoomOpen = false;
+  bool _charmsOpen = false;
   bool _tabletOutputScaleBootstrapRunning = false;
   bool _tabletOutputScaleBootstrapComplete = false;
   int _tabletOutputScaleBootstrapAttempts = 0;
@@ -85,6 +91,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   double _currentTileHeight = 0;
   int _currentRows = 0;
   int _currentPageCount = 0;
+  int _currentPageSize = 0;
   Timer? _dragEndTimer;
   Timer? _tabletOutputScaleRetryTimer;
   bool _interactionResetScheduled = false;
@@ -220,6 +227,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   void _cancelInteraction() {
     _dragEndTimer?.cancel();
     _appDrawerOpen = false;
+    _appDrawerFocusSearch = false;
+    _semanticZoomOpen = false;
+    _charmsOpen = false;
     _openFolder = null;
     ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
     _dragEndTimer = null;
@@ -286,7 +296,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       if (ref.read(homeDragSessionProvider) != null) {
         _handleItemDragEnd(event.position);
       }
-      _handlePotentialBackgroundTap(event);
+      if (!_handleMetroSwipe(event)) {
+        _handlePotentialBackgroundTap(event);
+      }
     } else {
       if (ref.read(homeDragSessionProvider) != null) {
         _handleItemDragEnd();
@@ -295,13 +307,15 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     }
   }
 
-  void _openAppDrawer() {
-    if (_appDrawerOpen) {
-      return;
-    }
+  void _openAppDrawer({bool focusSearch = false}) {
     _clearResizeMode();
     ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
-    setState(() => _appDrawerOpen = true);
+    setState(() {
+      _charmsOpen = false;
+      _semanticZoomOpen = false;
+      _appDrawerOpen = true;
+      _appDrawerFocusSearch = focusSearch;
+    });
   }
 
   void _closeAppDrawer() {
@@ -309,7 +323,120 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       return;
     }
     ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
-    setState(() => _appDrawerOpen = false);
+    setState(() {
+      _appDrawerOpen = false;
+      _appDrawerFocusSearch = false;
+    });
+  }
+
+  void _openSemanticZoom() {
+    if (_currentPageCount <= 1) {
+      return;
+    }
+    _clearResizeMode();
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
+    setState(() {
+      _appDrawerOpen = false;
+      _charmsOpen = false;
+      _semanticZoomOpen = true;
+    });
+  }
+
+  void _closeSemanticZoom() {
+    if (!_semanticZoomOpen) {
+      return;
+    }
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
+    setState(() => _semanticZoomOpen = false);
+  }
+
+  void _jumpToStartGroup(int page) {
+    final safePage = page.clamp(0, math.max(0, _currentPageCount - 1)).toInt();
+    ref.read(homeGridControllerProvider.notifier).setPage(safePage);
+    if (_pageController.hasClients) {
+      unawaited(
+        _pageController.animateToPage(
+          safePage,
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
+    _closeSemanticZoom();
+  }
+
+  void _openCharms() {
+    _clearResizeMode();
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
+    setState(() {
+      _appDrawerOpen = false;
+      _semanticZoomOpen = false;
+      _charmsOpen = true;
+    });
+  }
+
+  void _closeCharms() {
+    if (!_charmsOpen) {
+      return;
+    }
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
+    setState(() => _charmsOpen = false);
+  }
+
+  void _openBluetoothFromCharms() {
+    _closeCharms();
+    ref
+        .read(shellSurfaceControllerProvider.notifier)
+        .show(
+          keyName: 'bluetooth-details',
+          debugLabel: 'Bluetooth details',
+          builder: (_, handle) => BluetoothDetailSurface(onClose: handle.close),
+        );
+  }
+
+  void _openSettingsFromCharms() {
+    _closeCharms();
+    showEmbeddedSettingsSurface(ref);
+  }
+
+  bool _handleMetroSwipe(PointerUpEvent event) {
+    final start = _tapStartGlobalPosition;
+    final startTime = _tapStartTime;
+    if (start == null || startTime == null) {
+      return false;
+    }
+    final delta = event.position - start;
+    final elapsed = event.timeStamp - startTime;
+    if (elapsed > const Duration(milliseconds: 850) ||
+        delta.distance < 70 ||
+        delta.dx.abs() < delta.dy.abs() * 1.25) {
+      return false;
+    }
+
+    final size = MediaQuery.sizeOf(context);
+    final portrait = size.height > size.width;
+
+    if (!_appDrawerOpen &&
+        !_semanticZoomOpen &&
+        !_charmsOpen &&
+        start.dx >= size.width - 42 &&
+        delta.dx < -72) {
+      _resetTapTracking();
+      _openCharms();
+      return true;
+    }
+
+    if (portrait &&
+        !_appDrawerOpen &&
+        !_semanticZoomOpen &&
+        !_charmsOpen &&
+        delta.dx < -110) {
+      _resetTapTracking();
+      _openAppDrawer();
+      return true;
+    }
+
+    return false;
   }
 
   void _launchFromAppDrawer(HomeGridItem item, Rect sourceRect) {
@@ -374,6 +501,48 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   void _removeFromStart(HomeGridItem item) {
     _clearResizeMode();
     ref.read(homeGridControllerProvider.notifier).unpinItem(item.id);
+  }
+
+  void _cycleTileSize(HomeGridItem item, int index, int pageSize) {
+    if (!item.resizable || pageSize <= 0) {
+      return;
+    }
+    final controller = ref.read(homeGridControllerProvider.notifier);
+    final candidates = <({int colSpan, int rowSpan})>[
+      (colSpan: 1, rowSpan: 1),
+      (colSpan: 2, rowSpan: 1),
+      (colSpan: 2, rowSpan: 2),
+      (colSpan: 1, rowSpan: 2),
+    ];
+    final currentIndex = candidates.indexWhere(
+      (candidate) =>
+          candidate.colSpan == item.colSpan &&
+          candidate.rowSpan == item.rowSpan,
+    );
+    for (var offset = 1; offset <= candidates.length; offset += 1) {
+      final candidate =
+          candidates[(math.max(0, currentIndex) + offset) % candidates.length];
+      if (candidate.colSpan < item.minColSpan ||
+          candidate.colSpan > item.maxColSpan ||
+          candidate.rowSpan < item.minRowSpan ||
+          candidate.rowSpan > item.maxRowSpan) {
+        continue;
+      }
+      if (controller.canResizeSlot(
+        index,
+        candidate.colSpan,
+        candidate.rowSpan,
+        pageSize,
+      )) {
+        controller.resizeSlot(
+          index,
+          candidate.colSpan,
+          candidate.rowSpan,
+          pageSize,
+        );
+        return;
+      }
+    }
   }
 
   void _cycleTileColor(HomeGridItem item) {
@@ -646,9 +815,15 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     }
 
     final page = ref.read(homeGridControllerProvider).asData?.value.page ?? 0;
-    final width = MediaQuery.sizeOf(context).width;
-    final x = globalPosition.dx;
-    if (x > width - 64 && page < pageCount - 1) {
+    final size = MediaQuery.sizeOf(context);
+    final portrait = size.height > size.width;
+    final forwardEdge = portrait
+        ? globalPosition.dy > size.height - 72
+        : globalPosition.dx > size.width - 64;
+    final backwardEdge = portrait
+        ? globalPosition.dy < 72
+        : globalPosition.dx < 64;
+    if (forwardEdge && page < pageCount - 1) {
       _lastAutoPageTurn = now;
       unawaited(
         _pageController.nextPage(
@@ -656,7 +831,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
           curve: Curves.easeOutCubic,
         ),
       );
-    } else if (x < 64 && page > 0) {
+    } else if (backwardEdge && page > 0) {
       _lastAutoPageTurn = now;
       unawaited(
         _pageController.previousPage(
