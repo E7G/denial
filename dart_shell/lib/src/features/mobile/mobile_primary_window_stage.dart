@@ -2,7 +2,6 @@ import 'package:denial_dart_shell/denial.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../state/shell_input_layout_coordinator.dart';
 import '../../widgets/retained_translation.dart';
 
 /// Keeps both app subtrees laid out while the switch gesture moves their layers.
@@ -65,8 +64,7 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
 
   Widget _windowPresentation(
     BuildContext context,
-    DenialWindow window,
-    Size viewSize, {
+    DenialWindow window, {
     bool active = false,
     required BorderRadius transitionRadius,
   }) {
@@ -79,42 +77,13 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
         fit: BoxFit.cover,
       );
     }
-    final tileBounds = mobileNativeAppTileBounds(viewSize: viewSize);
-    final tileRadius = context.shellTheme.borderRadius(18);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fromRect(
-          rect: tileBounds,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: tileRadius,
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x59000000),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: tileRadius,
-              child: ColoredBox(
-                color: const Color(0xFF080808),
-                child: WindowContentRect(
-                  key: ValueKey<int>(window.objectId),
-                  window: window,
-                  active: active,
-                  borderRadius: tileRadius,
-                  fit: BoxFit.contain,
-                  alignment: Alignment.center,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return WindowContentRect(
+      key: ValueKey<int>(window.objectId),
+      window: window,
+      active: active,
+      borderRadius: transitionRadius,
+      fit: BoxFit.contain,
+      alignment: Alignment.center,
     );
   }
 
@@ -141,7 +110,6 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
                 child: _windowPresentation(
                   context,
                   widget.currentWindow,
-                  constraints.biggest,
                   active: true,
                   transitionRadius: radius,
                 ),
@@ -155,7 +123,6 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
                   child: _windowPresentation(
                     context,
                     target,
-                    constraints.biggest,
                     transitionRadius: radius,
                   ),
                 ),

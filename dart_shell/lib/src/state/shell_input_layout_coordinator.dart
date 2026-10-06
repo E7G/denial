@@ -6,30 +6,6 @@ import '../models/denial_window.dart';
 import '../platform/denial_bridge.dart';
 import 'shell_state.dart';
 
-Rect mobileNativeAppTileBounds({
-  required Size viewSize,
-  double contentOffset = 0,
-}) {
-  if (viewSize.isEmpty) {
-    return Rect.zero;
-  }
-  final portrait = viewSize.height >= viewSize.width;
-  final horizontalInset = (viewSize.width * 0.03125)
-      .clamp(12.0, 32.0)
-      .toDouble();
-  final verticalInset =
-      (viewSize.height * (portrait ? 0.02734375 : 0.028645833333333332))
-          .clamp(16.0, 32.0)
-          .toDouble();
-  final tile = Rect.fromLTRB(
-    horizontalInset,
-    verticalInset,
-    viewSize.width - horizontalInset,
-    viewSize.height - verticalInset,
-  );
-  return tile.shift(Offset(0, -contentOffset));
-}
-
 Rect mobileWindowPresentationFrame({
   required Size viewSize,
   required Rect frame,
@@ -39,12 +15,12 @@ Rect mobileWindowPresentationFrame({
   if (viewSize.isEmpty || frame.isEmpty) {
     return Rect.zero;
   }
-  final target = contain
-      ? mobileNativeAppTileBounds(
-          viewSize: viewSize,
-          contentOffset: contentOffset,
-        )
-      : Rect.fromLTWH(0, -contentOffset, viewSize.width, viewSize.height);
+  final target = Rect.fromLTWH(
+    0,
+    -contentOffset,
+    viewSize.width,
+    viewSize.height,
+  );
   final widthScale = target.width / frame.width;
   final heightScale = target.height / frame.height;
   final scale = contain
