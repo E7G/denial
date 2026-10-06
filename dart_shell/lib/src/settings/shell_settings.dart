@@ -389,7 +389,7 @@ class ShellTabletSettings {
     this.showStartHeader = true,
     this.showSystemTiles = true,
     this.showQuickSettingsHint = true,
-    this.portraitCompact = true,
+    this.portraitCompact = false,
     this.navigationMode = TabletNavigationMode.gesture,
   });
 

@@ -180,6 +180,13 @@ void main() {
     expect(settings.toJson()['version'], ShellSettings.schemaVersion);
   });
 
+  test('tablet Metro defaults keep portrait tiles touch-friendly', () {
+    const tablet = ShellTabletSettings();
+
+    expect(tablet.tileDensity, TabletTileDensity.comfortable);
+    expect(tablet.portraitCompact, isFalse);
+  });
+
   test('tablet Metro settings survive JSON round trips', () {
     const tablet = ShellTabletSettings(
       enabled: false,
