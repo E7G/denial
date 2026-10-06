@@ -228,7 +228,6 @@ class _HomeAppTileState extends State<_HomeAppTile> {
             },
           ),
         ),
-      ),
-    );
+      );
   }
 }
