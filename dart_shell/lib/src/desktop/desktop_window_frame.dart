@@ -36,16 +36,16 @@ class _ClosingDesktopWindow {
     required this.id,
     required this.window,
     required this.frame,
-    required this.fullscreen,
     required this.effect,
+    required this.fullscreen,
     required this.outputClip,
   });
 
   final int id;
   final DenialWindow window;
   final Rect frame;
-  final bool fullscreen;
   final DesktopWindowCloseEffect effect;
+  final bool fullscreen;
   final Rect? outputClip;
 }
 
@@ -94,7 +94,6 @@ class _DesktopClosingWindowFrame extends StatelessWidget {
                   window: closing.window,
                   smooth: false,
                   active: false,
-                  fullscreen: closing.fullscreen,
                   borderRadius: BorderRadius.circular(
                     math.max(0.0, radius - DesktopMetrics.frameBorder),
                   ),
@@ -391,7 +390,6 @@ class _DesktopWindowFrame extends ConsumerWidget {
                                     window: window,
                                     smooth: transformed || resizing,
                                     active: active && !minimized,
-                                    fullscreen: placement.fullscreen,
                                     borderRadius: BorderRadius.circular(
                                       math.max(
                                         0.0,
@@ -737,7 +735,6 @@ class _DesktopWindowContent extends ConsumerWidget {
     required this.window,
     required this.smooth,
     required this.active,
-    required this.fullscreen,
     required this.borderRadius,
     this.localLayoutSize,
     this.presentationScale,
@@ -747,7 +744,6 @@ class _DesktopWindowContent extends ConsumerWidget {
   final DenialWindow window;
   final bool smooth;
   final bool active;
-  final bool fullscreen;
   final BorderRadius borderRadius;
   final Size? localLayoutSize;
   final double? presentationScale;
@@ -808,29 +804,7 @@ class _DesktopWindowContent extends ConsumerWidget {
           presentationScale ?? MediaQuery.devicePixelRatioOf(context),
       pixelGridOrigin: pixelGridOrigin,
     );
-    if (!fullscreen) {
-      return surface;
-    }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final targetSize = constraints.biggest;
-        if (targetSize.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final fitted = desktopFullscreenContentRect(
-          target: Offset.zero & targetSize,
-          sourceSize: window.contentCoordinateRect.size,
-          fullscreen: true,
-        );
-        return ColoredBox(
-          color: const Color(0xFF000000),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [Positioned.fromRect(rect: fitted, child: surface)],
-          ),
-        );
-      },
-    );
+    return surface;
   }
 }
 

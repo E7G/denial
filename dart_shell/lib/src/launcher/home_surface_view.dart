@@ -334,8 +334,38 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
   final ScrollController _appListController = ScrollController();
   final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
   final Set<String> _folderSelection = <String>{};
+  final Map<String, bool> _optimisticPinned = <String, bool>{};
   String _query = '';
   bool _folderMode = false;
+
+  @override
+  void didUpdateWidget(covariant _MetroAppDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _optimisticPinned.removeWhere(
+      (id, expected) => widget.pinnedIds.contains(id) == expected,
+    );
+  }
+
+  bool _isPinned(String id) =>
+      _optimisticPinned[id] ?? widget.pinnedIds.contains(id);
+
+  Set<String> get _effectivePinnedIds {
+    final ids = <String>{...widget.pinnedIds};
+    for (final entry in _optimisticPinned.entries) {
+      if (entry.value) {
+        ids.add(entry.key);
+      } else {
+        ids.remove(entry.key);
+      }
+    }
+    return ids;
+  }
+
+  void _togglePin(HomeGridItem item) {
+    final next = !_isPinned(item.id);
+    setState(() => _optimisticPinned[item.id] = next);
+    widget.onTogglePin(item);
+  }
 
   @override
   void dispose() {
@@ -613,8 +643,8 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                         dimension: 108,
                         child: _MetroDrawerTile(
                           item: item,
-                          pinned: widget.pinnedIds.contains(item.id),
-                          onTogglePin: () => widget.onTogglePin(item),
+                          pinned: _isPinned(item.id),
+                          onTogglePin: () => _togglePin(item),
                         ),
                       );
                     },
@@ -640,11 +670,11 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                         groups: groupedItems,
                         letterKeys: _letterKeys,
                         titleFor: (item) => _titleFor(context, item),
-                        pinnedIds: widget.pinnedIds,
+                        pinnedIds: _effectivePinnedIds,
                         selectionMode: _folderMode,
                         selectedIds: _folderSelection,
                         onSelect: _toggleFolderSelection,
-                        onTogglePin: widget.onTogglePin,
+                        onTogglePin: _togglePin,
                         onLaunch: _folderMode ? null : widget.onLaunch,
                       ),
               ),
@@ -746,16 +776,26 @@ class _MetroDrawerTile extends StatelessWidget {
                     ),
                     child: SizedBox.square(
                       dimension: 34,
-                      child: Icon(
-                        selectionMode
-                            ? (selected
-                                  ? Icons.check_circle_rounded
-                                  : Icons.circle_outlined)
-                            : (pinned
-                                  ? Icons.push_pin_rounded
-                                  : Icons.push_pin_outlined),
-                        size: 18,
-                        color: Colors.white,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 90),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) => ScaleTransition(
+                          scale: Tween<double>(begin: 0.72, end: 1).animate(animation),
+                          child: FadeTransition(opacity: animation, child: child),
+                        ),
+                        child: Icon(
+                          selectionMode
+                              ? (selected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.circle_outlined)
+                              : (pinned
+                                    ? Icons.push_pin_rounded
+                                    : Icons.push_pin_outlined),
+                          key: ValueKey<bool>(selectionMode ? selected : pinned),
+                          size: 18,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
