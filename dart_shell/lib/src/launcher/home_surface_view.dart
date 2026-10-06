@@ -884,3 +884,296 @@ class _MetroFolderOverlayState extends State<_MetroFolderOverlay> {
     );
   }
 }
+
+
+class _MetroSemanticZoomOverlay extends StatelessWidget {
+  const _MetroSemanticZoomOverlay({
+    required this.slots,
+    required this.pageSize,
+    required this.pageCount,
+    required this.activePage,
+    required this.onClose,
+    required this.onSelectPage,
+  });
+
+  final List<HomeGridItem?> slots;
+  final int pageSize;
+  final int pageCount;
+  final int activePage;
+  final VoidCallback onClose;
+  final ValueChanged<int> onSelectPage;
+
+  String _groupLabel(BuildContext context, int page) {
+    if (page == 0) {
+      return context.l10n.tabletStartTitle;
+    }
+    final start = page * pageSize;
+    final end = math.min(start + pageSize, slots.length);
+    for (var index = start; index < end; index += 1) {
+      final item = slots[index];
+      if (item == null) continue;
+      if (item.isFolder) return item.folderName ?? 'Group ${page + 1}';
+      final title = item.localApp?.titleFor(context) ?? item.app?.name;
+      if (title != null && title.trim().isNotEmpty) return title;
+    }
+    return 'Group ${page + 1}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = math.max(1, pageCount);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onClose,
+      child: ColoredBox(
+        color: const Color(0xF20B0F14),
+        child: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(34, 28, 34, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Start groups',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
+                  const Spacer(),
+                  _MetroHeaderAction(
+                    icon: Icons.close_rounded,
+                    label: 'Close',
+                    onTap: onClose,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 980),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 270,
+                        mainAxisSpacing: 22,
+                        crossAxisSpacing: 22,
+                        childAspectRatio: 1.46,
+                      ),
+                      itemCount: groups,
+                      itemBuilder: (context, page) {
+                        final safePageSize = math.max(1, pageSize);
+                        final start = page * safePageSize;
+                        final end = math.min(start + safePageSize, slots.length);
+                        final items = <HomeGridItem>[
+                          for (var i = start; i < end; i += 1)
+                            if (slots[i] case final item?) item,
+                        ];
+                        final active = page == activePage;
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onSelectPage(page),
+                          child: AnimatedScale(
+                            scale: active ? 1.0 : 0.96,
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF151B22),
+                                border: Border.all(
+                                  color: active
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.12),
+                                  width: active ? 2 : 1,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: GridView.count(
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        crossAxisCount: 4,
+                                        mainAxisSpacing: 5,
+                                        crossAxisSpacing: 5,
+                                        padding: EdgeInsets.zero,
+                                        children: [
+                                          for (final item in items.take(12))
+                                            DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                color: metroTileColor(
+                                                  item.id,
+                                                  item.tileColorValue,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      _groupLabel(context, page),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: active ? 1 : 0.86,
+                                        ),
+                                        fontSize: 16,
+                                        fontWeight: active
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetroCharmsRail extends StatelessWidget {
+  const _MetroCharmsRail({
+    required this.onClose,
+    required this.onSearch,
+    required this.onStart,
+    required this.onDevices,
+    required this.onSettings,
+  });
+
+  final VoidCallback onClose;
+  final VoidCallback onSearch;
+  final VoidCallback onStart;
+  final VoidCallback onDevices;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onClose,
+          child: const ColoredBox(color: Color(0x52000000)),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TweenAnimationBuilder<double>(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            tween: Tween<double>(begin: 1, end: 0),
+            builder: (context, value, child) => Transform.translate(
+              offset: Offset(170 * value, 0),
+              child: child,
+            ),
+            child: SizedBox(
+              width: 150,
+              height: double.infinity,
+              child: ColoredBox(
+                color: const Color(0xF40B0D10),
+                child: SafeArea(
+                  minimum: const EdgeInsets.symmetric(vertical: 18),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _MetroCharmButton(
+                        icon: Icons.search_rounded,
+                        label: 'Search',
+                        onTap: onSearch,
+                      ),
+                      _MetroCharmButton(
+                        icon: Icons.window_rounded,
+                        label: 'Start',
+                        onTap: onStart,
+                      ),
+                      _MetroCharmButton(
+                        icon: Icons.devices_other_rounded,
+                        label: 'Devices',
+                        onTap: onDevices,
+                      ),
+                      _MetroCharmButton(
+                        icon: Icons.settings_rounded,
+                        label: 'Settings',
+                        onTap: onSettings,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetroCharmButton extends StatefulWidget {
+  const _MetroCharmButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_MetroCharmButton> createState() => _MetroCharmButtonState();
+}
+
+class _MetroCharmButtonState extends State<_MetroCharmButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        margin: const EdgeInsets.symmetric(vertical: 10),
+        width: 112,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: _pressed ? const Color(0xFF0078D7) : Colors.transparent,
+        child: Column(
+          children: [
+            Icon(widget.icon, color: Colors.white, size: 34),
+            const SizedBox(height: 8),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
