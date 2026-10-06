@@ -419,6 +419,16 @@ impl PointerConstraintEscape {
 }
 
 #[cfg(feature = "flutter")]
+fn mapped_focus_origin(
+    global_position: Point<f64, Logical>,
+    mapped_position: Point<f64, Logical>,
+    local_surface_origin: Point<f64, Logical>,
+) -> Point<f64, Logical> {
+    let local_position = mapped_position - local_surface_origin;
+    global_position - local_position
+}
+
+#[cfg(feature = "flutter")]
 impl ClientInputRoute {
     fn mapped_position(&self, position: Point<f64, Logical>) -> Point<f64, Logical> {
         let scene_position = position - self.scene_origin;
@@ -436,7 +446,10 @@ impl ClientInputRoute {
         let local_point = self.mapped_position(position);
         let (surface, local_origin) =
             under_from_surface_tree(&self.surface, local_point, (0, 0), WindowSurfaceType::ALL)?;
-        Some((surface, self.global_origin(local_origin)))
+        Some((
+            surface,
+            mapped_focus_origin(position, local_point, local_origin.to_f64()),
+        ))
     }
 
     fn focus_at(&self, position: Point<f64, Logical>) -> (WlSurface, Point<f64, Logical>) {
@@ -444,19 +457,10 @@ impl ClientInputRoute {
         let (surface, local_origin) =
             under_from_surface_tree(&self.surface, local_point, (0, 0), WindowSurfaceType::ALL)
                 .unwrap_or_else(|| (self.surface.clone(), (0, 0).into()));
-        (surface, self.global_origin(local_origin))
-    }
-
-    fn global_origin(&self, local_origin: Point<i32, Logical>) -> Point<f64, Logical> {
-        let scale_x = self.region.rect.width / self.region.source_rect.width;
-        let scale_y = self.region.rect.height / self.region.source_rect.height;
-        self.scene_origin
-            + Point::from((
-                self.region.rect.x
-                    + (f64::from(local_origin.x) - self.region.source_rect.x) * scale_x,
-                self.region.rect.y
-                    + (f64::from(local_origin.y) - self.region.source_rect.y) * scale_y,
-            ))
+        (
+            surface,
+            mapped_focus_origin(position, local_point, local_origin.to_f64()),
+        )
     }
 }
 
@@ -2556,4 +2560,32 @@ fn process_flutter_keyboard_transition(
     );
     synchronize_active_keyboard_layout(state, &keyboard);
     true
+}
+
+#[cfg(all(test, feature = "flutter"))]
+mod client_input_mapping_tests {
+    use super::*;
+
+    #[test]
+    fn mapped_focus_origin_preserves_scaled_client_local_position() {
+        let global = Point::<f64, Logical>::from((512.0, 384.0));
+        let mapped = Point::<f64, Logical>::from((384.0, 288.0));
+        let local_surface_origin = Point::<f64, Logical>::from((0.0, 0.0));
+
+        let focus_origin = mapped_focus_origin(global, mapped, local_surface_origin);
+
+        assert_eq!(focus_origin, Point::from((128.0, 96.0)));
+        assert_eq!(global - focus_origin, mapped);
+    }
+
+    #[test]
+    fn mapped_focus_origin_accounts_for_subsurface_origin() {
+        let global = Point::<f64, Logical>::from((512.0, 384.0));
+        let mapped = Point::<f64, Logical>::from((384.0, 288.0));
+        let local_surface_origin = Point::<f64, Logical>::from((24.0, 18.0));
+
+        let focus_origin = mapped_focus_origin(global, mapped, local_surface_origin);
+
+        assert_eq!(global - focus_origin, Point::from((360.0, 270.0)));
+    }
 }

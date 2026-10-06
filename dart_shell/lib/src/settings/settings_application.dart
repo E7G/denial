@@ -156,7 +156,7 @@ class _DenialSettingsApplicationState
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compactNavigation = constraints.maxWidth < 700;
+            final compactNavigation = constraints.maxWidth < 520;
             final content = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
