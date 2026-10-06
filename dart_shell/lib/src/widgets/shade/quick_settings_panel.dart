@@ -605,6 +605,7 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
       },
       onToggleBluetooth: bluetoothController.togglePower,
       onOpenBluetooth: () {
+        ref.read(shellControllerProvider.notifier).closeQuickSettings();
         ref
             .read(shellSurfaceControllerProvider.notifier)
             .show(
@@ -667,6 +668,14 @@ class _VolumeRangeBar extends ConsumerWidget {
 class _ShadeQuickEntrance extends ConsumerWidget {
   const _ShadeQuickEntrance();
 
+  void _openSettings(WidgetRef ref, {String? page}) {
+    ref.read(shellControllerProvider.notifier).closeQuickSettings();
+    ref.read(denialBridgeProvider).launchApplication(<String>[
+      '/usr/bin/denial-settings',
+      if (page != null) '--page=$page',
+    ]);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider).value ?? DateTime.now();
@@ -688,7 +697,11 @@ class _ShadeQuickEntrance extends ConsumerWidget {
               ),
             ),
           ),
-          ShadeActions(onOpenPower: () => showPowerSessionSurface(ref)),
+          ShadeActions(
+            onOpenEdit: () => _openSettings(ref, page: 'tabletMetro'),
+            onOpenSettings: () => _openSettings(ref),
+            onOpenPower: () => showPowerSessionSurface(ref),
+          ),
         ],
       ),
     );
