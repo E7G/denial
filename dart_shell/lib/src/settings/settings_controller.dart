@@ -855,7 +855,15 @@ class ShellSettingsController extends Notifier<ShellSettings> {
       if (!ref.mounted) {
         return;
       }
-      ref.read(shellSettingsSyncStatusProvider.notifier).markFailed();
+      // A failed mutation must not make the whole Settings application
+      // unusable after it has already synchronized successfully. The native
+      // subscription remains authoritative and will reconcile the UI with the
+      // next accepted document.
+      if (_hasAuthoritativeState) {
+        ref.read(shellSettingsSyncStatusProvider.notifier).markReady();
+      } else {
+        ref.read(shellSettingsSyncStatusProvider.notifier).markFailed();
+      }
     }
   }
 
