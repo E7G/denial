@@ -82,6 +82,7 @@ class SettingsNavigation extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     required this.compact,
+    this.width = 184,
     this.showTouchpad = false,
     this.showFingerprint = false,
     super.key,
@@ -90,6 +91,7 @@ class SettingsNavigation extends StatelessWidget {
   final SettingsPageId selected;
   final ValueChanged<SettingsPageId> onSelected;
   final bool compact;
+  final double width;
   final bool showTouchpad;
   final bool showFingerprint;
 
@@ -119,7 +121,7 @@ class SettingsNavigation extends StatelessWidget {
       );
     }
     return SizedBox(
-      width: 184,
+      width: width,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: context.shellColors.surfaceContainerLow.withValues(
