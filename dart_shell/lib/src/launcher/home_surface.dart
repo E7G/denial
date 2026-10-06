@@ -98,6 +98,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   bool _interactionResetScheduled = false;
   DateTime _lastAutoPageTurn = DateTime.fromMillisecondsSinceEpoch(0);
   int? _activePointer;
+  final Map<int, Offset> _pointerPositions = <int, Offset>{};
+  double? _pinchStartDistance;
+  bool _pinchConsumed = false;
   Offset? _tapStartGlobalPosition;
   Duration? _tapStartTime;
   bool _tapMoved = false;
@@ -235,6 +238,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
     _dragEndTimer = null;
     _activePointer = null;
+    _pointerPositions.clear();
+    _pinchStartDistance = null;
+    _pinchConsumed = false;
     _resetTapTracking();
     _resizeSession = null;
     _resizeModeIndex = null;
@@ -255,6 +261,13 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    _pointerPositions[event.pointer] = event.position;
+    if (_pointerPositions.length == 2) {
+      final points = _pointerPositions.values.toList(growable: false);
+      _pinchStartDistance = (points[0] - points[1]).distance;
+      _pinchConsumed = false;
+    }
+
     final resizeModeWasActive = _resizeModeIndex != null;
     _dismissResizeModeIfPointerOutside(event.position);
     if (_activePointer != null) {
@@ -273,6 +286,10 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    _pointerPositions[event.pointer] = event.position;
+    if (_handleSemanticPinch()) {
+      return;
+    }
     if (event.pointer != _activePointer) {
       return;
     }
@@ -289,6 +306,20 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   }
 
   void _handlePointerUp(PointerEvent event) {
+    _pointerPositions.remove(event.pointer);
+    if (_pointerPositions.length < 2) {
+      _pinchStartDistance = null;
+    }
+    if (_pinchConsumed) {
+      if (event.pointer == _activePointer) {
+        _activePointer = null;
+        _resetTapTracking();
+      }
+      if (_pointerPositions.isEmpty) {
+        _pinchConsumed = false;
+      }
+      return;
+    }
     if (event.pointer != _activePointer) {
       return;
     }
