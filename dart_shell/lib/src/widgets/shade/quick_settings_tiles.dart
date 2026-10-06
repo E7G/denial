@@ -154,7 +154,7 @@ class QuickSettingsTiles extends StatelessWidget {
                     active: bluetooth,
                     enabled: bluetoothEnabled,
                     busy: bluetoothBusy,
-                    onTap: onToggleBluetooth,
+                    onTap: onOpenBluetooth,
                     onDetails: onOpenBluetooth,
                     wide: true,
                   ),
@@ -588,8 +588,15 @@ class _TileDetailsButtonState extends State<_TileDetailsButton> {
 /// Compact shade actions. Application-count prose belongs in the overview,
 /// not in quick settings.
 class ShadeActions extends StatelessWidget {
-  const ShadeActions({super.key, required this.onOpenPower});
+  const ShadeActions({
+    super.key,
+    required this.onOpenEdit,
+    required this.onOpenSettings,
+    required this.onOpenPower,
+  });
 
+  final VoidCallback onOpenEdit;
+  final VoidCallback onOpenSettings;
   final VoidCallback onOpenPower;
 
   @override
@@ -599,13 +606,15 @@ class ShadeActions extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         _RoundButton(
-          label: context.l10n.quickSettingsSettingsUnavailable,
+          label: context.l10n.settingsTabletMetroTitle,
           icon: Icons.edit_rounded,
+          onPressed: onOpenEdit,
         ),
         const SizedBox(width: 12),
         _RoundButton(
-          label: context.l10n.quickSettingsSettingsUnavailable,
+          label: context.l10n.settingsNavigationAppearance,
           icon: Icons.settings_rounded,
+          onPressed: onOpenSettings,
         ),
         const SizedBox(width: 12),
         _RoundButton(
