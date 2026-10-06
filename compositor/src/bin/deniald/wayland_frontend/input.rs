@@ -429,6 +429,18 @@ fn mapped_focus_origin(
 }
 
 #[cfg(feature = "flutter")]
+fn mapped_touch_space(
+    scene_origin: Point<f64, Logical>,
+    mapped_position: Point<f64, Logical>,
+    local_surface_origin: Point<f64, Logical>,
+) -> (Point<f64, Logical>, Point<f64, Logical>) {
+    (
+        scene_origin + mapped_position,
+        scene_origin + local_surface_origin,
+    )
+}
+
+#[cfg(feature = "flutter")]
 impl ClientInputRoute {
     fn mapped_position(&self, position: Point<f64, Logical>) -> Point<f64, Logical> {
         let scene_position = position - self.scene_origin;
@@ -461,6 +473,19 @@ impl ClientInputRoute {
             surface,
             mapped_focus_origin(position, local_point, local_origin.to_f64()),
         )
+    }
+
+    fn touch_focus_at(
+        &self,
+        position: Point<f64, Logical>,
+    ) -> ((WlSurface, Point<f64, Logical>), Point<f64, Logical>) {
+        let local_point = self.mapped_position(position);
+        let (surface, local_origin) =
+            under_from_surface_tree(&self.surface, local_point, (0, 0), WindowSurfaceType::ALL)
+                .unwrap_or_else(|| (self.surface.clone(), (0, 0).into()));
+        let (event_location, focus_origin) =
+            mapped_touch_space(self.scene_origin, local_point, local_origin.to_f64());
+        ((surface, focus_origin), event_location)
     }
 }
 
@@ -2587,5 +2612,20 @@ mod client_input_mapping_tests {
         let focus_origin = mapped_focus_origin(global, mapped, local_surface_origin);
 
         assert_eq!(global - focus_origin, Point::from((360.0, 270.0)));
+    }
+
+    #[test]
+    fn mapped_touch_space_keeps_motion_in_one_client_coordinate_space() {
+        let scene = Point::<f64, Logical>::from((20.0, 30.0));
+        let mapped = Point::<f64, Logical>::from((384.0, 288.0));
+        let local_surface_origin = Point::<f64, Logical>::from((24.0, 18.0));
+
+        let (event_location, focus_origin) =
+            mapped_touch_space(scene, mapped, local_surface_origin);
+
+        assert_eq!(
+            event_location - focus_origin,
+            Point::from((360.0, 270.0))
+        );
     }
 }
