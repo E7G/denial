@@ -2623,9 +2623,6 @@ mod client_input_mapping_tests {
         let (event_location, focus_origin) =
             mapped_touch_space(scene, mapped, local_surface_origin);
 
-        assert_eq!(
-            event_location - focus_origin,
-            Point::from((360.0, 270.0))
-        );
+        assert_eq!(event_location - focus_origin, Point::from((360.0, 270.0)));
     }
 }
