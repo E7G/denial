@@ -411,6 +411,10 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     setState(() => _semanticZoomOpen = false);
   }
 
+  void _renameStartGroup(int page, String name) {
+    ref.read(homeGridControllerProvider.notifier).renameGroup(page, name);
+  }
+
   void _jumpToStartGroup(int page) {
     final safePage = page.clamp(0, math.max(0, _currentPageCount - 1)).toInt();
     ref.read(homeGridControllerProvider.notifier).setPage(safePage);
