@@ -148,7 +148,7 @@ class SettingsNavigation extends StatelessWidget {
                   context.l10n.settingsNavigationSection,
                   style: TextStyle(
                     color: context.shellColors.textPrimary,
-                    fontSize: dense ? 22 : 28,
+                    fontSize: dense ? 25 : 30,
                     height: 1,
                     fontWeight: FontWeight.w300,
                     letterSpacing: -0.5,
@@ -294,7 +294,7 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
       overflow: TextOverflow.ellipsis,
       style: ShellText.cardTitle.copyWith(
         fontSize: widget.metro
-            ? (widget.dense ? 16 : 18)
+            ? (widget.dense ? 20 : 21)
             : (widget.dense ? 11 : null),
         fontWeight: widget.metro
             ? (widget.selected ? FontWeight.w600 : FontWeight.w400)
@@ -398,7 +398,7 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                     vertical: widget.compact
                         ? 8
                         : widget.metro
-                        ? (widget.dense ? 10 : 13)
+                        ? (widget.dense ? 13 : 15)
                         : (widget.dense ? 6 : 9),
                   ),
                   child: Row(
@@ -409,14 +409,14 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                       Icon(
                         widget.page.icon,
                         size: widget.metro
-                            ? (widget.dense ? 20 : 22)
+                            ? (widget.dense ? 26 : 28)
                             : (widget.dense ? 15 : 17),
                         color: widget.selected
                             ? accent
                             : context.shellColors.textTertiary,
                       ),
                       SizedBox(
-                        width: widget.metro ? 13 : (widget.dense ? 6 : 8),
+                        width: widget.metro ? 15 : (widget.dense ? 6 : 8),
                       ),
                       if (widget.compact) label else Expanded(child: label),
                     ],

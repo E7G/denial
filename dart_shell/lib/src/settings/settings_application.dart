@@ -423,9 +423,9 @@ class _MetroSettingsHeader extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: SizedBox(
-        height: phoneMode ? 66 : 74,
+        height: phoneMode ? 74 : 82,
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: phoneMode ? 12 : 22),
+          padding: EdgeInsets.symmetric(horizontal: phoneMode ? 16 : 24),
           child: Row(
             children: [
               if (showBack) ...[
@@ -436,7 +436,7 @@ class _MetroSettingsHeader extends StatelessWidget {
                     onTap: onBackToCategories,
                     child: const Padding(
                       padding: EdgeInsets.all(10),
-                      child: Icon(Icons.arrow_back_rounded, size: 25),
+                      child: Icon(Icons.arrow_back_rounded, size: 30),
                     ),
                   ),
                 ),
@@ -446,7 +446,7 @@ class _MetroSettingsHeader extends StatelessWidget {
                 context.l10n.settingsNavigationSection,
                 style: TextStyle(
                   color: context.shellColors.textPrimary,
-                  fontSize: phoneMode ? 28 : 31,
+                  fontSize: phoneMode ? 32 : 34,
                   height: 1,
                   fontWeight: FontWeight.w300,
                   letterSpacing: -0.7,
@@ -455,7 +455,7 @@ class _MetroSettingsHeader extends StatelessWidget {
               ),
               if (!showingCategories) ...[
                 const SizedBox(width: 13),
-                Container(width: 3, height: 27, color: accent),
+                Container(width: 3, height: 30, color: accent),
                 const SizedBox(width: 11),
                 Expanded(
                   child: AnimatedSwitcher(
@@ -467,7 +467,7 @@ class _MetroSettingsHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: context.shellColors.textSecondary,
-                        fontSize: phoneMode ? 18 : 20,
+                        fontSize: phoneMode ? 21 : 23,
                         height: 1,
                         fontWeight: FontWeight.w400,
                         decoration: TextDecoration.none,
