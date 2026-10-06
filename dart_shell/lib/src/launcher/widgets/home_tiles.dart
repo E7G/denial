@@ -78,21 +78,40 @@ class HomeGridItemCard extends ConsumerWidget {
       item.tileColorValue,
     ).withValues(alpha: opacity);
     return switch (item.type) {
-      HomeGridItemType.clock => ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: ColoredBox(
-          color: tileColor,
-          child: HomeClockWidget(clock: clock!),
+      HomeGridItemType.clock => _MetroLiveTileTransition(
+        animationKey: 'clock:${clock!.now.hour}:${clock.now.minute}',
+        strength: tabletSettings.animationStrength,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: ColoredBox(
+            color: tileColor,
+            child: HomeClockWidget(clock: clock),
+          ),
         ),
       ),
-      HomeGridItemType.date => _HomeDateTile(clock: clock!, color: tileColor),
-      HomeGridItemType.battery => _HomeBatteryTile(
-        clock: clock!,
-        color: tileColor,
+      HomeGridItemType.date => _MetroLiveTileTransition(
+        animationKey:
+            'date:${clock!.now.year}-${clock.now.month}-${clock.now.day}',
+        strength: tabletSettings.animationStrength,
+        child: _HomeDateTile(clock: clock, color: tileColor),
       ),
-      HomeGridItemType.network => _HomeNetworkTile(
-        snapshot: network!,
-        color: tileColor,
+      HomeGridItemType.battery => _MetroLiveTileTransition(
+        animationKey:
+            'battery:${clock!.power.capacity}:${clock.power.state}:${clock.power.chargeProtocol}',
+        strength: tabletSettings.animationStrength,
+        child: _HomeBatteryTile(
+          clock: clock,
+          color: tileColor,
+        ),
+      ),
+      HomeGridItemType.network => _MetroLiveTileTransition(
+        animationKey:
+            'network:${network!.connectedNetwork?.ssid}:${network.wirelessEnabled}:${network.connectedNetwork?.strength}',
+        strength: tabletSettings.animationStrength,
+        child: _HomeNetworkTile(
+          snapshot: network,
+          color: tileColor,
+        ),
       ),
       HomeGridItemType.folder => _HomeFolderTile(
         item: item,
@@ -114,6 +133,49 @@ class HomeGridItemCard extends ConsumerWidget {
         onTap: launchEnabled ? (rect) => onLaunch(item, rect) : null,
       ),
     };
+  }
+}
+
+class _MetroLiveTileTransition extends StatelessWidget {
+  const _MetroLiveTileTransition({
+    required this.animationKey,
+    required this.strength,
+    required this.child,
+  });
+
+  final Object animationKey;
+  final double strength;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = Duration(
+      milliseconds: (360 * strength.clamp(0.0, 1.5)).round(),
+    );
+    return AnimatedSwitcher(
+      duration: duration,
+      reverseDuration: duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.22),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        );
+        return ClipRect(
+          child: FadeTransition(
+            opacity: animation,
+            child: SlideTransition(position: slide, child: child),
+          ),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<Object>(animationKey),
+        child: child,
+      ),
+    );
   }
 }
 
