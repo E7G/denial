@@ -63,7 +63,9 @@ void main() {
         await tester.tap(find.byWidget(icon.widget));
       }
     }
-    expect(toggles, 12);
-    expect(details, 9);
+    // Five toggle tiles and two detail affordances are retained at every
+    // supported phone width.
+    expect(toggles, 15);
+    expect(details, 6);
   });
 }
