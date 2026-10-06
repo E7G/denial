@@ -21,7 +21,6 @@ import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
 import '../connectivity/bluetooth_detail_surface.dart';
 import '../connectivity/wifi_detail_surface.dart';
-import '../connectivity/mobile_data_tile.dart';
 import '../session/power_session_surface.dart';
 import '../shell_backdrop_blur.dart';
 import '../shell_surface_host.dart';
@@ -578,7 +577,6 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
         !bluetooth.powerChanging;
     return QuickSettingsTiles(
       expansionProgress: progress,
-      mobileDataTile: const MobileDataTile(),
       brightnessControl: const _BrightnessRangeBar(),
       volumeControl: const _VolumeRangeBar(),
       wifi:

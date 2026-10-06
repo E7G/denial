@@ -21,7 +21,6 @@ import '../theme/tokens.dart';
 import '../wallpaper/state/wallpaper_accent.dart';
 import '../wallpaper/state/wallpaper_controller.dart';
 import '../wallpaper/wallpaper.dart';
-import '../widgets/denial_wordmark.dart';
 import 'settings_controller.dart';
 import 'widgets/focused_border_color_picker.dart';
 import 'widgets/settings_about_page.dart';
@@ -107,6 +106,7 @@ class _DenialSettingsApplicationState
     extends ConsumerState<DenialSettingsApplication> {
   late SettingsPageId _page;
   var _colorPickerOpen = false;
+  var _phoneCategoriesOpen = false;
   int? _scheduledPageRequestId;
 
   @override
@@ -134,12 +134,18 @@ class _DenialSettingsApplicationState
 
   void _selectPage(SettingsPageId page) {
     if (_page == page) {
+      if (_phoneCategoriesOpen) {
+        setState(() => _phoneCategoriesOpen = false);
+      }
       return;
     }
     if (_page == SettingsPageId.fingerprint) {
       ref.read(fingerprintSessionProvider).close();
     }
-    setState(() => _page = page);
+    setState(() {
+      _page = page;
+      _phoneCategoriesOpen = false;
+    });
   }
 
   @override
@@ -156,66 +162,171 @@ class _DenialSettingsApplicationState
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compactTablet =
-                constraints.maxWidth <= 1100 || constraints.maxHeight <= 820;
-            final navigationWidth = compactTablet
-                ? (constraints.maxWidth < 850 ? 132.0 : 148.0)
-                : 184.0;
-            final content = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _SettingsHeader(dense: compactTablet),
-                Divider(height: 1, color: context.shellColors.hairlineSoft),
-                Expanded(
-                  child: Row(
+            final portrait = constraints.maxHeight > constraints.maxWidth;
+            final phoneMode =
+                constraints.maxWidth < 700 ||
+                (portrait && constraints.maxWidth < 920);
+            final compactRt =
+                constraints.maxWidth < 1180 || constraints.maxHeight < 760;
+            final navigationWidth = (constraints.maxWidth * 0.31)
+                .clamp(238.0, 310.0)
+                .toDouble();
+
+            Widget pageBody() => RepaintBoundary(
+              child: KeyedSubtree(
+                key: ValueKey<SettingsPageId>(_page),
+                child: _SettingsPageBody(
+                  page: _page,
+                  onOpenAccentPicker: () =>
+                      setState(() => _colorPickerOpen = true),
+                  onOpenWallpaperSelector: () =>
+                      unawaited(_openWallpaperSelector()),
+                  onPickCursorZip: widget.onPickCursorZip,
+                ),
+              ),
+            );
+
+            Widget animatedPage() => AnimatedSwitcher(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 210),
+              reverseDuration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 150),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final slide = Tween<Offset>(
+                  begin: const Offset(0.045, 0),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                );
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: slide, child: child),
+                );
+              },
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                alignment: Alignment.topLeft,
+                fit: StackFit.expand,
+                children: [...previousChildren, ?currentChild],
+              ),
+              child: pageBody(),
+            );
+
+            final shell = phoneMode
+                ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SettingsNavigation(
-                        selected: _page,
-                        compact: false,
-                        dense: compactTablet,
-                        width: navigationWidth,
-                        showTouchpad: true,
-                        showFingerprint: showFingerprint,
-                        onSelected: _selectPage,
+                      _MetroSettingsHeader(
+                        page: _page,
+                        phoneMode: true,
+                        showingCategories: _phoneCategoriesOpen,
+                        onBackToCategories: () =>
+                            setState(() => _phoneCategoriesOpen = true),
+                      ),
+                      Divider(
+                        height: 1,
+                        color: context.shellColors.hairlineSoft,
                       ),
                       Expanded(
                         child: AnimatedSwitcher(
-                          duration: Motion.cardSettle,
-                          switchInCurve: Motion.md3EmphasizedDecelerate,
-                          switchOutCurve: Motion.md3EmphasizedAccelerate,
-                          layoutBuilder: (currentChild, previousChildren) {
-                            return Stack(
-                              alignment: Alignment.topCenter,
-                              fit: StackFit.expand,
-                              children: [...previousChildren, ?currentChild],
-                            );
-                          },
-                          child: KeyedSubtree(
-                            key: ValueKey<SettingsPageId>(_page),
-                            child: _CompactSettingsViewport(
-                              enabled: compactTablet,
-                              child: _SettingsPageBody(
-                                page: _page,
-                                onOpenAccentPicker: () =>
-                                    setState(() => _colorPickerOpen = true),
-                                onOpenWallpaperSelector: () =>
-                                    unawaited(_openWallpaperSelector()),
-                                onPickCursorZip: widget.onPickCursorZip,
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 190),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0.06, 0),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
                               ),
-                            ),
-                          ),
+                          child: _phoneCategoriesOpen
+                              ? SettingsNavigation(
+                                  key: const ValueKey<String>(
+                                    'metro-phone-categories',
+                                  ),
+                                  selected: _page,
+                                  compact: false,
+                                  dense: compactRt,
+                                  metro: true,
+                                  width: constraints.maxWidth,
+                                  showTouchpad: true,
+                                  showFingerprint: showFingerprint,
+                                  onSelected: _selectPage,
+                                )
+                              : Padding(
+                                  key: ValueKey<SettingsPageId>(_page),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    8,
+                                    4,
+                                    8,
+                                    0,
+                                  ),
+                                  child: animatedPage(),
+                                ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            );
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _MetroSettingsHeader(
+                        page: _page,
+                        phoneMode: false,
+                        showingCategories: false,
+                        onBackToCategories: null,
+                      ),
+                      Divider(
+                        height: 1,
+                        color: context.shellColors.hairlineSoft,
+                      ),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SettingsNavigation(
+                              selected: _page,
+                              compact: false,
+                              dense: compactRt,
+                              metro: true,
+                              width: navigationWidth,
+                              showTouchpad: true,
+                              showFingerprint: showFingerprint,
+                              onSelected: _selectPage,
+                            ),
+                            Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  compactRt ? 12 : 20,
+                                  6,
+                                  compactRt ? 10 : 18,
+                                  0,
+                                ),
+                                child: animatedPage(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+
             return Stack(
               fit: StackFit.expand,
               children: [
-                content,
+                shell,
                 Positioned.fill(
                   child: AnimatedSwitcher(
                     duration: Motion.cardSettle,
@@ -289,6 +400,88 @@ class _DenialSettingsApplicationState
         .openSelector(
           targetPixelSize: displayLayout?.pixelSize ?? fallbackPixelSize,
         );
+  }
+}
+
+class _MetroSettingsHeader extends StatelessWidget {
+  const _MetroSettingsHeader({
+    required this.page,
+    required this.phoneMode,
+    required this.showingCategories,
+    required this.onBackToCategories,
+  });
+
+  final SettingsPageId page;
+  final bool phoneMode;
+  final bool showingCategories;
+  final VoidCallback? onBackToCategories;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = ShellTheme.of(context).accent;
+    final showBack = phoneMode && !showingCategories;
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: phoneMode ? 66 : 74,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: phoneMode ? 12 : 22),
+          child: Row(
+            children: [
+              if (showBack) ...[
+                Semantics(
+                  button: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onBackToCategories,
+                    child: const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Icon(Icons.arrow_back_rounded, size: 25),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 2),
+              ],
+              Text(
+                context.l10n.settingsNavigationSection,
+                style: TextStyle(
+                  color: context.shellColors.textPrimary,
+                  fontSize: phoneMode ? 28 : 31,
+                  height: 1,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: -0.7,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+              if (!showingCategories) ...[
+                const SizedBox(width: 13),
+                Container(width: 3, height: 27, color: accent),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 160),
+                    child: Text(
+                      page.label(context),
+                      key: ValueKey<SettingsPageId>(page),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.shellColors.textSecondary,
+                        fontSize: phoneMode ? 18 : 20,
+                        height: 1,
+                        fontWeight: FontWeight.w400,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ] else
+                const Spacer(),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -596,81 +789,4 @@ WallpaperResource _wallpaperFor(
 ) {
   final outputName = layout?.mainOutput?.name;
   return outputName == null ? assignment.all : assignment.forOutput(outputName);
-}
-
-class _CompactSettingsViewport extends StatelessWidget {
-  const _CompactSettingsViewport({
-    required this.enabled,
-    required this.child,
-  });
-
-  final bool enabled;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!enabled) {
-      return child;
-    }
-    final media = MediaQuery.of(context);
-    final baseScale = media.textScaler.scale(1);
-    final compactScale = (baseScale * 0.9).clamp(0.8, 1.1).toDouble();
-    final theme = Theme.of(context);
-    return MediaQuery(
-      data: media.copyWith(textScaler: TextScaler.linear(compactScale)),
-      child: Theme(
-        data: theme.copyWith(
-          visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _SettingsHeader extends StatelessWidget {
-  const _SettingsHeader({required this.dense});
-
-  final bool dense;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: dense ? 12 : 18,
-        vertical: dense ? 5 : 9,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: dense ? 82 : 96,
-                height: dense ? 26 : 32,
-                child: DenialWordmark(
-                  alignment: Alignment.centerLeft,
-                  semanticsLabel: context.l10n.settingsHeaderLogoSemanticsLabel,
-                ),
-              ),
-            ),
-          ),
-          Flexible(
-            child: Text(
-              context.l10n.settingsHeaderContext,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-              style: ShellText.cardTitle.copyWith(
-                color: context.shellColors.textTertiary,
-                fontSize: dense ? 8 : 9,
-                letterSpacing: dense ? 0.8 : 1.1,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/network_connectivity.dart';
-import '../../services/mobile_network_service.dart';
 
 import '../../models/battery_status.dart';
 import '../../localization/denial_localizations.dart';
@@ -318,41 +317,11 @@ class MobileConnectivityMarks extends ConsumerWidget {
         .watch(networkConnectivityProvider)
         .snapshot
         .connectedNetwork;
-    final mobile =
-        ref.watch(mobileNetworkProvider).value ?? const MobileNetworkSnapshot();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          label: mobile.connected
-              ? context.l10n.mobileConnected
-              : context.l10n.mobileDisconnected,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SignalGlyph(
-                active: mobile.registered,
-                strength: mobile.strength,
-                scale: 1.25 * scale,
-                color: color,
-              ),
-              if (!mobile.connected)
-                Icon(
-                  Icons.priority_high_rounded,
-                  size: 12 * scale,
-                  color: color,
-                ),
-            ],
-          ),
-        ),
-        SizedBox(width: 7 * scale),
-        WifiMark(
-          active: wifi != null,
-          strength: wifi?.strength ?? 0,
-          size: 20 * scale,
-          color: color,
-        ),
-      ],
+    return WifiMark(
+      active: wifi != null,
+      strength: wifi?.strength ?? 0,
+      size: 20 * scale,
+      color: color,
     );
   }
 }

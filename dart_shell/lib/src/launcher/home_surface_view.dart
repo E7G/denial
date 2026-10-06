@@ -1618,16 +1618,13 @@ class _MetroSlideIn extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 1, end: 0),
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) => Opacity(
-        opacity: 1 - value * 0.45,
-        child: Transform.translate(
-          offset: Offset(52 * value, 0),
-          child: child,
-        ),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutQuart,
+      builder: (context, value, child) => Transform.translate(
+        offset: Offset(46 * value, 0),
+        child: child,
       ),
-      child: child,
+      child: RepaintBoundary(child: child),
     );
   }
 }
@@ -1641,16 +1638,13 @@ class _MetroZoomIn extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.scale(
-          scale: 0.90 + 0.10 * value,
-          child: child,
-        ),
+      duration: const Duration(milliseconds: 210),
+      curve: Curves.easeOutQuart,
+      builder: (context, value, child) => Transform.scale(
+        scale: 0.94 + 0.06 * value,
+        child: child,
       ),
-      child: child,
+      child: RepaintBoundary(child: child),
     );
   }
 }

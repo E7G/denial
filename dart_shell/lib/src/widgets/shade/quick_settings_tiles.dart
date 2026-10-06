@@ -18,7 +18,7 @@ abstract final class QuickSettingsGridMetrics {
   static const double capsule = 62;
   static const double gutter = 14;
   static const double minimumWidth = capsule * 4 + gutter * 3;
-  static const double height = row * 4;
+  static const double height = row * 3;
 }
 
 /// The grid of quick-settings tiles. Purely presentational: every value and
@@ -26,7 +26,6 @@ abstract final class QuickSettingsGridMetrics {
 class QuickSettingsTiles extends StatelessWidget {
   const QuickSettingsTiles({
     super.key,
-    this.mobileDataTile,
     this.brightnessControl,
     this.volumeControl,
     this.expansionProgress,
@@ -51,7 +50,6 @@ class QuickSettingsTiles extends StatelessWidget {
     required this.onCycleProfile,
   });
 
-  final Widget? mobileDataTile;
   final Widget? brightnessControl;
   final Widget? volumeControl;
   final Animation<double>? expansionProgress;
@@ -114,7 +112,6 @@ class QuickSettingsTiles extends StatelessWidget {
         final firstRowExit = capsule + 28;
         final secondRowExit = row + tall + 28;
         final thirdRowExit = row * 3 + 28;
-        final fourthRowExit = row * 4 + 28;
         return SizedBox(
           height: QuickSettingsGridMetrics.height * scale,
           child: Stack(
@@ -127,7 +124,7 @@ class QuickSettingsTiles extends StatelessWidget {
                 child: reveal(
                   0,
                   QuickTile(
-                    icon: Icons.wifi_rounded,
+                    icon: wifi ? Icons.wifi_rounded : Icons.wifi_off_rounded,
                     title: l10n.commonWifi,
                     subtitle: wifiSubtitle,
                     active: wifi,
@@ -148,13 +145,15 @@ class QuickSettingsTiles extends StatelessWidget {
                 child: reveal(
                   1,
                   QuickTile(
-                    icon: Icons.bluetooth_rounded,
+                    icon: bluetooth
+                        ? Icons.bluetooth_connected_rounded
+                        : Icons.bluetooth_disabled_rounded,
                     title: l10n.commonBluetooth,
                     subtitle: bluetoothSubtitle,
                     active: bluetooth,
                     enabled: bluetoothEnabled,
                     busy: bluetoothBusy,
-                    onTap: onOpenBluetooth,
+                    onTap: onToggleBluetooth,
                     onDetails: onOpenBluetooth,
                     wide: true,
                   ),
@@ -183,43 +182,33 @@ class QuickSettingsTiles extends StatelessWidget {
                   collapseTranslation: secondRowExit,
                 ),
               ),
-              if (mobileDataTile != null)
-                Positioned(
-                  left: pitch * 2,
-                  top: row,
-                  width: wide,
-                  height: capsule,
-                  child: reveal(
-                    4,
-                    mobileDataTile!,
-                    collapseTranslation: secondRowExit,
-                  ),
-                ),
               Positioned(
                 left: pitch * 2,
-                top: row * 2,
+                top: row,
                 width: column,
                 height: row,
                 child: reveal(
-                  5,
+                  4,
                   QuickTile(
                     icon: _profileIcon(profile),
                     title: _profileLabel(profile, l10n),
                     active: profile != PowerProfile.balanced,
                     onTap: onCycleProfile,
                   ),
-                  collapseTranslation: thirdRowExit,
+                  collapseTranslation: secondRowExit,
                 ),
               ),
               Positioned(
                 left: pitch * 3,
-                top: row * 2,
+                top: row,
                 width: column,
                 height: row,
                 child: reveal(
-                  6,
+                  5,
                   QuickTile(
-                    icon: Icons.notifications_off_rounded,
+                    icon: dnd
+                        ? Icons.notifications_off_rounded
+                        : Icons.notifications_none_rounded,
                     title: l10n.quickSettingsSilent,
                     subtitle: dndReady
                         ? (dnd ? l10n.commonOn : l10n.quickSettingsNormal)
@@ -228,16 +217,16 @@ class QuickSettingsTiles extends StatelessWidget {
                     enabled: dndReady,
                     onTap: onToggleDnd,
                   ),
-                  collapseTranslation: thirdRowExit,
+                  collapseTranslation: secondRowExit,
                 ),
               ),
               Positioned(
-                left: 0,
-                top: row * 3,
-                width: column,
+                left: pitch * 2,
+                top: row * 2,
+                width: wide,
                 height: row,
                 child: reveal(
-                  7,
+                  6,
                   QuickTile(
                     icon: rotationLock
                         ? Icons.screen_lock_rotation_rounded
@@ -249,7 +238,7 @@ class QuickSettingsTiles extends StatelessWidget {
                     active: !rotationLock,
                     onTap: onToggleRotation,
                   ),
-                  collapseTranslation: fourthRowExit,
+                  collapseTranslation: thirdRowExit,
                 ),
               ),
             ],
@@ -292,6 +281,7 @@ class QuickTile extends StatefulWidget {
 
 class _QuickTileState extends State<QuickTile> {
   bool _focused = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -338,11 +328,62 @@ class _QuickTileState extends State<QuickTile> {
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onTapDown: widget.enabled
+              ? (_) {
+                  setState(() => _pressed = true);
+                  HapticFeedback.selectionClick();
+                }
+              : null,
+          onTapUp: widget.enabled
+              ? (_) => setState(() => _pressed = false)
+              : null,
+          onTapCancel: widget.enabled
+              ? () => setState(() => _pressed = false)
+              : null,
           onTap: widget.enabled ? widget.onTap : null,
-          child: widget.wide
-              ? _buildWide(background, foreground, secondary, radius)
-              : _buildSmall(background, foreground, radius),
+          child: AnimatedScale(
+            scale: _pressed ? 0.955 : 1.0,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 90),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: _pressed ? 0.82 : 1.0,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 75),
+              curve: Curves.easeOut,
+              child: widget.wide
+                  ? _buildWide(background, foreground, secondary, radius)
+                  : _buildSmall(background, foreground, radius),
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _animatedIcon({required Color foreground, required double size}) {
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 140);
+    return AnimatedSwitcher(
+      duration: duration,
+      reverseDuration: duration,
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.72, end: 1.0).animate(animation),
+          child: child,
+        ),
+      ),
+      child: Icon(
+        widget.icon,
+        key: ValueKey<IconData>(widget.icon),
+        color: foreground,
+        size: size,
       ),
     );
   }
@@ -372,9 +413,8 @@ class _QuickTileState extends State<QuickTile> {
                           color: foreground,
                         ),
                       )
-                    : Icon(
-                        widget.icon,
-                        color: foreground,
+                    : _animatedIcon(
+                        foreground: foreground,
                         size: 24 * visualScale,
                       ),
               ),
@@ -450,9 +490,8 @@ class _QuickTileState extends State<QuickTile> {
                             color: foreground,
                           ),
                         )
-                      : Icon(
-                          widget.icon,
-                          color: foreground,
+                      : _animatedIcon(
+                          foreground: foreground,
                           size: 30 * visualScale,
                         ),
                 ),

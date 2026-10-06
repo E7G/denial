@@ -74,8 +74,9 @@ class _HomeAppTileState extends State<_HomeAppTile> {
           ).withValues(alpha: widget.tileOpacity)
         : const Color(0x33101419);
     final pressScale = 1 - 0.035 * widget.animationStrength.clamp(0.0, 1.5);
+    final motionStrength = widget.animationStrength.clamp(0.0, 1.5);
     final pressDuration = Duration(
-      milliseconds: (90 * widget.animationStrength).round(),
+      milliseconds: ((_pressed ? 58 : 118) * motionStrength).round(),
     );
     return Semantics(
       button: true,

@@ -83,6 +83,7 @@ class SettingsNavigation extends StatelessWidget {
     required this.onSelected,
     required this.compact,
     this.dense = false,
+    this.metro = false,
     this.width = 184,
     this.showTouchpad = false,
     this.showFingerprint = false,
@@ -93,6 +94,7 @@ class SettingsNavigation extends StatelessWidget {
   final ValueChanged<SettingsPageId> onSelected;
   final bool compact;
   final bool dense;
+  final bool metro;
   final double width;
   final bool showTouchpad;
   final bool showFingerprint;
@@ -116,10 +118,58 @@ class SettingsNavigation extends StatelessWidget {
                   selected: page == selected,
                   compact: true,
                   dense: false,
+                  metro: false,
                   onPressed: () => onSelected(page),
                 ),
               ),
           ],
+        ),
+      );
+    }
+    if (metro) {
+      return SizedBox(
+        width: width,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: context.shellColors.surfaceContainerLow.withValues(
+              alpha: 0.34,
+            ),
+            border: Border(
+              right: BorderSide(color: context.shellColors.hairlineSoft),
+            ),
+          ),
+          child: ListView(
+            key: settingsNavigationListKey,
+            padding: EdgeInsets.fromLTRB(dense ? 12 : 18, 16, 10, 24),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
+                child: Text(
+                  context.l10n.settingsNavigationSection,
+                  style: TextStyle(
+                    color: context.shellColors.textPrimary,
+                    fontSize: dense ? 22 : 28,
+                    height: 1,
+                    fontWeight: FontWeight.w300,
+                    letterSpacing: -0.5,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
+              for (final page in _visiblePages) ...[
+                _NavigationDestination(
+                  key: ValueKey<SettingsPageId>(page),
+                  page: page,
+                  selected: page == selected,
+                  compact: false,
+                  dense: dense,
+                  metro: true,
+                  onPressed: () => onSelected(page),
+                ),
+                const SizedBox(height: 2),
+              ],
+            ],
+          ),
         ),
       );
     }
@@ -168,6 +218,7 @@ class SettingsNavigation extends StatelessWidget {
                         selected: page == selected,
                         compact: false,
                         dense: dense,
+                        metro: false,
                         onPressed: () => onSelected(page),
                       ),
                       SizedBox(height: dense ? 1 : 3),
@@ -209,6 +260,7 @@ class _NavigationDestination extends StatefulWidget {
     required this.selected,
     required this.compact,
     this.dense = false,
+    this.metro = false,
     required this.onPressed,
     super.key,
   });
@@ -217,6 +269,7 @@ class _NavigationDestination extends StatefulWidget {
   final bool selected;
   final bool compact;
   final bool dense;
+  final bool metro;
   final VoidCallback onPressed;
 
   @override
@@ -226,6 +279,7 @@ class _NavigationDestination extends StatefulWidget {
 class _NavigationDestinationState extends State<_NavigationDestination> {
   var _hovered = false;
   var _focused = false;
+  var _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +293,13 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: ShellText.cardTitle.copyWith(
-        fontSize: widget.dense ? 11 : null,
+        fontSize: widget.metro
+            ? (widget.dense ? 16 : 18)
+            : (widget.dense ? 11 : null),
+        fontWeight: widget.metro
+            ? (widget.selected ? FontWeight.w600 : FontWeight.w400)
+            : null,
+        letterSpacing: widget.metro ? -0.15 : null,
         color: widget.selected
             ? context.shellColors.textPrimary
             : context.shellColors.textSecondary,
@@ -267,19 +327,45 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
         },
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTapUp: (_) => setState(() => _pressed = false),
           onTap: widget.onPressed,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: widget.selected
-                  ? accent.withAlpha(36)
-                  : ShellMediaColors.transparentDark,
-              borderRadius: context.shellTheme.borderRadius(widget.dense ? 9 : 12),
-              border: Border.all(
-                color: widget.selected
-                    ? accent.withAlpha(112)
-                    : ShellMediaColors.transparentDark,
-              ),
-            ),
+          child: AnimatedScale(
+            scale: _pressed ? 0.985 : 1,
+            alignment: Alignment.centerLeft,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 85),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: _pressed ? 0.72 : 1,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 70),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: widget.selected
+                      ? accent.withAlpha(widget.metro ? 28 : 36)
+                      : ShellMediaColors.transparentDark,
+                  borderRadius: widget.metro
+                      ? BorderRadius.zero
+                      : context.shellTheme.borderRadius(widget.dense ? 9 : 12),
+                  border: widget.metro
+                      ? Border(
+                          left: BorderSide(
+                            color: widget.selected
+                                ? accent
+                                : ShellMediaColors.transparentDark,
+                            width: 4,
+                          ),
+                        )
+                      : Border.all(
+                          color: widget.selected
+                              ? accent.withAlpha(112)
+                              : ShellMediaColors.transparentDark,
+                        ),
+                ),
             child: Stack(
               children: [
                 Positioned.fill(
@@ -293,7 +379,9 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                           color: widget.selected
                               ? accent.withAlpha(20)
                               : context.shellColors.surfaceContainerHigh,
-                          borderRadius: context.shellTheme.borderRadius(widget.dense ? 9 : 12),
+                          borderRadius: widget.metro
+                              ? BorderRadius.zero
+                              : context.shellTheme.borderRadius(widget.dense ? 9 : 12),
                           border: _focused ? Border.all(color: accent) : null,
                         ),
                       ),
@@ -302,8 +390,16 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                 ),
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: widget.compact ? 11 : (widget.dense ? 7 : 10),
-                    vertical: widget.compact ? 8 : (widget.dense ? 6 : 9),
+                    horizontal: widget.compact
+                        ? 11
+                        : widget.metro
+                        ? 14
+                        : (widget.dense ? 7 : 10),
+                    vertical: widget.compact
+                        ? 8
+                        : widget.metro
+                        ? (widget.dense ? 10 : 13)
+                        : (widget.dense ? 6 : 9),
                   ),
                   child: Row(
                     mainAxisSize: widget.compact
@@ -312,17 +408,23 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                     children: [
                       Icon(
                         widget.page.icon,
-                        size: widget.dense ? 15 : 17,
+                        size: widget.metro
+                            ? (widget.dense ? 20 : 22)
+                            : (widget.dense ? 15 : 17),
                         color: widget.selected
                             ? accent
                             : context.shellColors.textTertiary,
                       ),
-                      SizedBox(width: widget.dense ? 6 : 8),
+                      SizedBox(
+                        width: widget.metro ? 13 : (widget.dense ? 6 : 8),
+                      ),
                       if (widget.compact) label else Expanded(child: label),
                     ],
                   ),
                 ),
               ],
+            ),
+              ),
             ),
           ),
         ),
