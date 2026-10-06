@@ -30,6 +30,30 @@ static void clear_window_opaque_region(GtkWidget* widget, gpointer user_data) {
   }
 }
 
+static void fit_settings_window_to_screen(SettingsApplication* self) {
+  if (self->window == nullptr) {
+    return;
+  }
+  GdkScreen* screen = gtk_window_get_screen(self->window);
+  if (screen == nullptr) {
+    return;
+  }
+  const int width = gdk_screen_get_width(screen);
+  const int height = gdk_screen_get_height(screen);
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  // The mobile shell presents client windows as full-screen surfaces. Keep the
+  // Settings client in the same logical aspect ratio as the current output so
+  // BoxFit.cover never crops the persistent left navigation after rotation.
+  gtk_window_resize(self->window, width, height);
+}
+
+static void screen_size_changed_cb(GdkScreen* screen, gpointer user_data) {
+  fit_settings_window_to_screen(DENIAL_SETTINGS_APPLICATION(user_data));
+}
+
 static void settings_method_call_cb(FlMethodChannel* channel,
                                     FlMethodCall* method_call,
                                     gpointer user_data) {
@@ -82,13 +106,18 @@ static void settings_application_activate(GApplication* application) {
   g_object_add_weak_pointer(G_OBJECT(window),
                             reinterpret_cast<gpointer*>(&self->window));
   gtk_window_set_title(window, "Denial Settings");
-  gtk_window_set_default_size(window, 900, 620);
-  gtk_widget_set_size_request(GTK_WIDGET(window), 520, 400);
+  gtk_window_set_default_size(window, 1024, 768);
+  gtk_widget_set_size_request(GTK_WIDGET(window), 420, 320);
   gtk_window_set_decorated(window, FALSE);
   gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
   g_signal_connect(window, "style-updated",
                    G_CALLBACK(clear_window_opaque_region), nullptr);
   GdkScreen* screen = gtk_widget_get_screen(GTK_WIDGET(window));
+  if (screen != nullptr) {
+    g_signal_connect(screen, "size-changed", G_CALLBACK(screen_size_changed_cb),
+                     self);
+    fit_settings_window_to_screen(self);
+  }
   GdkVisual* visual = gdk_screen_get_rgba_visual(screen);
   if (visual != nullptr) {
     gtk_widget_set_visual(GTK_WIDGET(window), visual);
