@@ -469,8 +469,9 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                 widget.onClose();
               }
             },
-      child: ColoredBox(
-        color: const Color(0xF2181D23),
+      child: _MetroSlideIn(
+        child: ColoredBox(
+          color: const Color(0xF2181D23),
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             30,
@@ -1011,8 +1012,9 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onClose,
-      child: ColoredBox(
-        color: const Color(0xF20B0F14),
+      child: _MetroZoomIn(
+        child: ColoredBox(
+          color: const Color(0xF20B0F14),
         child: SafeArea(
           minimum: const EdgeInsets.fromLTRB(34, 28, 34, 28),
           child: Column(
@@ -1600,6 +1602,53 @@ class _MetroAlphabetJumpDialog extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+class _MetroSlideIn extends StatelessWidget {
+  const _MetroSlideIn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 1, end: 0),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: 1 - value * 0.45,
+        child: Transform.translate(
+          offset: Offset(52 * value, 0),
+          child: child,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _MetroZoomIn extends StatelessWidget {
+  const _MetroZoomIn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.scale(
+          scale: 0.90 + 0.10 * value,
+          child: child,
+        ),
+      ),
+      child: child,
     );
   }
 }
