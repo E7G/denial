@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../localization/denial_localizations.dart';
 import '../../services/network_backend.dart';
+import '../../settings/embedded_settings_surface.dart';
+import '../../settings/widgets/settings_navigation.dart';
 import '../../state/bluetooth.dart';
 import '../../state/desktop_notifications.dart';
 import '../../state/network_connectivity.dart';
@@ -668,12 +670,11 @@ class _VolumeRangeBar extends ConsumerWidget {
 class _ShadeQuickEntrance extends ConsumerWidget {
   const _ShadeQuickEntrance();
 
-  void _openSettings(WidgetRef ref, {String? page}) {
-    ref.read(shellControllerProvider.notifier).closeQuickSettings();
-    ref.read(denialBridgeProvider).launchApplication(<String>[
-      '/usr/bin/denial-settings',
-      if (page != null) '--page=$page',
-    ]);
+  void _openSettings(
+    WidgetRef ref, {
+    SettingsPageId page = SettingsPageId.appearance,
+  }) {
+    showEmbeddedSettingsSurface(ref, page: page);
   }
 
   @override
@@ -698,7 +699,7 @@ class _ShadeQuickEntrance extends ConsumerWidget {
             ),
           ),
           ShadeActions(
-            onOpenEdit: () => _openSettings(ref, page: 'tabletMetro'),
+            onOpenEdit: () => _openSettings(ref, page: SettingsPageId.tabletMetro),
             onOpenSettings: () => _openSettings(ref),
             onOpenPower: () => showPowerSessionSurface(ref),
           ),
