@@ -67,6 +67,7 @@ void main() {
                       onResizeEnd: () => ended++,
                       onRemove: (_) {},
                       onCycleColor: (_) {},
+                      onCycleSize: (_, _, _) {},
                     ),
                     const SizedBox.expand(),
                   ],
