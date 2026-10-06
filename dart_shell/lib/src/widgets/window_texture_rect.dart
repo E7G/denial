@@ -10,11 +10,13 @@ class WindowTextureRect extends StatelessWidget {
     required this.window,
     this.borderRadius = BorderRadius.zero,
     this.applyBackdrop = true,
+    this.fit = BoxFit.cover,
   });
 
   final DenialWindow window;
   final BorderRadius borderRadius;
   final bool applyBackdrop;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +28,7 @@ class WindowTextureRect extends StatelessWidget {
       blur: applyBackdrop && !window.isOpaque,
       borderRadius: borderRadius,
       child: FittedBox(
-        fit: BoxFit.cover,
+        fit: fit,
         alignment: Alignment.topCenter,
         child: SizedBox(
           width: window.width.toDouble(),

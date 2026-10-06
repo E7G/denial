@@ -6,6 +6,31 @@ import '../models/denial_window.dart';
 import '../platform/denial_bridge.dart';
 import 'shell_state.dart';
 
+Rect mobileWindowPresentationFrame({
+  required Size viewSize,
+  required Rect frame,
+  required double contentOffset,
+  required bool contain,
+}) {
+  if (viewSize.isEmpty || frame.isEmpty) {
+    return Rect.zero;
+  }
+  final widthScale = viewSize.width / frame.width;
+  final heightScale = viewSize.height / frame.height;
+  final scale = contain
+      ? (widthScale < heightScale ? widthScale : heightScale)
+      : (widthScale > heightScale ? widthScale : heightScale);
+  if (!scale.isFinite || scale <= 0.0) {
+    return Rect.zero;
+  }
+  return Rect.fromLTWH(
+    (viewSize.width - frame.width * scale) / 2.0,
+    -contentOffset,
+    frame.width * scale,
+    frame.height * scale,
+  );
+}
+
 /// Publishes the mobile shell's immutable native input-routing snapshot.
 class ShellInputLayoutCoordinator {
   ShellInputLayoutCoordinator(this._bridge);
@@ -124,19 +149,21 @@ class ShellInputLayoutCoordinator {
     if (frame.isEmpty || content.isEmpty) {
       return const <InputWindowRegion>[];
     }
-    // Match the texture's top-centred BoxFit.cover, including the interval
-    // between an output configure and the client's replacement buffer.
-    final widthScale = viewSize.width / frame.width;
-    final heightScale = viewSize.height / frame.height;
-    final scale = widthScale > heightScale ? widthScale : heightScale;
-    final frameLeft = (viewSize.width - frame.width * scale) / 2.0;
-    final frameTop = -contentOffset;
-    final fullContentRect = Rect.fromLTWH(
-      frameLeft,
-      frameTop,
-      frame.width * scale,
-      frame.height * scale,
+    // Match the texture's top-centred BoxFit.contain. This keeps fixed-size
+    // and legacy clients fully visible instead of cropping them to the mobile
+    // viewport, while retaining exact source-coordinate routing for touch.
+    final fullContentRect = mobileWindowPresentationFrame(
+      viewSize: viewSize,
+      frame: frame,
+      contentOffset: contentOffset,
+      contain: !window.isLocalFlutter,
     );
+    if (fullContentRect.isEmpty) {
+      return const <InputWindowRegion>[];
+    }
+    final scale = fullContentRect.width / frame.width;
+    final frameLeft = fullContentRect.left;
+    final frameTop = fullContentRect.top;
     final clientRect = Rect.fromLTWH(
       frameLeft + (content.left - frame.left) * scale,
       frameTop + (content.top - frame.top) * scale,

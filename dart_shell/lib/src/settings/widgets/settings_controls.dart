@@ -34,12 +34,14 @@ class SettingsPageLayout extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = constraints.maxWidth < 560 ? 14.0 : 20.0;
+        final bottomSafeInset = MediaQuery.viewPaddingOf(context).bottom;
+        final bottomScrollClearance = constraints.maxWidth < 700 ? 104.0 : 72.0;
         return SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
             horizontalPadding,
             16,
             horizontalPadding,
-            24,
+            24 + bottomSafeInset + bottomScrollClearance,
           ),
           child: Align(
             alignment: Alignment.topCenter,

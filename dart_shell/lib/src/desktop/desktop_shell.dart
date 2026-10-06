@@ -70,6 +70,7 @@ import 'desktop_audio_device_dropdown.dart';
 import 'desktop_overview_layout.dart';
 import 'desktop_overview_keyboard.dart';
 import 'desktop_overview_target.dart';
+import 'desktop_fullscreen_content_fit.dart';
 import 'desktop_home_layout.dart';
 import 'desktop_minimize_layer_handoff.dart';
 import 'desktop_panel_hover_controller.dart';

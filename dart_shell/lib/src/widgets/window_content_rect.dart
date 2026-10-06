@@ -21,12 +21,14 @@ class WindowContentRect extends ConsumerWidget {
     this.borderRadius = BorderRadius.zero,
     this.active = false,
     this.applyBackdrop = true,
+    this.fit = BoxFit.cover,
   });
 
   final DenialWindow window;
   final BorderRadius borderRadius;
   final bool active;
   final bool applyBackdrop;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,6 +37,7 @@ class WindowContentRect extends ConsumerWidget {
         window: window,
         borderRadius: borderRadius,
         applyBackdrop: applyBackdrop,
+        fit: fit,
       );
     }
 
@@ -52,7 +55,7 @@ class WindowContentRect extends ConsumerWidget {
       blur: applyBackdrop && (application?.translucent ?? false),
       borderRadius: borderRadius,
       child: FittedBox(
-        fit: BoxFit.cover,
+        fit: fit,
         alignment: Alignment.topCenter,
         child: SizedBox.fromSize(
           size: layoutSize,

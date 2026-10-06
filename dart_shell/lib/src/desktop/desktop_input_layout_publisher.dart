@@ -12,6 +12,7 @@ import '../state/shell_controller.dart';
 import '../state/display_layout.dart';
 import '../settings/settings_controller.dart';
 import '../settings/shell_settings.dart';
+import 'desktop_fullscreen_content_fit.dart';
 import 'desktop_workspace.dart';
 
 class DesktopInputLayoutPublisher extends ConsumerStatefulWidget {
@@ -213,7 +214,12 @@ class _DesktopInputLayoutPublisherState
         subtractSurfaceTree(surface);
       }
       for (final placement in placements) {
-        final visualContentRect = placement.contentRect;
+        final window = windowsById[placement.objectId]!;
+        final visualContentRect = desktopFullscreenContentRect(
+          target: placement.contentRect,
+          sourceSize: window.contentCoordinateRect.size,
+          fullscreen: placement.fullscreen,
+        );
         final outputClip = outputClipFor(placement);
         final visibleContentRect = outputClip == null
             ? visualContentRect
@@ -221,7 +227,6 @@ class _DesktopInputLayoutPublisherState
         if (!visibleContentRect.isEmpty) {
           shellRegions = _subtractFromAll(shellRegions, visibleContentRect);
         }
-        final window = windowsById[placement.objectId]!;
         for (final popup in window.popupRoots) {
           final popupRect = window.mapSurfaceRect(popup, visualContentRect);
           final visiblePopupRect = outputClip == null
@@ -312,7 +317,11 @@ class _DesktopInputLayoutPublisherState
       }
       final window = windowsById[placement.objectId]!;
       visibleSurfaceIds.addAll(window.visibleSurfaceIds);
-      final visualContentRect = placement.contentRect;
+      final visualContentRect = desktopFullscreenContentRect(
+        target: placement.contentRect,
+        sourceSize: window.contentCoordinateRect.size,
+        fullscreen: placement.fullscreen,
+      );
       final sourceRect = window.contentCoordinateRect;
       final outputClip = outputClipFor(placement);
       final baseZ = placementOrder[placement.objectId]! * zStride;

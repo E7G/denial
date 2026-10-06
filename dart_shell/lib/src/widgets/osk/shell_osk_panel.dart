@@ -199,6 +199,8 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
           _shiftEnabled = false;
           _ctrlArmed = false;
         });
+      case _OskControl.inputMethod:
+        _sendKey(const ShellOskKeyIntent.key('space', ctrl: true));
       case _OskControl.space:
         _sendKeyOrText(
           textIntent: ShellOskKeyIntent.space(ctrl: _ctrlArmed),
@@ -595,6 +597,7 @@ enum _OskControl {
   symbols,
   extraSymbols,
   letters,
+  inputMethod,
   space,
   backspace,
   enter,
@@ -653,6 +656,9 @@ class _OskKeySpec {
     if (control == _OskControl.letters) {
       return l10n.oskLettersKey;
     }
+    if (control == _OskControl.inputMethod) {
+      return '中/英';
+    }
     return outputText(shiftEnabled: shiftEnabled);
   }
 
@@ -665,6 +671,7 @@ class _OskKeySpec {
       _OskControl.symbols => l10n.oskNumbersAndSymbols,
       _OskControl.extraSymbols => l10n.oskMoreSymbols,
       _OskControl.letters => l10n.oskLetters,
+      _OskControl.inputMethod => '切换输入法',
       _OskControl.space => l10n.oskSpace,
       _OskControl.backspace => l10n.oskBackspace,
       _OskControl.enter => l10n.oskEnter,
@@ -772,12 +779,13 @@ const _letterRows = [
     ),
   ]),
   _OskRowData([
-    _OskKeySpec.control(_OskControl.symbols, flex: 17),
-    _OskKeySpec.text(',', flex: 10),
+    _OskKeySpec.control(_OskControl.symbols, flex: 15),
+    _OskKeySpec.control(_OskControl.inputMethod, flex: 15),
+    _OskKeySpec.text(',', flex: 9),
     _OskKeySpec.control(
       _OskControl.space,
       icon: Icons.space_bar_rounded,
-      flex: 46,
+      flex: 34,
     ),
     _OskKeySpec.text('.', flex: 10),
     _OskKeySpec.control(

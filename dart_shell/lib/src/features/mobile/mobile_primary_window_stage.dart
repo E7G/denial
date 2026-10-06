@@ -87,6 +87,9 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
                   window: widget.currentWindow,
                   active: true,
                   borderRadius: radius,
+                  fit: widget.currentWindow.isLocalFlutter
+                      ? BoxFit.cover
+                      : BoxFit.contain,
                 ),
               ),
             ),
@@ -99,6 +102,7 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
                     key: ValueKey<int>(target.objectId),
                     window: target,
                     borderRadius: radius,
+                    fit: target.isLocalFlutter ? BoxFit.cover : BoxFit.contain,
                   ),
                 ),
               ),

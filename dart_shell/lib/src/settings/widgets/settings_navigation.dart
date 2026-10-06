@@ -140,7 +140,12 @@ class SettingsNavigation extends StatelessWidget {
           ),
           child: ListView(
             key: settingsNavigationListKey,
-            padding: EdgeInsets.fromLTRB(dense ? 12 : 18, 16, 10, 24),
+            padding: EdgeInsets.fromLTRB(
+              dense ? 12 : 18,
+              16,
+              10,
+              24 + MediaQuery.viewPaddingOf(context).bottom + (dense ? 104 : 72),
+            ),
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
