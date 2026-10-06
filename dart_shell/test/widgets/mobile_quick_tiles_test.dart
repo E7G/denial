@@ -63,7 +63,7 @@ void main() {
         await tester.tap(find.byWidget(icon.widget));
       }
     }
-    expect(toggles, 15);
-    expect(details, 6);
+    expect(toggles, 12);
+    expect(details, 9);
   });
 }
