@@ -38,16 +38,27 @@ static void fit_settings_window_to_screen(SettingsApplication* self) {
   if (screen == nullptr) {
     return;
   }
-  const int width = gdk_screen_get_width(screen);
-  const int height = gdk_screen_get_height(screen);
-  if (width <= 0 || height <= 0) {
+  GdkDisplay* display = gdk_screen_get_display(screen);
+  if (display == nullptr) {
+    return;
+  }
+  GdkMonitor* monitor = gdk_display_get_primary_monitor(display);
+  if (monitor == nullptr && gdk_display_get_n_monitors(display) > 0) {
+    monitor = gdk_display_get_monitor(display, 0);
+  }
+  if (monitor == nullptr) {
+    return;
+  }
+  GdkRectangle geometry = {};
+  gdk_monitor_get_geometry(monitor, &geometry);
+  if (geometry.width <= 0 || geometry.height <= 0) {
     return;
   }
 
   // The mobile shell presents client windows as full-screen surfaces. Keep the
   // Settings client in the same logical aspect ratio as the current output so
   // BoxFit.cover never crops the persistent left navigation after rotation.
-  gtk_window_resize(self->window, width, height);
+  gtk_window_resize(self->window, geometry.width, geometry.height);
 }
 
 static void screen_size_changed_cb(GdkScreen* screen, gpointer user_data) {
