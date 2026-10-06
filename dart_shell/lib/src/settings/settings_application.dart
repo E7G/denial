@@ -106,7 +106,7 @@ class _DenialSettingsApplicationState
     extends ConsumerState<DenialSettingsApplication> {
   late SettingsPageId _page;
   var _colorPickerOpen = false;
-  var _phoneCategoriesOpen = false;
+  var _phoneCategoriesOpen = true;
   int? _scheduledPageRequestId;
 
   @override

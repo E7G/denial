@@ -125,6 +125,9 @@ class QuickSettingsTiles extends StatelessWidget {
                   0,
                   QuickTile(
                     icon: wifi ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                    activeIcon: Icons.wifi_rounded,
+                    inactiveIcon: Icons.wifi_off_rounded,
+                    optimisticToggle: true,
                     title: l10n.commonWifi,
                     subtitle: wifiSubtitle,
                     active: wifi,
@@ -148,6 +151,9 @@ class QuickSettingsTiles extends StatelessWidget {
                     icon: bluetooth
                         ? Icons.bluetooth_connected_rounded
                         : Icons.bluetooth_disabled_rounded,
+                    activeIcon: Icons.bluetooth_connected_rounded,
+                    inactiveIcon: Icons.bluetooth_disabled_rounded,
+                    optimisticToggle: true,
                     title: l10n.commonBluetooth,
                     subtitle: bluetoothSubtitle,
                     active: bluetooth,
@@ -209,6 +215,9 @@ class QuickSettingsTiles extends StatelessWidget {
                     icon: dnd
                         ? Icons.notifications_off_rounded
                         : Icons.notifications_none_rounded,
+                    activeIcon: Icons.notifications_off_rounded,
+                    inactiveIcon: Icons.notifications_none_rounded,
+                    optimisticToggle: true,
                     title: l10n.quickSettingsSilent,
                     subtitle: dndReady
                         ? (dnd ? l10n.commonOn : l10n.quickSettingsNormal)
@@ -231,6 +240,9 @@ class QuickSettingsTiles extends StatelessWidget {
                     icon: rotationLock
                         ? Icons.screen_lock_rotation_rounded
                         : Icons.screen_rotation_rounded,
+                    activeIcon: Icons.screen_rotation_rounded,
+                    inactiveIcon: Icons.screen_lock_rotation_rounded,
+                    optimisticToggle: true,
                     title: l10n.quickSettingsRotation,
                     subtitle: rotationLock
                         ? l10n.quickSettingsLocked
@@ -263,9 +275,14 @@ class QuickTile extends StatefulWidget {
     this.enabled = true,
     this.busy = false,
     this.onDetails,
+    this.activeIcon,
+    this.inactiveIcon,
+    this.optimisticToggle = false,
   });
 
   final IconData icon;
+  final IconData? activeIcon;
+  final IconData? inactiveIcon;
   final String title;
   final String? subtitle;
   final bool active;
@@ -274,6 +291,7 @@ class QuickTile extends StatefulWidget {
   final bool enabled;
   final bool busy;
   final VoidCallback? onDetails;
+  final bool optimisticToggle;
 
   @override
   State<QuickTile> createState() => _QuickTileState();
@@ -282,18 +300,49 @@ class QuickTile extends StatefulWidget {
 class _QuickTileState extends State<QuickTile> {
   bool _focused = false;
   bool _pressed = false;
+  late bool _visualActive;
+
+  @override
+  void initState() {
+    super.initState();
+    _visualActive = widget.active;
+  }
+
+  @override
+  void didUpdateWidget(covariant QuickTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active != oldWidget.active || widget.busy != oldWidget.busy) {
+      _visualActive = widget.active;
+    }
+  }
+
+  void _activate() {
+    if (!widget.enabled) return;
+    if (widget.optimisticToggle) {
+      setState(() => _visualActive = !_visualActive);
+    }
+    HapticFeedback.selectionClick();
+    widget.onTap();
+  }
+
+  IconData get _visualIcon {
+    if (_visualActive) {
+      return widget.activeIcon ?? widget.icon;
+    }
+    return widget.inactiveIcon ?? widget.icon;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = ShellTheme.of(context);
     final accent = theme.accentPalette;
-    final background = widget.active
+    final background = _visualActive
         ? accent.primary
         : theme.cardColor(context.shellColors.tileOff);
-    final foreground = widget.active
+    final foreground = _visualActive
         ? accent.onPrimary
         : context.shellColors.panelText;
-    final secondary = widget.active
+    final secondary = _visualActive
         ? accent.onPrimary.withValues(alpha: 0.78)
         : context.shellColors.textTertiary;
     final radius = theme.scaledRadius(20);
@@ -302,7 +351,7 @@ class _QuickTileState extends State<QuickTile> {
       button: true,
       explicitChildNodes: widget.onDetails != null,
       enabled: widget.enabled,
-      toggled: widget.active,
+      toggled: _visualActive,
       label: widget.subtitle == null
           ? widget.title
           : context.l10n.commonTitleAndSubtitle(widget.title, widget.subtitle!),
@@ -320,7 +369,7 @@ class _QuickTileState extends State<QuickTile> {
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) {
               if (widget.enabled) {
-                widget.onTap();
+                _activate();
               }
               return null;
             },
@@ -331,7 +380,7 @@ class _QuickTileState extends State<QuickTile> {
           onTapDown: widget.enabled
               ? (_) {
                   setState(() => _pressed = true);
-                  HapticFeedback.selectionClick();
+                  HapticFeedback.lightImpact();
                 }
               : null,
           onTapUp: widget.enabled
@@ -340,19 +389,19 @@ class _QuickTileState extends State<QuickTile> {
           onTapCancel: widget.enabled
               ? () => setState(() => _pressed = false)
               : null,
-          onTap: widget.enabled ? widget.onTap : null,
+          onTap: widget.enabled ? _activate : null,
           child: AnimatedScale(
-            scale: _pressed ? 0.955 : 1.0,
+            scale: _pressed ? 0.94 : 1.0,
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
-                : const Duration(milliseconds: 90),
-            curve: Curves.easeOutCubic,
+                : Duration(milliseconds: _pressed ? 52 : 118),
+            curve: _pressed ? Curves.easeOutQuart : Curves.easeOutBack,
             child: AnimatedOpacity(
-              opacity: _pressed ? 0.82 : 1.0,
+              opacity: _pressed ? 0.72 : 1.0,
               duration: MediaQuery.disableAnimationsOf(context)
                   ? Duration.zero
-                  : const Duration(milliseconds: 75),
-              curve: Curves.easeOut,
+                  : Duration(milliseconds: _pressed ? 45 : 105),
+              curve: Curves.easeOutQuart,
               child: widget.wide
                   ? _buildWide(background, foreground, secondary, radius)
                   : _buildSmall(background, foreground, radius),
@@ -380,8 +429,8 @@ class _QuickTileState extends State<QuickTile> {
         ),
       ),
       child: Icon(
-        widget.icon,
-        key: ValueKey<IconData>(widget.icon),
+        _visualIcon,
+        key: ValueKey<IconData>(_visualIcon),
         color: foreground,
         size: size,
       ),
@@ -538,7 +587,7 @@ class _QuickTileState extends State<QuickTile> {
             : theme.transparencyMode == ShellTransparencyMode.glass
             ? null
             : Border.all(
-                color: widget.active
+                color: _visualActive
                     ? accent.primary
                     : context.shellColors.hairlineSoft,
               ),
@@ -547,7 +596,7 @@ class _QuickTileState extends State<QuickTile> {
     );
     return ShellBackdropBlur(
       blur:
-          !widget.active &&
+          !_visualActive &&
           theme.transparencyMode == ShellTransparencyMode.glass &&
           theme.effectivePanelOpacity < 1,
       separateChild: true,
