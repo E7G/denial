@@ -34,12 +34,20 @@ class _HomeAppTile extends StatefulWidget {
 class _HomeAppTileState extends State<_HomeAppTile> {
   final _tileKey = GlobalKey();
   bool _pressed = false;
+  Offset? _pressPoint;
 
-  void _setPressed(bool value) {
-    if (_pressed == value || !mounted) {
+  void _setPressed(bool value, [Offset? localPosition]) {
+    if (!mounted) {
       return;
     }
-    setState(() => _pressed = value);
+    if (_pressed == value &&
+        (localPosition == null || localPosition == _pressPoint)) {
+      return;
+    }
+    setState(() {
+      _pressed = value;
+      _pressPoint = value ? localPosition ?? _pressPoint : null;
+    });
   }
 
   void _launch() {
@@ -73,17 +81,15 @@ class _HomeAppTileState extends State<_HomeAppTile> {
       button: true,
       enabled: enabled,
       label: widget.name,
-      child: AnimatedScale(
-        scale: _pressed ? pressScale : 1.0,
-        duration: pressDuration,
-        curve: Curves.easeOutCubic,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: enabled ? (_) => _setPressed(true) : null,
-          onTapCancel: enabled ? () => _setPressed(false) : null,
-          onTapUp: enabled ? (_) => _setPressed(false) : null,
-          onTap: enabled ? _launch : null,
-          child: LayoutBuilder(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled
+            ? (details) => _setPressed(true, details.localPosition)
+            : null,
+        onTapCancel: enabled ? () => _setPressed(false) : null,
+        onTapUp: enabled ? (_) => _setPressed(false) : null,
+        onTap: enabled ? _launch : null,
+        child: LayoutBuilder(
             builder: (context, constraints) {
               final shortest = math.min(
                 constraints.maxWidth,
@@ -111,8 +117,29 @@ class _HomeAppTileState extends State<_HomeAppTile> {
                       ),
               );
 
-              return DecoratedBox(
+              final local = _pressPoint;
+              final nx = local == null || constraints.maxWidth <= 0
+                  ? 0.0
+                  : (local.dx / constraints.maxWidth - 0.5).clamp(-0.5, 0.5);
+              final ny = local == null || constraints.maxHeight <= 0
+                  ? 0.0
+                  : (local.dy / constraints.maxHeight - 0.5).clamp(-0.5, 0.5);
+              final transform = Matrix4.identity()
+                ..setEntry(3, 2, 0.0014)
+                ..rotateX(_pressed ? -ny * 0.10 * widget.animationStrength : 0)
+                ..rotateY(_pressed ? nx * 0.12 * widget.animationStrength : 0)
+                ..scaleByDouble(
+                  _pressed ? pressScale : 1.0,
+                  _pressed ? pressScale : 1.0,
+                  1.0,
+                  1.0,
+                );
+              return AnimatedContainer(
                 key: _tileKey,
+                duration: pressDuration,
+                curve: Curves.easeOutCubic,
+                transform: transform,
+                transformAlignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: tileColor,
                   borderRadius: BorderRadius.circular(4),
