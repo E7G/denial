@@ -68,14 +68,17 @@ class HomeGridState {
   HomeGridState({
     required List<HomeGridItem?> slots,
     required List<HomeGridItem> allItems,
+    Map<int, String> groupNames = const <int, String>{},
     this.page = 0,
     this.draggingSourceIndex,
   }) : slots = List.unmodifiable(slots),
-       allItems = List.unmodifiable(allItems);
+       allItems = List.unmodifiable(allItems),
+       groupNames = Map<int, String>.unmodifiable(groupNames);
 
   HomeGridState._({
     required this.slots,
     required this.allItems,
+    required this.groupNames,
     required this.page,
     required this.draggingSourceIndex,
   });
@@ -84,18 +87,23 @@ class HomeGridState {
 
   /// Complete catalog for All apps/System tiles. Start only renders [slots].
   final List<HomeGridItem> allItems;
+  final Map<int, String> groupNames;
   final int page;
   final int? draggingSourceIndex;
 
   HomeGridState copyWith({
     List<HomeGridItem?>? slots,
     List<HomeGridItem>? allItems,
+    Map<int, String>? groupNames,
     int? page,
     Object? draggingSourceIndex = _unset,
   }) {
     return HomeGridState._(
       slots: slots == null ? this.slots : List.unmodifiable(slots),
       allItems: allItems == null ? this.allItems : List.unmodifiable(allItems),
+      groupNames: groupNames == null
+          ? this.groupNames
+          : Map<int, String>.unmodifiable(groupNames),
       page: page ?? this.page,
       draggingSourceIndex: identical(draggingSourceIndex, _unset)
           ? this.draggingSourceIndex
@@ -159,6 +167,7 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
     try {
       final apps = await _loadApplications(appsRepository, reason: 'initial');
       final savedLayout = await layoutRepository.readSavedLayout();
+      final groupNames = await layoutRepository.readGroupNames();
       final slots = HomeGridLayout.initialSlotsForApps(
         apps,
         localApps,
@@ -169,14 +178,22 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
         ...HomeGridLayout.allLaunchableItems(apps, localApps),
       ];
       if (!_isBuildActive(generation)) {
-        return HomeGridState(slots: slots, allItems: allItems);
+        return HomeGridState(
+          slots: slots,
+          allItems: allItems,
+          groupNames: groupNames,
+        );
       }
       _lastDesktopRefresh = DateTime.now();
       if (_savedLayoutNeedsRefresh(apps, localApps, savedLayout, slots)) {
         unawaited(layoutRepository.saveLayout(slots));
       }
       unawaited(_startDesktopRefreshTriggers(generation, appsRepository));
-      return HomeGridState(slots: slots, allItems: allItems);
+      return HomeGridState(
+        slots: slots,
+        allItems: allItems,
+        groupNames: groupNames,
+      );
     } on Object catch (error, stackTrace) {
       Error.throwWithStackTrace(error, stackTrace);
     }
@@ -345,6 +362,26 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
     return Isolate.run(
       repository.loadApplications,
       debugName: 'denia-launcher-desktop-$reason',
+    );
+  }
+
+  void renameGroup(int page, String name) {
+    final current = state.asData?.value;
+    if (current == null || page < 0) {
+      return;
+    }
+    final normalized = name.trim();
+    final names = Map<int, String>.from(current.groupNames);
+    if (normalized.isEmpty) {
+      names.remove(page);
+    } else {
+      names[page] = normalized.length <= 40
+          ? normalized
+          : normalized.substring(0, 40);
+    }
+    state = AsyncData(current.copyWith(groupNames: names));
+    unawaited(
+      ref.read(homeLayoutRepositoryProvider).saveGroupNames(names),
     );
   }
 
