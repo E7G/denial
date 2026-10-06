@@ -12,6 +12,7 @@ class WindowTextureRect extends StatelessWidget {
     this.applyBackdrop = true,
     this.fit = BoxFit.cover,
     this.alignment = Alignment.topCenter,
+    this.allowPopupOverflow = false,
   });
 
   final DenialWindow window;
@@ -19,6 +20,7 @@ class WindowTextureRect extends StatelessWidget {
   final bool applyBackdrop;
   final BoxFit fit;
   final Alignment alignment;
+  final bool allowPopupOverflow;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class WindowTextureRect extends StatelessWidget {
           child: WindowSurfaceTree(
             window: window,
             includePopups: true,
+            clipToBounds: !allowPopupOverflow,
             filterQuality: FilterQuality.low,
           ),
         ),

@@ -23,6 +23,7 @@ class WindowContentRect extends ConsumerWidget {
     this.applyBackdrop = true,
     this.fit = BoxFit.cover,
     this.alignment = Alignment.topCenter,
+    this.allowPopupOverflow = false,
   });
 
   final DenialWindow window;
@@ -31,6 +32,7 @@ class WindowContentRect extends ConsumerWidget {
   final bool applyBackdrop;
   final BoxFit fit;
   final Alignment alignment;
+  final bool allowPopupOverflow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +43,7 @@ class WindowContentRect extends ConsumerWidget {
         applyBackdrop: applyBackdrop,
         fit: fit,
         alignment: alignment,
+        allowPopupOverflow: allowPopupOverflow,
       );
     }
 

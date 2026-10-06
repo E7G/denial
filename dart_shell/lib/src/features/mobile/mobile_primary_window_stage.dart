@@ -84,6 +84,7 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
       borderRadius: transitionRadius,
       fit: BoxFit.contain,
       alignment: Alignment.center,
+      allowPopupOverflow: true,
     );
   }
 

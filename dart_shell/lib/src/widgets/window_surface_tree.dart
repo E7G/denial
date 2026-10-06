@@ -55,6 +55,7 @@ class WindowSurfaceTree extends StatelessWidget {
     required this.window,
     this.filterQuality = FilterQuality.none,
     this.includePopups = false,
+    this.clipToBounds = true,
     this.presentationScale,
     this.pixelGridOrigin = Offset.zero,
   });
@@ -62,6 +63,7 @@ class WindowSurfaceTree extends StatelessWidget {
   final DenialWindow window;
   final FilterQuality filterQuality;
   final bool includePopups;
+  final bool clipToBounds;
 
   /// Scale and origin of the output that owns this surface. When omitted,
   /// ordinary Flutter view metrics are used for non-desktop callers.
@@ -87,27 +89,26 @@ class WindowSurfaceTree extends StatelessWidget {
         }
 
         final targetRect = Offset.zero & target;
-        return ClipRect(
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              for (final layer
-                  in includePopups
-                      ? window.surfaceLayers
-                      : window.mainSurfaceLayers)
-                if (layer.textureId > 0)
-                  Positioned.fromRect(
-                    rect: window.mapSurfaceRect(layer, targetRect),
-                    child: SurfaceLayerTexture(
-                      layer: layer,
-                      filterQuality: filterQuality,
-                      presentationScale: presentationScale,
-                      pixelGridOrigin: pixelGridOrigin,
-                    ),
+        final stack = Stack(
+          clipBehavior: clipToBounds ? Clip.hardEdge : Clip.none,
+          children: [
+            for (final layer
+                in includePopups
+                    ? window.surfaceLayers
+                    : window.mainSurfaceLayers)
+              if (layer.textureId > 0)
+                Positioned.fromRect(
+                  rect: window.mapSurfaceRect(layer, targetRect),
+                  child: SurfaceLayerTexture(
+                    layer: layer,
+                    filterQuality: filterQuality,
+                    presentationScale: presentationScale,
+                    pixelGridOrigin: pixelGridOrigin,
                   ),
-            ],
-          ),
+                ),
+          ],
         );
+        return clipToBounds ? ClipRect(child: stack) : stack;
       },
     );
   }

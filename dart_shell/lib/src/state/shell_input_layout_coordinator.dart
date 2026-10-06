@@ -192,7 +192,7 @@ class ShellInputLayoutCoordinator {
     final regions = <InputWindowRegion>[];
     for (final popup in window.popupRoots.toList(growable: false).reversed) {
       final popupRect = window.mapSurfaceRect(popup, fullContentRect);
-      final clipped = popupRect.intersect(rect);
+      final clipped = popupRect.intersect(clip);
       if (clipped.isEmpty ||
           popupRect.width <= 0.0 ||
           popupRect.height <= 0.0) {
