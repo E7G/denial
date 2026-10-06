@@ -140,6 +140,7 @@ class _HomePager extends ConsumerWidget {
                       onResizeEnd: owner._handleItemResizeEnd,
                       onRemove: owner._removeFromStart,
                       onCycleColor: owner._cycleTileColor,
+                      onCycleSize: owner._cycleTileSize,
                     ),
                   );
                 },
