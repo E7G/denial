@@ -70,6 +70,7 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
   _OskLayer _layer = _OskLayer.letters;
   bool _shiftEnabled = false;
   bool _ctrlArmed = false;
+  bool _chineseInputEnabled = false;
 
   @override
   void didChangeDependencies() {
@@ -125,6 +126,7 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
                   rowHeight: rowHeight,
                   shiftEnabled: _shiftEnabled,
                   ctrlArmed: _ctrlArmed,
+                  chineseInputEnabled: _chineseInputEnabled,
                   onKey: _handleKey,
                   onKeyLongPress: _handleKeyLongPress,
                   onKeyDown: _handleKeyDown,
@@ -200,7 +202,12 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
           _ctrlArmed = false;
         });
       case _OskControl.inputMethod:
-        _sendKey(const ShellOskKeyIntent.key('space', ctrl: true));
+        widget.onKey?.call(const ShellOskKeyIntent.key('space', ctrl: true));
+        setState(() {
+          _chineseInputEnabled = !_chineseInputEnabled;
+          _shiftEnabled = false;
+          _ctrlArmed = false;
+        });
       case _OskControl.space:
         _sendKeyOrText(
           textIntent: ShellOskKeyIntent.space(ctrl: _ctrlArmed),
@@ -279,6 +286,7 @@ class _OskRow extends StatelessWidget {
     required this.rowHeight,
     required this.shiftEnabled,
     required this.ctrlArmed,
+    required this.chineseInputEnabled,
     required this.onKey,
     required this.onKeyLongPress,
     required this.onKeyDown,
@@ -290,6 +298,7 @@ class _OskRow extends StatelessWidget {
   final double rowHeight;
   final bool shiftEnabled;
   final bool ctrlArmed;
+  final bool chineseInputEnabled;
   final ValueChanged<_OskKeySpec> onKey;
   final ValueChanged<_OskKeySpec> onKeyLongPress;
   final ValueChanged<_OskKeySpec> onKeyDown;
@@ -316,9 +325,11 @@ class _OskRow extends StatelessWidget {
                       selected: row.keys[index].isSelected(
                         shiftEnabled: shiftEnabled,
                         ctrlArmed: ctrlArmed,
+                        chineseInputEnabled: chineseInputEnabled,
                       ),
                       shiftEnabled: shiftEnabled,
                       ctrlArmed: ctrlArmed,
+                      chineseInputEnabled: chineseInputEnabled,
                       onPressed: () => onKey(row.keys[index]),
                       onLongPress: () => onKeyLongPress(row.keys[index]),
                       holdEnabled:
@@ -346,6 +357,7 @@ class _OskKeyButton extends StatefulWidget {
     required this.selected,
     required this.shiftEnabled,
     required this.ctrlArmed,
+    required this.chineseInputEnabled,
     required this.onPressed,
     required this.onLongPress,
     required this.holdEnabled,
@@ -357,6 +369,7 @@ class _OskKeyButton extends StatefulWidget {
   final bool selected;
   final bool shiftEnabled;
   final bool ctrlArmed;
+  final bool chineseInputEnabled;
   final VoidCallback onPressed;
   final VoidCallback onLongPress;
   final bool holdEnabled;
@@ -421,6 +434,7 @@ class _OskKeyButtonState extends State<_OskKeyButton>
       selected: widget.selected,
       label: widget.spec.semanticLabel(
         shiftEnabled: widget.shiftEnabled,
+        chineseInputEnabled: widget.chineseInputEnabled,
         l10n: context.l10n,
       ),
       child: Listener(
@@ -473,6 +487,7 @@ class _OskKeyButtonState extends State<_OskKeyButton>
                           label: widget.spec.labelText(
                             shiftEnabled: widget.shiftEnabled,
                             ctrlArmed: widget.ctrlArmed,
+                            chineseInputEnabled: widget.chineseInputEnabled,
                             l10n: context.l10n,
                           ),
                           color: foreground,
@@ -642,6 +657,7 @@ class _OskKeySpec {
   String labelText({
     required bool shiftEnabled,
     required bool ctrlArmed,
+    required bool chineseInputEnabled,
     required AppLocalizations l10n,
   }) {
     if (control == _OskControl.symbols && ctrlArmed) {
@@ -657,13 +673,14 @@ class _OskKeySpec {
       return l10n.oskLettersKey;
     }
     if (control == _OskControl.inputMethod) {
-      return '中/英';
+      return chineseInputEnabled ? '中' : '英';
     }
     return outputText(shiftEnabled: shiftEnabled);
   }
 
   String semanticLabel({
     required bool shiftEnabled,
+    required bool chineseInputEnabled,
     required AppLocalizations l10n,
   }) {
     return switch (control) {
@@ -671,7 +688,7 @@ class _OskKeySpec {
       _OskControl.symbols => l10n.oskNumbersAndSymbols,
       _OskControl.extraSymbols => l10n.oskMoreSymbols,
       _OskControl.letters => l10n.oskLetters,
-      _OskControl.inputMethod => '切换输入法',
+      _OskControl.inputMethod => chineseInputEnabled ? '中文拼音输入' : '英文输入',
       _OskControl.space => l10n.oskSpace,
       _OskControl.backspace => l10n.oskBackspace,
       _OskControl.enter => l10n.oskEnter,
@@ -680,6 +697,7 @@ class _OskKeySpec {
       null => labelText(
         shiftEnabled: shiftEnabled,
         ctrlArmed: false,
+        chineseInputEnabled: chineseInputEnabled,
         l10n: l10n,
       ),
     };
@@ -729,9 +747,14 @@ class _OskKeySpec {
     return 'control:${control.name}:${icon?.codePoint ?? 0}:$flex';
   }
 
-  bool isSelected({required bool shiftEnabled, required bool ctrlArmed}) {
+  bool isSelected({
+    required bool shiftEnabled,
+    required bool ctrlArmed,
+    required bool chineseInputEnabled,
+  }) {
     return (control == _OskControl.shift && shiftEnabled) ||
-        (control == _OskControl.symbols && ctrlArmed);
+        (control == _OskControl.symbols && ctrlArmed) ||
+        (control == _OskControl.inputMethod && chineseInputEnabled);
   }
 }
 
