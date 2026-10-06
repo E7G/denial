@@ -156,11 +156,15 @@ class _DenialSettingsApplicationState
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final navigationWidth = constraints.maxWidth < 620 ? 148.0 : 184.0;
+            final compactTablet =
+                constraints.maxWidth <= 1100 || constraints.maxHeight <= 820;
+            final navigationWidth = compactTablet
+                ? (constraints.maxWidth < 850 ? 132.0 : 148.0)
+                : 184.0;
             final content = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _SettingsHeader(),
+                _SettingsHeader(dense: compactTablet),
                 Divider(height: 1, color: context.shellColors.hairlineSoft),
                 Expanded(
                   child: Row(
@@ -169,6 +173,7 @@ class _DenialSettingsApplicationState
                       SettingsNavigation(
                         selected: _page,
                         compact: false,
+                        dense: compactTablet,
                         width: navigationWidth,
                         showTouchpad: true,
                         showFingerprint: showFingerprint,
@@ -188,13 +193,16 @@ class _DenialSettingsApplicationState
                           },
                           child: KeyedSubtree(
                             key: ValueKey<SettingsPageId>(_page),
-                            child: _SettingsPageBody(
-                              page: _page,
-                              onOpenAccentPicker: () =>
-                                  setState(() => _colorPickerOpen = true),
-                              onOpenWallpaperSelector: () =>
-                                  unawaited(_openWallpaperSelector()),
-                              onPickCursorZip: widget.onPickCursorZip,
+                            child: _CompactSettingsViewport(
+                              enabled: compactTablet,
+                              child: _SettingsPageBody(
+                                page: _page,
+                                onOpenAccentPicker: () =>
+                                    setState(() => _colorPickerOpen = true),
+                                onOpenWallpaperSelector: () =>
+                                    unawaited(_openWallpaperSelector()),
+                                onPickCursorZip: widget.onPickCursorZip,
+                              ),
                             ),
                           ),
                         ),
@@ -590,21 +598,57 @@ WallpaperResource _wallpaperFor(
   return outputName == null ? assignment.all : assignment.forOutput(outputName);
 }
 
+class _CompactSettingsViewport extends StatelessWidget {
+  const _CompactSettingsViewport({
+    required this.enabled,
+    required this.child,
+  });
+
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) {
+      return child;
+    }
+    final media = MediaQuery.of(context);
+    final baseScale = media.textScaler.scale(1);
+    final compactScale = (baseScale * 0.9).clamp(0.8, 1.1).toDouble();
+    final theme = Theme.of(context);
+    return MediaQuery(
+      data: media.copyWith(textScaler: TextScaler.linear(compactScale)),
+      child: Theme(
+        data: theme.copyWith(
+          visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class _SettingsHeader extends StatelessWidget {
-  const _SettingsHeader();
+  const _SettingsHeader({required this.dense});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 12 : 18,
+        vertical: dense ? 5 : 9,
+      ),
       child: Row(
         children: [
           Expanded(
             child: Align(
               alignment: Alignment.centerLeft,
               child: SizedBox(
-                width: 96,
-                height: 32,
+                width: dense ? 82 : 96,
+                height: dense ? 26 : 32,
                 child: DenialWordmark(
                   alignment: Alignment.centerLeft,
                   semanticsLabel: context.l10n.settingsHeaderLogoSemanticsLabel,
@@ -620,8 +664,8 @@ class _SettingsHeader extends StatelessWidget {
               textAlign: TextAlign.end,
               style: ShellText.cardTitle.copyWith(
                 color: context.shellColors.textTertiary,
-                fontSize: 9,
-                letterSpacing: 1.1,
+                fontSize: dense ? 8 : 9,
+                letterSpacing: dense ? 0.8 : 1.1,
               ),
             ),
           ),
