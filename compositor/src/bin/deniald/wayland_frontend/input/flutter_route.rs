@@ -427,7 +427,7 @@ pub(super) fn process_flutter_input_event(
                         .expect("missing Wayland frontend")
                         .text_input
                         .note_client_touch();
-                    let focus = route.focus_at(position);
+                    let (focus, client_position) = route.touch_focus_at(position);
                     let touch = state
                         .wayland
                         .as_ref()
@@ -440,7 +440,7 @@ pub(super) fn process_flutter_input_event(
                         Some(focus),
                         &DownEvent {
                             slot: touch_event.slot(),
-                            location: position,
+                            location: client_position,
                             serial,
                             time: touch_event.time_msec(),
                         },
@@ -506,14 +506,14 @@ pub(super) fn process_flutter_input_event(
                 );
                 return false;
             }
-            let focus = {
+            let client_route = {
                 let frontend = state.wayland.as_ref().expect("missing Wayland frontend");
                 frontend
                     .client_touch_routes
                     .get(&slot)
-                    .map(|route| route.focus_at(position))
+                    .map(|route| route.touch_focus_at(position))
             };
-            if let Some(focus) = focus {
+            if let Some((focus, client_position)) = client_route {
                 let touch = state
                     .wayland
                     .as_ref()
@@ -526,7 +526,7 @@ pub(super) fn process_flutter_input_event(
                     Some(focus),
                     &TouchMotionEvent {
                         slot: touch_event.slot(),
-                        location: position,
+                        location: client_position,
                         time: touch_event.time_msec(),
                     },
                 );
