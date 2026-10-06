@@ -14,6 +14,7 @@ import '../settings/settings_controller.dart';
 import '../settings/embedded_settings_surface.dart';
 import '../settings/shell_settings.dart';
 import '../widgets/retained_translation.dart';
+import '../widgets/app_icon.dart';
 import '../widgets/connectivity/bluetooth_detail_surface.dart';
 import '../widgets/shell_surface_host.dart';
 import 'controllers/application_recents_controller.dart';
