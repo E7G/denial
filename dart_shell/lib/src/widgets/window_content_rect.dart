@@ -22,6 +22,7 @@ class WindowContentRect extends ConsumerWidget {
     this.active = false,
     this.applyBackdrop = true,
     this.fit = BoxFit.cover,
+    this.alignment = Alignment.topCenter,
   });
 
   final DenialWindow window;
@@ -29,6 +30,7 @@ class WindowContentRect extends ConsumerWidget {
   final bool active;
   final bool applyBackdrop;
   final BoxFit fit;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,6 +40,7 @@ class WindowContentRect extends ConsumerWidget {
         borderRadius: borderRadius,
         applyBackdrop: applyBackdrop,
         fit: fit,
+        alignment: alignment,
       );
     }
 
@@ -56,7 +59,7 @@ class WindowContentRect extends ConsumerWidget {
       borderRadius: borderRadius,
       child: FittedBox(
         fit: fit,
-        alignment: Alignment.topCenter,
+        alignment: alignment,
         child: SizedBox.fromSize(
           size: layoutSize,
           child: MediaQuery(

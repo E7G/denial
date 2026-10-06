@@ -2,6 +2,7 @@ import 'package:denial_dart_shell/denial.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../state/shell_input_layout_coordinator.dart';
 import '../../widgets/retained_translation.dart';
 
 /// Keeps both app subtrees laid out while the switch gesture moves their layers.
@@ -62,6 +63,61 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
     _targetTranslation.value = Offset(dx > 0 ? dx - travel : dx + travel, 0);
   }
 
+  Widget _windowPresentation(
+    BuildContext context,
+    DenialWindow window,
+    Size viewSize, {
+    bool active = false,
+    required BorderRadius transitionRadius,
+  }) {
+    if (window.isLocalFlutter) {
+      return WindowContentRect(
+        key: ValueKey<int>(window.objectId),
+        window: window,
+        active: active,
+        borderRadius: transitionRadius,
+        fit: BoxFit.cover,
+      );
+    }
+    final tileBounds = mobileNativeAppTileBounds(viewSize: viewSize);
+    final tileRadius = context.shellTheme.borderRadius(18);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fromRect(
+          rect: tileBounds,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: tileRadius,
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x59000000),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: tileRadius,
+              child: ColoredBox(
+                color: const Color(0xFF080808),
+                child: WindowContentRect(
+                  key: ValueKey<int>(window.objectId),
+                  window: window,
+                  active: active,
+                  borderRadius: tileRadius,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.center,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final target = widget.switchTargetWindow;
@@ -82,14 +138,12 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
               key: _WindowStageKey(widget.currentWindow.objectId),
               translation: _currentTranslation,
               child: RepaintBoundary(
-                child: WindowContentRect(
-                  key: ValueKey<int>(widget.currentWindow.objectId),
-                  window: widget.currentWindow,
+                child: _windowPresentation(
+                  context,
+                  widget.currentWindow,
+                  constraints.biggest,
                   active: true,
-                  borderRadius: radius,
-                  fit: widget.currentWindow.isLocalFlutter
-                      ? BoxFit.cover
-                      : BoxFit.contain,
+                  transitionRadius: radius,
                 ),
               ),
             ),
@@ -98,11 +152,11 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
                 key: _WindowStageKey(target.objectId),
                 translation: _targetTranslation,
                 child: RepaintBoundary(
-                  child: WindowContentRect(
-                    key: ValueKey<int>(target.objectId),
-                    window: target,
-                    borderRadius: radius,
-                    fit: target.isLocalFlutter ? BoxFit.cover : BoxFit.contain,
+                  child: _windowPresentation(
+                    context,
+                    target,
+                    constraints.biggest,
+                    transitionRadius: radius,
                   ),
                 ),
               ),
