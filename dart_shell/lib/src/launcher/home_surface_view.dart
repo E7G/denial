@@ -663,6 +663,7 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -1154,6 +1155,7 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }
