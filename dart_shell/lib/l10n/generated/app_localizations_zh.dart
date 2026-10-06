@@ -3759,4 +3759,163 @@ class AppLocalizationsZh extends AppLocalizations {
   String simPinRetries(int count) {
     return '剩余 $count 次尝试';
   }
+
+  @override
+  String get tabletStartTitle => '开始';
+
+  @override
+  String get tabletAllApps => '所有应用';
+
+  @override
+  String get tabletAppsShort => '应用';
+
+  @override
+  String get tabletQuickSettings => '快速设置';
+
+  @override
+  String get tabletSystemTiles => '系统磁贴';
+
+  @override
+  String get tabletNoApplications => '暂无应用';
+
+  @override
+  String get tabletNoMatchingApplications => '没有匹配的应用';
+
+  @override
+  String get tabletNewFolder => '新建文件夹';
+
+  @override
+  String get tabletFolder => '文件夹';
+
+  @override
+  String get tabletCreate => '创建';
+
+  @override
+  String get tabletFolderName => '文件夹名称';
+
+  @override
+  String tabletSelectedCount(int count) {
+    return '已选择 $count 个';
+  }
+
+  @override
+  String get tabletCreateFolderHint => '至少选择两个应用，命名文件夹后点击创建';
+
+  @override
+  String get tabletDrawerHint => '长按应用可固定到开始屏幕 · 向下滑返回';
+
+  @override
+  String tabletFolderAppCount(int count) {
+    return '$count 个应用';
+  }
+
+  @override
+  String get tabletWifiOff => 'Wi-Fi 已关闭';
+
+  @override
+  String get tabletWifiNotConnected => '未连接';
+
+  @override
+  String get tabletWifiConnectHint => '打开快速设置以连接';
+
+  @override
+  String get tabletWirelessDisabled => '无线网络已禁用';
+
+  @override
+  String tabletSignalPercent(int percent) {
+    return '信号 $percent%';
+  }
+
+  @override
+  String get settingsTabletMetroSection => '平板桌面';
+
+  @override
+  String get settingsTabletMetroTitle => 'Tablet Metro';
+
+  @override
+  String get settingsTabletMetroEnable => '启用 Metro 平板布局';
+
+  @override
+  String get settingsTabletMetroEnableDescription =>
+      '在平板尺寸屏幕上使用 Square Home / Surface RT 风格的开始屏幕。';
+
+  @override
+  String get settingsTabletMetroTileDensity => '磁贴密度';
+
+  @override
+  String get settingsTabletMetroDensityCompact => '紧凑';
+
+  @override
+  String get settingsTabletMetroDensityComfortable => '舒适';
+
+  @override
+  String get settingsTabletMetroDensitySpacious => '宽松';
+
+  @override
+  String get settingsTabletMetroTileAppearance => '磁贴外观';
+
+  @override
+  String get settingsTabletMetroTileOpacity => '磁贴透明度';
+
+  @override
+  String get settingsTabletMetroStartScreen => '开始屏幕';
+
+  @override
+  String get settingsTabletMetroShowHeader => '显示开始标题';
+
+  @override
+  String get settingsTabletMetroShowHeaderDescription =>
+      '在宽屏上显示 Windows 8 风格的“开始”标题和操作入口。';
+
+  @override
+  String get settingsTabletMetroShowSystemTiles => '显示系统磁贴';
+
+  @override
+  String get settingsTabletMetroShowSystemTilesDescription =>
+      '在所有应用中提供时钟、日期、电量和网络动态磁贴。';
+
+  @override
+  String get settingsTabletMetroQuickSettingsHint => '快速设置提示';
+
+  @override
+  String get settingsTabletMetroQuickSettingsHintDescription =>
+      '在开始标题中显示下滑打开快速设置的提示。';
+
+  @override
+  String get settingsTabletMetroPortraitMode => '竖屏模式';
+
+  @override
+  String get settingsTabletMetroCompactPortrait => '紧凑竖屏布局';
+
+  @override
+  String get settingsTabletMetroCompactPortraitDescription =>
+      '竖持平板时使用更密集的磁贴并减少开始屏幕顶部占用。';
+
+  @override
+  String get settingsTabletMetroStartLayout => '开始布局';
+
+  @override
+  String get settingsTabletMetroResetStart => '重置开始屏幕';
+
+  @override
+  String get settingsTabletMetroResetStartDescription =>
+      '恢复系统动态磁贴和少量常用应用；所有已安装应用仍可在“所有应用”中找到。';
+
+  @override
+  String get settingsTabletMetroNavigation => '导航方式';
+
+  @override
+  String get settingsTabletMetroGestures => '手势';
+
+  @override
+  String get settingsTabletMetroThreeButton => '返回 · 主页 · 多任务';
+
+  @override
+  String get settingsTabletMetroMotion => '动画';
+
+  @override
+  String get settingsTabletMetroLauncherAnimation => '启动器动画强度';
+
+  @override
+  String get settingsTabletMetroAnimationOff => '关闭';
 }

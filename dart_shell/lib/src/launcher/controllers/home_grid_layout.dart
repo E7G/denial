@@ -92,7 +92,9 @@ class HomeGridLayout {
           continue;
         }
 
-        var item = itemsById[slot.id];
+        var item = slot.id.startsWith('folder:')
+            ? _folderFromSavedSlot(slot, itemsById)
+            : itemsById[slot.id];
         if (item == null) {
           continue;
         }
@@ -147,9 +149,21 @@ class HomeGridLayout {
         continue;
       }
 
-      var item = current.type == HomeGridItemType.app
-          ? appItemsById[current.id]
-          : current;
+      HomeGridItem? item;
+      if (current.type == HomeGridItemType.app) {
+        item = appItemsById[current.id];
+      } else if (current.type == HomeGridItemType.folder) {
+        final children = <HomeGridItem>[];
+        for (final id in current.folderItemIds) {
+          final child = appItemsById[id];
+          if (child != null) {
+            children.add(child);
+          }
+        }
+        item = children.isEmpty ? null : current.withFolderItems(children);
+      } else {
+        item = current;
+      }
       if (item == null) {
         continue;
       }
@@ -169,6 +183,30 @@ class HomeGridLayout {
     // Do not auto-pin newly installed applications. They remain discoverable
     // in All apps and can be explicitly pinned by the user.
     return next;
+  }
+
+  static HomeGridItem? _folderFromSavedSlot(
+    HomeLayoutSlot slot,
+    Map<String, HomeGridItem> itemsById,
+  ) {
+    final children = <HomeGridItem>[];
+    for (final id in slot.childIds ?? const <String>[]) {
+      final item = itemsById[id];
+      if (item != null) {
+        children.add(item);
+      }
+    }
+    if (children.isEmpty) {
+      return null;
+    }
+    return HomeGridItem.folder(
+      id: slot.id,
+      name: slot.folderName ?? 'Folder',
+      items: children,
+      colSpan: slot.colSpan ?? HomeGridItem.defaultFolderColSpan,
+      rowSpan: slot.rowSpan ?? HomeGridItem.defaultFolderRowSpan,
+      tileColorValue: slot.tileColorValue,
+    );
   }
 
   static List<HomeGridItem?> placeItemAt(

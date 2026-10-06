@@ -386,6 +386,50 @@ class HomeGridController extends AsyncNotifier<HomeGridState> {
     unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
   }
 
+  bool createFolder(String name, Iterable<String> itemIds) {
+    final current = state.asData?.value;
+    if (current == null) {
+      return false;
+    }
+    final selectedIds = itemIds.toSet();
+    final children = current.allItems
+        .where((item) => item.isApplication && selectedIds.contains(item.id))
+        .toList(growable: false);
+    if (children.length < 2) {
+      return false;
+    }
+
+    final folder = HomeGridItem.folder(
+      id: 'folder:${DateTime.now().microsecondsSinceEpoch}',
+      name: name,
+      items: children,
+      colSpan: 2,
+      rowSpan: 1,
+    );
+    final slots = HomeGridLayout.placeItemInFirstFreeSlot(
+      current.slots,
+      folder,
+    );
+    state = AsyncData(current.copyWith(slots: slots));
+    unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
+    return true;
+  }
+
+  void renameFolder(String id, String name) {
+    final current = state.asData?.value;
+    if (current == null) {
+      return;
+    }
+    final index = current.slots.indexWhere((item) => item?.id == id);
+    final folder = index < 0 ? null : current.slots[index];
+    if (folder == null || !folder.isFolder) {
+      return;
+    }
+    final slots = [...current.slots]..[index] = folder.withFolderName(name);
+    state = AsyncData(current.copyWith(slots: slots));
+    unawaited(ref.read(homeLayoutRepositoryProvider).saveLayout(slots));
+  }
+
   void unpinItem(String id) {
     final current = state.asData?.value;
     if (current == null) {
@@ -581,7 +625,20 @@ bool _savedLayoutNeedsRefresh(
     for (final app in apps) 'app:${app.id}',
     for (final app in localApps) 'local:${app.id}',
   };
-  return savedIds
-      .where((id) => id.isNotEmpty)
-      .any((id) => !validIds.contains(id));
+  for (final slot in savedLayout) {
+    if (slot == null || slot.id.isEmpty) {
+      continue;
+    }
+    if (slot.id.startsWith('folder:')) {
+      final children = slot.childIds ?? const <String>[];
+      if (children.isEmpty || children.any((id) => !validIds.contains(id))) {
+        return true;
+      }
+      continue;
+    }
+    if (!validIds.contains(slot.id)) {
+      return true;
+    }
+  }
+  return false;
 }

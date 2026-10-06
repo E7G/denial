@@ -1,7 +1,7 @@
 import '../../local_apps/local_flutter_application.dart';
 import 'desktop_app.dart';
 
-enum HomeGridItemType { clock, date, battery, network, app }
+enum HomeGridItemType { clock, date, battery, network, folder, app }
 
 class HomeLayoutSlot {
   const HomeLayoutSlot({
@@ -9,24 +9,30 @@ class HomeLayoutSlot {
     this.colSpan,
     this.rowSpan,
     this.tileColorValue,
+    this.folderName,
+    this.childIds,
   });
 
   final String id;
   final int? colSpan;
   final int? rowSpan;
   final int? tileColorValue;
+  final String? folderName;
+  final List<String>? childIds;
 }
 
 class HomeGridItem {
-  const HomeGridItem._({
+  HomeGridItem._({
     required this.type,
     required this.id,
     required this.colSpan,
     required this.rowSpan,
     required this.app,
     required this.localApp,
+    required List<HomeGridItem> folderItems,
+    this.folderName,
     this.tileColorValue,
-  });
+  }) : folderItems = List<HomeGridItem>.unmodifiable(folderItems);
 
   factory HomeGridItem.clock({
     int colSpan = defaultClockColSpan,
@@ -40,6 +46,7 @@ class HomeGridItem {
       rowSpan: rowSpan.clamp(clockMinRowSpan, clockMaxRowSpan).toInt(),
       app: null,
       localApp: null,
+      folderItems: const <HomeGridItem>[],
       tileColorValue: tileColorValue,
     );
   }
@@ -56,6 +63,7 @@ class HomeGridItem {
       rowSpan: rowSpan.clamp(systemMinRowSpan, systemMaxRowSpan).toInt(),
       app: null,
       localApp: null,
+      folderItems: const <HomeGridItem>[],
       tileColorValue: tileColorValue,
     );
   }
@@ -72,6 +80,7 @@ class HomeGridItem {
       rowSpan: rowSpan.clamp(systemMinRowSpan, systemMaxRowSpan).toInt(),
       app: null,
       localApp: null,
+      folderItems: const <HomeGridItem>[],
       tileColorValue: tileColorValue,
     );
   }
@@ -88,6 +97,36 @@ class HomeGridItem {
       rowSpan: rowSpan.clamp(systemMinRowSpan, systemMaxRowSpan).toInt(),
       app: null,
       localApp: null,
+      folderItems: const <HomeGridItem>[],
+      tileColorValue: tileColorValue,
+    );
+  }
+
+  factory HomeGridItem.folder({
+    required String id,
+    required String name,
+    required Iterable<HomeGridItem> items,
+    int colSpan = defaultFolderColSpan,
+    int rowSpan = defaultFolderRowSpan,
+    int? tileColorValue,
+  }) {
+    final children = <HomeGridItem>[];
+    final used = <String>{};
+    for (final item in items) {
+      if (!item.isApplication || !used.add(item.id)) {
+        continue;
+      }
+      children.add(item);
+    }
+    return HomeGridItem._(
+      type: HomeGridItemType.folder,
+      id: id.startsWith('folder:') ? id : 'folder:$id',
+      colSpan: colSpan.clamp(folderMinColSpan, folderMaxColSpan).toInt(),
+      rowSpan: rowSpan.clamp(folderMinRowSpan, folderMaxRowSpan).toInt(),
+      app: null,
+      localApp: null,
+      folderItems: children,
+      folderName: _normalizedFolderName(name),
       tileColorValue: tileColorValue,
     );
   }
@@ -105,6 +144,7 @@ class HomeGridItem {
       rowSpan: rowSpan.clamp(appMinRowSpan, appMaxRowSpan).toInt(),
       app: desktopApp,
       localApp: null,
+      folderItems: const <HomeGridItem>[],
       tileColorValue: tileColorValue,
     );
   }
@@ -122,6 +162,7 @@ class HomeGridItem {
       rowSpan: rowSpan.clamp(appMinRowSpan, appMaxRowSpan).toInt(),
       app: null,
       localApp: localApp,
+      folderItems: const <HomeGridItem>[],
       tileColorValue: tileColorValue,
     );
   }
@@ -132,6 +173,13 @@ class HomeGridItem {
   static const int appMaxColSpan = 2;
   static const int appMinRowSpan = 1;
   static const int appMaxRowSpan = 2;
+
+  static const int defaultFolderColSpan = 1;
+  static const int defaultFolderRowSpan = 1;
+  static const int folderMinColSpan = 1;
+  static const int folderMaxColSpan = 2;
+  static const int folderMinRowSpan = 1;
+  static const int folderMaxRowSpan = 2;
 
   static const int defaultClockColSpan = 2;
   static const int defaultClockRowSpan = 1;
@@ -157,19 +205,30 @@ class HomeGridItem {
   final int rowSpan;
   final DesktopApp? app;
   final LocalFlutterApplication? localApp;
+  final List<HomeGridItem> folderItems;
+  final String? folderName;
 
   /// Optional ARGB override. Null means use the deterministic Metro palette.
   final int? tileColorValue;
 
   bool get resizable => true;
   bool get isApplication => type == HomeGridItemType.app;
-  bool get isSystemTile => !isApplication;
+  bool get isFolder => type == HomeGridItemType.folder;
+  bool get isSystemTile =>
+      type == HomeGridItemType.clock ||
+      type == HomeGridItemType.date ||
+      type == HomeGridItemType.battery ||
+      type == HomeGridItemType.network;
+
+  List<String> get folderItemIds =>
+      folderItems.map((item) => item.id).toList(growable: false);
 
   int get minColSpan => switch (type) {
     HomeGridItemType.clock => clockMinColSpan,
     HomeGridItemType.date ||
     HomeGridItemType.battery ||
     HomeGridItemType.network => systemMinColSpan,
+    HomeGridItemType.folder => folderMinColSpan,
     HomeGridItemType.app => appMinColSpan,
   };
 
@@ -178,6 +237,7 @@ class HomeGridItem {
     HomeGridItemType.date ||
     HomeGridItemType.battery ||
     HomeGridItemType.network => systemMaxColSpan,
+    HomeGridItemType.folder => folderMaxColSpan,
     HomeGridItemType.app => appMaxColSpan,
   };
 
@@ -186,6 +246,7 @@ class HomeGridItem {
     HomeGridItemType.date ||
     HomeGridItemType.battery ||
     HomeGridItemType.network => systemMinRowSpan,
+    HomeGridItemType.folder => folderMinRowSpan,
     HomeGridItemType.app => appMinRowSpan,
   };
 
@@ -194,6 +255,7 @@ class HomeGridItem {
     HomeGridItemType.date ||
     HomeGridItemType.battery ||
     HomeGridItemType.network => systemMaxRowSpan,
+    HomeGridItemType.folder => folderMaxRowSpan,
     HomeGridItemType.app => appMaxRowSpan,
   };
 
@@ -205,6 +267,34 @@ class HomeGridItem {
   }
 
   HomeGridItem withTileColor(int? value) => _copy(tileColorValue: value);
+
+  HomeGridItem withFolderItems(Iterable<HomeGridItem> items) {
+    if (!isFolder) {
+      return this;
+    }
+    return HomeGridItem.folder(
+      id: id,
+      name: folderName ?? 'Folder',
+      items: items,
+      colSpan: colSpan,
+      rowSpan: rowSpan,
+      tileColorValue: tileColorValue,
+    );
+  }
+
+  HomeGridItem withFolderName(String name) {
+    if (!isFolder) {
+      return this;
+    }
+    return HomeGridItem.folder(
+      id: id,
+      name: name,
+      items: folderItems,
+      colSpan: colSpan,
+      rowSpan: rowSpan,
+      tileColorValue: tileColorValue,
+    );
+  }
 
   HomeGridItem _copy({
     int? colSpan,
@@ -235,6 +325,14 @@ class HomeGridItem {
         rowSpan: rowSpan ?? this.rowSpan,
         tileColorValue: color,
       ),
+      HomeGridItemType.folder => HomeGridItem.folder(
+        id: id,
+        name: folderName ?? 'Folder',
+        items: folderItems,
+        colSpan: colSpan ?? this.colSpan,
+        rowSpan: rowSpan ?? this.rowSpan,
+        tileColorValue: color,
+      ),
       HomeGridItemType.app =>
         app != null
             ? HomeGridItem.app(
@@ -251,6 +349,14 @@ class HomeGridItem {
               ),
     };
   }
+}
+
+String _normalizedFolderName(String value) {
+  final name = value.trim();
+  if (name.isEmpty) {
+    return 'Folder';
+  }
+  return name.length <= 40 ? name : name.substring(0, 40);
 }
 
 const Object _homeUnset = Object();

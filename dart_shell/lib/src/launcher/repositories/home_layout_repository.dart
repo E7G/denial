@@ -35,7 +35,7 @@ class HomeLayoutRepository {
     try {
       final file = await _paths.layoutFile();
       final payload = jsonEncode({
-        'version': 3,
+        'version': 4,
         'slots': slots.map(_encodeSlot).toList(growable: false),
       });
       await file.writeAsString('$payload\n', flush: true);
@@ -57,11 +57,21 @@ class HomeLayoutRepository {
       final colSpan = item['colSpan'];
       final rowSpan = item['rowSpan'];
       final tileColorValue = item['tileColorValue'];
+      final folderName = item['folderName'];
+      final rawChildIds = item['childIds'];
+      final childIds = rawChildIds is List
+          ? rawChildIds
+                .whereType<String>()
+                .where((id) => id.isNotEmpty)
+                .toList()
+          : null;
       return HomeLayoutSlot(
         id: id,
         colSpan: colSpan is int ? colSpan : null,
         rowSpan: rowSpan is int ? rowSpan : null,
         tileColorValue: tileColorValue is int ? tileColorValue : null,
+        folderName: folderName is String ? folderName : null,
+        childIds: childIds,
       );
     }
 
@@ -78,6 +88,8 @@ class HomeLayoutRepository {
       'colSpan': item.colSpan,
       'rowSpan': item.rowSpan,
       if (item.tileColorValue != null) 'tileColorValue': item.tileColorValue,
+      if (item.isFolder) 'folderName': item.folderName,
+      if (item.isFolder) 'childIds': item.folderItemIds,
     };
   }
 }

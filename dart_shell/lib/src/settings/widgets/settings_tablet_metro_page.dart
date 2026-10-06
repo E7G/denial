@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../localization/denial_localizations.dart';
 import '../shell_settings.dart';
 import 'settings_controls.dart';
 
@@ -37,38 +38,46 @@ class SettingsTabletMetroPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return SettingsPageLayout(
       icon: Icons.tablet_android_rounded,
-      eyebrow: 'TABLET SHELL',
-      title: 'Tablet Metro',
+      eyebrow: context.l10n.settingsTabletMetroSection,
+      title: context.l10n.settingsTabletMetroTitle,
       onReset: onReset,
       children: [
         SettingsCardGroup(
           children: [
             SettingsSection(
-              title: 'Tablet desktop',
+              title: context.l10n.settingsTabletMetroTitle,
               child: SettingsToggle(
-                label: 'Enable Metro tablet layout',
-                description:
-                    'Use the Square Home / Surface RT style Start screen on tablet-sized displays.',
+                label: context.l10n.settingsTabletMetroEnable,
+                description: context.l10n.settingsTabletMetroEnableDescription,
                 value: settings.enabled,
                 onChanged: onEnabledChanged,
               ),
             ),
             SettingsSection(
-              title: 'Tile density',
+              title: context.l10n.settingsTabletMetroTileDensity,
               child: SettingsSegmentedControl<TabletTileDensity>(
                 value: settings.tileDensity,
-                choices: const [
-                  SettingsChoice(TabletTileDensity.compact, 'Compact'),
-                  SettingsChoice(TabletTileDensity.comfortable, 'Comfort'),
-                  SettingsChoice(TabletTileDensity.spacious, 'Spacious'),
+                choices: [
+                  SettingsChoice(
+                    TabletTileDensity.compact,
+                    context.l10n.settingsTabletMetroDensityCompact,
+                  ),
+                  SettingsChoice(
+                    TabletTileDensity.comfortable,
+                    context.l10n.settingsTabletMetroDensityComfortable,
+                  ),
+                  SettingsChoice(
+                    TabletTileDensity.spacious,
+                    context.l10n.settingsTabletMetroDensitySpacious,
+                  ),
                 ],
                 onChanged: onTileDensityChanged,
               ),
             ),
             SettingsSection(
-              title: 'Tile appearance',
+              title: context.l10n.settingsTabletMetroTileAppearance,
               child: SettingsSlider(
-                label: 'Tile opacity',
+                label: context.l10n.settingsTabletMetroTileOpacity,
                 value: settings.tileOpacity,
                 minimum: 0.55,
                 maximum: 1,
@@ -82,29 +91,31 @@ class SettingsTabletMetroPage extends StatelessWidget {
         SettingsCardGroup(
           children: [
             SettingsSection(
-              title: 'Start screen',
+              title: context.l10n.settingsTabletMetroStartScreen,
               child: Column(
                 children: [
                   SettingsToggle(
-                    label: 'Show Start header',
+                    label: context.l10n.settingsTabletMetroShowHeader,
                     description:
-                        'Show the Windows 8 style Start title and actions on wide displays.',
+                        context.l10n.settingsTabletMetroShowHeaderDescription,
                     value: settings.showStartHeader,
                     onChanged: onShowStartHeaderChanged,
                   ),
                   const SizedBox(height: 14),
                   SettingsToggle(
-                    label: 'Show system tiles',
-                    description:
-                        'Expose clock, date and battery live tiles in All apps.',
+                    label: context.l10n.settingsTabletMetroShowSystemTiles,
+                    description: context
+                        .l10n
+                        .settingsTabletMetroShowSystemTilesDescription,
                     value: settings.showSystemTiles,
                     onChanged: onShowSystemTilesChanged,
                   ),
                   const SizedBox(height: 14),
                   SettingsToggle(
-                    label: 'Quick Settings hint',
-                    description:
-                        'Show the swipe-down Quick Settings hint in the Start header.',
+                    label: context.l10n.settingsTabletMetroQuickSettingsHint,
+                    description: context
+                        .l10n
+                        .settingsTabletMetroQuickSettingsHintDescription,
                     value: settings.showQuickSettingsHint,
                     onChanged: onShowQuickSettingsHintChanged,
                   ),
@@ -112,11 +123,11 @@ class SettingsTabletMetroPage extends StatelessWidget {
               ),
             ),
             SettingsSection(
-              title: 'Portrait mode',
+              title: context.l10n.settingsTabletMetroPortraitMode,
               child: SettingsToggle(
-                label: 'Compact portrait layout',
+                label: context.l10n.settingsTabletMetroCompactPortrait,
                 description:
-                    'Use denser tiles and reduced Start chrome when the tablet is held vertically.',
+                    context.l10n.settingsTabletMetroCompactPortraitDescription,
                 value: settings.portraitCompact,
                 onChanged: onPortraitCompactChanged,
               ),
@@ -126,39 +137,42 @@ class SettingsTabletMetroPage extends StatelessWidget {
         SettingsCardGroup(
           children: [
             SettingsSection(
-              title: 'Start layout',
+              title: context.l10n.settingsTabletMetroStartLayout,
               trailing: SettingsTextButton(
-                label: 'Reset Start',
+                label: context.l10n.settingsTabletMetroResetStart,
                 onPressed: onResetStartLayout,
               ),
-              child: const Text(
-                'Restore the live system tiles and a small starter set of applications. All installed apps remain available in All apps.',
+              child: Text(
+                context.l10n.settingsTabletMetroResetStartDescription,
               ),
             ),
             SettingsSection(
-              title: 'Navigation',
+              title: context.l10n.settingsTabletMetroNavigation,
               child: SettingsSegmentedControl<TabletNavigationMode>(
                 value: settings.navigationMode,
-                choices: const [
-                  SettingsChoice(TabletNavigationMode.gesture, 'Gestures'),
+                choices: [
+                  SettingsChoice(
+                    TabletNavigationMode.gesture,
+                    context.l10n.settingsTabletMetroGestures,
+                  ),
                   SettingsChoice(
                     TabletNavigationMode.threeButton,
-                    'Back · Home · Overview',
+                    context.l10n.settingsTabletMetroThreeButton,
                   ),
                 ],
                 onChanged: onNavigationModeChanged,
               ),
             ),
             SettingsSection(
-              title: 'Motion',
+              title: context.l10n.settingsTabletMetroMotion,
               child: SettingsSlider(
-                label: 'Launcher animation strength',
+                label: context.l10n.settingsTabletMetroLauncherAnimation,
                 value: settings.animationStrength,
                 minimum: 0,
                 maximum: 1.5,
                 divisions: 15,
                 valueLabel: settings.animationStrength == 0
-                    ? 'Off'
+                    ? context.l10n.settingsTabletMetroAnimationOff
                     : '${(settings.animationStrength * 100).round()}%',
                 onChanged: onAnimationStrengthChanged,
               ),

@@ -7018,6 +7018,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} attempts remaining'**
   String simPinRetries(int count);
+
+  /// Tablet Metro UI text for tabletStartTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get tabletStartTitle;
+
+  /// Tablet Metro UI text for tabletAllApps.
+  ///
+  /// In en, this message translates to:
+  /// **'All apps'**
+  String get tabletAllApps;
+
+  /// Tablet Metro UI text for tabletAppsShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps'**
+  String get tabletAppsShort;
+
+  /// Tablet Metro UI text for tabletQuickSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick settings'**
+  String get tabletQuickSettings;
+
+  /// Tablet Metro UI text for tabletSystemTiles.
+  ///
+  /// In en, this message translates to:
+  /// **'System tiles'**
+  String get tabletSystemTiles;
+
+  /// Tablet Metro UI text for tabletNoApplications.
+  ///
+  /// In en, this message translates to:
+  /// **'No applications'**
+  String get tabletNoApplications;
+
+  /// Tablet Metro UI text for tabletNoMatchingApplications.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching applications'**
+  String get tabletNoMatchingApplications;
+
+  /// Tablet Metro UI text for tabletNewFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get tabletNewFolder;
+
+  /// Tablet Metro UI text for tabletFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder'**
+  String get tabletFolder;
+
+  /// Tablet Metro UI text for tabletCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get tabletCreate;
+
+  /// Tablet Metro UI text for tabletFolderName.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get tabletFolderName;
+
+  /// Tablet Metro UI text for tabletSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String tabletSelectedCount(int count);
+
+  /// Tablet Metro UI text for tabletCreateFolderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose at least two apps, name the folder, then Create'**
+  String get tabletCreateFolderHint;
+
+  /// Tablet Metro UI text for tabletDrawerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Long press an app to pin it · Swipe down to return'**
+  String get tabletDrawerHint;
+
+  /// Tablet Metro UI text for tabletFolderAppCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} apps'**
+  String tabletFolderAppCount(int count);
+
+  /// Tablet Metro UI text for tabletWifiOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi off'**
+  String get tabletWifiOff;
+
+  /// Tablet Metro UI text for tabletWifiNotConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected'**
+  String get tabletWifiNotConnected;
+
+  /// Tablet Metro UI text for tabletWifiConnectHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Quick Settings to connect'**
+  String get tabletWifiConnectHint;
+
+  /// Tablet Metro UI text for tabletWirelessDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Wireless disabled'**
+  String get tabletWirelessDisabled;
+
+  /// Tablet Metro UI text for tabletSignalPercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% signal'**
+  String tabletSignalPercent(int percent);
+
+  /// Tablet Metro UI text for settingsTabletMetroSection.
+  ///
+  /// In en, this message translates to:
+  /// **'TABLET SHELL'**
+  String get settingsTabletMetroSection;
+
+  /// Tablet Metro UI text for settingsTabletMetroTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tablet Metro'**
+  String get settingsTabletMetroTitle;
+
+  /// Tablet Metro UI text for settingsTabletMetroEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Metro tablet layout'**
+  String get settingsTabletMetroEnable;
+
+  /// Tablet Metro UI text for settingsTabletMetroEnableDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the Square Home / Surface RT style Start screen on tablet-sized displays.'**
+  String get settingsTabletMetroEnableDescription;
+
+  /// Tablet Metro UI text for settingsTabletMetroTileDensity.
+  ///
+  /// In en, this message translates to:
+  /// **'Tile density'**
+  String get settingsTabletMetroTileDensity;
+
+  /// Tablet Metro UI text for settingsTabletMetroDensityCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get settingsTabletMetroDensityCompact;
+
+  /// Tablet Metro UI text for settingsTabletMetroDensityComfortable.
+  ///
+  /// In en, this message translates to:
+  /// **'Comfort'**
+  String get settingsTabletMetroDensityComfortable;
+
+  /// Tablet Metro UI text for settingsTabletMetroDensitySpacious.
+  ///
+  /// In en, this message translates to:
+  /// **'Spacious'**
+  String get settingsTabletMetroDensitySpacious;
+
+  /// Tablet Metro UI text for settingsTabletMetroTileAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Tile appearance'**
+  String get settingsTabletMetroTileAppearance;
+
+  /// Tablet Metro UI text for settingsTabletMetroTileOpacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Tile opacity'**
+  String get settingsTabletMetroTileOpacity;
+
+  /// Tablet Metro UI text for settingsTabletMetroStartScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Start screen'**
+  String get settingsTabletMetroStartScreen;
+
+  /// Tablet Metro UI text for settingsTabletMetroShowHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Start header'**
+  String get settingsTabletMetroShowHeader;
+
+  /// Tablet Metro UI text for settingsTabletMetroShowHeaderDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Windows 8 style Start title and actions on wide displays.'**
+  String get settingsTabletMetroShowHeaderDescription;
+
+  /// Tablet Metro UI text for settingsTabletMetroShowSystemTiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Show system tiles'**
+  String get settingsTabletMetroShowSystemTiles;
+
+  /// Tablet Metro UI text for settingsTabletMetroShowSystemTilesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Expose clock, date, battery and network live tiles in All apps.'**
+  String get settingsTabletMetroShowSystemTilesDescription;
+
+  /// Tablet Metro UI text for settingsTabletMetroQuickSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Settings hint'**
+  String get settingsTabletMetroQuickSettingsHint;
+
+  /// Tablet Metro UI text for settingsTabletMetroQuickSettingsHintDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the swipe-down Quick Settings hint in the Start header.'**
+  String get settingsTabletMetroQuickSettingsHintDescription;
+
+  /// Tablet Metro UI text for settingsTabletMetroPortraitMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Portrait mode'**
+  String get settingsTabletMetroPortraitMode;
+
+  /// Tablet Metro UI text for settingsTabletMetroCompactPortrait.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact portrait layout'**
+  String get settingsTabletMetroCompactPortrait;
+
+  /// Tablet Metro UI text for settingsTabletMetroCompactPortraitDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use denser tiles and reduced Start chrome when the tablet is held vertically.'**
+  String get settingsTabletMetroCompactPortraitDescription;
+
+  /// Tablet Metro UI text for settingsTabletMetroStartLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Start layout'**
+  String get settingsTabletMetroStartLayout;
+
+  /// Tablet Metro UI text for settingsTabletMetroResetStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Start'**
+  String get settingsTabletMetroResetStart;
+
+  /// Tablet Metro UI text for settingsTabletMetroResetStartDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore the live system tiles and a small starter set of applications. All installed apps remain available in All apps.'**
+  String get settingsTabletMetroResetStartDescription;
+
+  /// Tablet Metro UI text for settingsTabletMetroNavigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get settingsTabletMetroNavigation;
+
+  /// Tablet Metro UI text for settingsTabletMetroGestures.
+  ///
+  /// In en, this message translates to:
+  /// **'Gestures'**
+  String get settingsTabletMetroGestures;
+
+  /// Tablet Metro UI text for settingsTabletMetroThreeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Back · Home · Overview'**
+  String get settingsTabletMetroThreeButton;
+
+  /// Tablet Metro UI text for settingsTabletMetroMotion.
+  ///
+  /// In en, this message translates to:
+  /// **'Motion'**
+  String get settingsTabletMetroMotion;
+
+  /// Tablet Metro UI text for settingsTabletMetroLauncherAnimation.
+  ///
+  /// In en, this message translates to:
+  /// **'Launcher animation strength'**
+  String get settingsTabletMetroLauncherAnimation;
+
+  /// Tablet Metro UI text for settingsTabletMetroAnimationOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get settingsTabletMetroAnimationOff;
 }
 
 class _AppLocalizationsDelegate

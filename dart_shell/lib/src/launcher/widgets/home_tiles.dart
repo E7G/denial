@@ -94,6 +94,12 @@ class HomeGridItemCard extends ConsumerWidget {
         snapshot: network!,
         color: tileColor,
       ),
+      HomeGridItemType.folder => _HomeFolderTile(
+        item: item,
+        color: tileColor,
+        animationStrength: tabletSettings.animationStrength,
+        onTap: launchEnabled ? (rect) => onLaunch(item, rect) : null,
+      ),
       HomeGridItemType.app => _HomeAppTile(
         identity: item.id,
         name: item.localApp?.titleFor(context) ?? item.app!.name,
@@ -108,6 +114,155 @@ class HomeGridItemCard extends ConsumerWidget {
         onTap: launchEnabled ? (rect) => onLaunch(item, rect) : null,
       ),
     };
+  }
+}
+
+class _HomeFolderTile extends StatefulWidget {
+  const _HomeFolderTile({
+    required this.item,
+    required this.color,
+    required this.animationStrength,
+    required this.onTap,
+  });
+
+  final HomeGridItem item;
+  final Color color;
+  final double animationStrength;
+  final ValueChanged<Rect>? onTap;
+
+  @override
+  State<_HomeFolderTile> createState() => _HomeFolderTileState();
+}
+
+class _HomeFolderTileState extends State<_HomeFolderTile> {
+  final _tileKey = GlobalKey();
+  bool _pressed = false;
+
+  void _launch() {
+    final render = _tileKey.currentContext?.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) {
+      return;
+    }
+    widget.onTap?.call(
+      MatrixUtils.transformRect(
+        render.getTransformTo(null),
+        Offset.zero & render.size,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strength = widget.animationStrength.clamp(0.0, 1.5);
+    final scale = _pressed ? 1 - 0.035 * strength : 1.0;
+    final children = widget.item.folderItems.take(4).toList(growable: false);
+    return Semantics(
+      button: true,
+      enabled: widget.onTap != null,
+      label: widget.item.folderName ?? 'Folder',
+      child: AnimatedScale(
+        scale: scale,
+        duration: Duration(milliseconds: (90 * strength).round()),
+        curve: Curves.easeOutCubic,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: widget.onTap == null
+              ? null
+              : (_) => setState(() => _pressed = true),
+          onTapCancel: widget.onTap == null
+              ? null
+              : () => setState(() => _pressed = false),
+          onTapUp: widget.onTap == null
+              ? null
+              : (_) => setState(() => _pressed = false),
+          onTap: widget.onTap == null ? null : _launch,
+          child: DecoratedBox(
+            key: _tileKey,
+            decoration: BoxDecoration(
+              color: widget.color,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(
+                        width: 78,
+                        height: 78,
+                        child: GridView.count(
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 5,
+                          crossAxisSpacing: 5,
+                          padding: EdgeInsets.zero,
+                          children: [
+                            for (final child in children)
+                              _FolderMiniIcon(item: child),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    widget.item.folderName ?? 'Folder',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      height: 1,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    context.l10n.tabletFolderAppCount(
+                      widget.item.folderItems.length,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      fontSize: 10,
+                      height: 1,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderMiniIcon extends StatelessWidget {
+  const _FolderMiniIcon({required this.item});
+
+  final HomeGridItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final localIcon = item.localApp?.icon;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: 0.18),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: localIcon != null
+              ? Icon(localIcon, color: Colors.white, size: 24)
+              : AppIconImage(iconPath: item.app?.iconPath),
+        ),
+      ),
+    );
   }
 }
 
@@ -197,12 +352,16 @@ class _HomeNetworkTile extends StatelessWidget {
         : connected != null
         ? Icons.wifi_rounded
         : Icons.wifi_find_rounded;
-    final title = connected?.ssid ?? (enabled ? 'Not connected' : 'Wi-Fi off');
+    final title =
+        connected?.ssid ??
+        (enabled
+            ? context.l10n.tabletWifiNotConnected
+            : context.l10n.tabletWifiOff);
     final detail = connected != null
-        ? '${connected.strength}% signal'
+        ? context.l10n.tabletSignalPercent(connected.strength)
         : enabled
-        ? 'Tap Quick Settings to connect'
-        : 'Wireless disabled';
+        ? context.l10n.tabletWifiConnectHint
+        : context.l10n.tabletWirelessDisabled;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
@@ -315,7 +474,9 @@ class _HomeBatteryTile extends StatelessWidget {
                   Align(
                     alignment: Alignment.bottomLeft,
                     child: Text(
-                      charging ? 'Charging' : 'Battery',
+                      charging
+                          ? context.l10n.batteryCharging
+                          : context.l10n.batteryTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

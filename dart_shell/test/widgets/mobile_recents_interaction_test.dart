@@ -11,6 +11,8 @@ import 'package:denial_dart_shell/src/models/denial_window.dart';
 import 'package:denial_dart_shell/src/models/denial_window_snapshot.dart';
 import 'package:denial_dart_shell/src/platform/denial_bridge.dart';
 import 'package:denial_dart_shell/src/services/lock_state_repository.dart';
+import 'package:denial_dart_shell/src/settings/settings_controller.dart';
+import 'package:denial_dart_shell/src/settings/shell_settings.dart';
 import 'package:denial_dart_shell/src/state/authentication.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/shell_profile.dart';
@@ -283,6 +285,7 @@ Future<_ShellHarness> _pumpShell(
       lockStateRepositoryProvider.overrideWithValue(_NoLockFiles()),
       authenticationProvider.overrideWith(_NoAuthentication.new),
       shellProfileProvider.overrideWithValue(ShellProfile.mobile),
+      shellSettingsProvider.overrideWith(_StaticShellSettings.new),
       if (includeLauncher)
         homeGridControllerProvider.overrideWith(_RecentsGrid.new),
       if (includeLauncher)
@@ -372,6 +375,11 @@ class _RecentsBridge extends DenialBridge {
     windows = windows.where((window) => window.objectId != id).toList();
     snapshot(DenialWindowSnapshot(sequence: ++sequence, windows: windows));
   }
+}
+
+class _StaticShellSettings extends ShellSettingsController {
+  @override
+  ShellSettings build() => const ShellSettings();
 }
 
 class _NoAuthentication extends AuthenticationController {

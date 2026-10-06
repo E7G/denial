@@ -43,7 +43,7 @@ extension SettingsPageIdPresentation on SettingsPageId {
     SettingsPageId.environment => context.l10n.settingsNavigationEnvironment,
     SettingsPageId.animations => context.l10n.settingsNavigationAnimations,
     SettingsPageId.layout => context.l10n.settingsNavigationDesktopLayout,
-    SettingsPageId.tabletMetro => 'Tablet Metro',
+    SettingsPageId.tabletMetro => context.l10n.settingsTabletMetroTitle,
     SettingsPageId.overlays => context.l10n.settingsNavigationOverlays,
     SettingsPageId.lockScreen => context.l10n.settingsNavigationLockScreen,
     SettingsPageId.audio => context.l10n.settingsNavigationAudio,

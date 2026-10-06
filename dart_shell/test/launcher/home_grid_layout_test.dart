@@ -161,6 +161,86 @@ void main() {
     ]);
   });
 
+  test('saved folders restore their name, children, size and color', () {
+    HomeGridLayout.columns = 4;
+    const first = DesktopApp(
+      id: 'org.example.First',
+      name: 'First',
+      exec: 'first',
+      desktopPath: '/usr/share/applications/first.desktop',
+      categories: <String>[],
+    );
+    const second = DesktopApp(
+      id: 'org.example.Second',
+      name: 'Second',
+      exec: 'second',
+      desktopPath: '/usr/share/applications/second.desktop',
+      categories: <String>[],
+    );
+
+    final slots = HomeGridLayout.initialSlotsForApps(
+      const <DesktopApp>[first, second],
+      const [],
+      const <HomeLayoutSlot?>[
+        HomeLayoutSlot(
+          id: 'folder:games',
+          colSpan: 2,
+          rowSpan: 2,
+          tileColorValue: 0xff008272,
+          folderName: 'Games',
+          childIds: <String>['app:org.example.First', 'app:org.example.Second'],
+        ),
+      ],
+    );
+
+    final folder = slots.whereType<HomeGridItem>().single;
+    expect(folder.isFolder, isTrue);
+    expect(folder.folderName, 'Games');
+    expect(folder.colSpan, 2);
+    expect(folder.rowSpan, 2);
+    expect(folder.tileColorValue, 0xff008272);
+    expect(folder.folderItemIds, <String>[
+      'app:org.example.First',
+      'app:org.example.Second',
+    ]);
+  });
+
+  test('folder refresh drops removed children without auto-pinning apps', () {
+    HomeGridLayout.columns = 4;
+    const first = DesktopApp(
+      id: 'org.example.First',
+      name: 'First',
+      exec: 'first',
+      desktopPath: '/usr/share/applications/first.desktop',
+      categories: <String>[],
+    );
+    const second = DesktopApp(
+      id: 'org.example.Second',
+      name: 'Second',
+      exec: 'second',
+      desktopPath: '/usr/share/applications/second.desktop',
+      categories: <String>[],
+    );
+    final folder = HomeGridItem.folder(
+      id: 'folder:test',
+      name: 'Test',
+      items: <HomeGridItem>[HomeGridItem.app(first), HomeGridItem.app(second)],
+    );
+
+    final refreshed = HomeGridLayout.refreshSlotsForApps(
+      <HomeGridItem?>[folder],
+      const <DesktopApp>[first],
+      const [],
+    );
+
+    final restoredFolder = refreshed.whereType<HomeGridItem>().single;
+    expect(restoredFolder.folderItemIds, <String>['app:org.example.First']);
+    expect(
+      refreshed.whereType<HomeGridItem>().where((item) => item.isApplication),
+      isEmpty,
+    );
+  });
+
   test('bounded hit lookup matches occupied cells for every widget span', () {
     for (final columns in [4, 7, 14]) {
       HomeGridLayout.columns = columns;

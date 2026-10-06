@@ -3942,4 +3942,166 @@ class AppLocalizationsEn extends AppLocalizations {
   String simPinRetries(int count) {
     return '$count attempts remaining';
   }
+
+  @override
+  String get tabletStartTitle => 'Start';
+
+  @override
+  String get tabletAllApps => 'All apps';
+
+  @override
+  String get tabletAppsShort => 'Apps';
+
+  @override
+  String get tabletQuickSettings => 'Quick settings';
+
+  @override
+  String get tabletSystemTiles => 'System tiles';
+
+  @override
+  String get tabletNoApplications => 'No applications';
+
+  @override
+  String get tabletNoMatchingApplications => 'No matching applications';
+
+  @override
+  String get tabletNewFolder => 'New folder';
+
+  @override
+  String get tabletFolder => 'Folder';
+
+  @override
+  String get tabletCreate => 'Create';
+
+  @override
+  String get tabletFolderName => 'Folder name';
+
+  @override
+  String tabletSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get tabletCreateFolderHint =>
+      'Choose at least two apps, name the folder, then Create';
+
+  @override
+  String get tabletDrawerHint =>
+      'Long press an app to pin it · Swipe down to return';
+
+  @override
+  String tabletFolderAppCount(int count) {
+    return '$count apps';
+  }
+
+  @override
+  String get tabletWifiOff => 'Wi-Fi off';
+
+  @override
+  String get tabletWifiNotConnected => 'Not connected';
+
+  @override
+  String get tabletWifiConnectHint => 'Open Quick Settings to connect';
+
+  @override
+  String get tabletWirelessDisabled => 'Wireless disabled';
+
+  @override
+  String tabletSignalPercent(int percent) {
+    return '$percent% signal';
+  }
+
+  @override
+  String get settingsTabletMetroSection => 'TABLET SHELL';
+
+  @override
+  String get settingsTabletMetroTitle => 'Tablet Metro';
+
+  @override
+  String get settingsTabletMetroEnable => 'Enable Metro tablet layout';
+
+  @override
+  String get settingsTabletMetroEnableDescription =>
+      'Use the Square Home / Surface RT style Start screen on tablet-sized displays.';
+
+  @override
+  String get settingsTabletMetroTileDensity => 'Tile density';
+
+  @override
+  String get settingsTabletMetroDensityCompact => 'Compact';
+
+  @override
+  String get settingsTabletMetroDensityComfortable => 'Comfort';
+
+  @override
+  String get settingsTabletMetroDensitySpacious => 'Spacious';
+
+  @override
+  String get settingsTabletMetroTileAppearance => 'Tile appearance';
+
+  @override
+  String get settingsTabletMetroTileOpacity => 'Tile opacity';
+
+  @override
+  String get settingsTabletMetroStartScreen => 'Start screen';
+
+  @override
+  String get settingsTabletMetroShowHeader => 'Show Start header';
+
+  @override
+  String get settingsTabletMetroShowHeaderDescription =>
+      'Show the Windows 8 style Start title and actions on wide displays.';
+
+  @override
+  String get settingsTabletMetroShowSystemTiles => 'Show system tiles';
+
+  @override
+  String get settingsTabletMetroShowSystemTilesDescription =>
+      'Expose clock, date, battery and network live tiles in All apps.';
+
+  @override
+  String get settingsTabletMetroQuickSettingsHint => 'Quick Settings hint';
+
+  @override
+  String get settingsTabletMetroQuickSettingsHintDescription =>
+      'Show the swipe-down Quick Settings hint in the Start header.';
+
+  @override
+  String get settingsTabletMetroPortraitMode => 'Portrait mode';
+
+  @override
+  String get settingsTabletMetroCompactPortrait => 'Compact portrait layout';
+
+  @override
+  String get settingsTabletMetroCompactPortraitDescription =>
+      'Use denser tiles and reduced Start chrome when the tablet is held vertically.';
+
+  @override
+  String get settingsTabletMetroStartLayout => 'Start layout';
+
+  @override
+  String get settingsTabletMetroResetStart => 'Reset Start';
+
+  @override
+  String get settingsTabletMetroResetStartDescription =>
+      'Restore the live system tiles and a small starter set of applications. All installed apps remain available in All apps.';
+
+  @override
+  String get settingsTabletMetroNavigation => 'Navigation';
+
+  @override
+  String get settingsTabletMetroGestures => 'Gestures';
+
+  @override
+  String get settingsTabletMetroThreeButton => 'Back · Home · Overview';
+
+  @override
+  String get settingsTabletMetroMotion => 'Motion';
+
+  @override
+  String get settingsTabletMetroLauncherAnimation =>
+      'Launcher animation strength';
+
+  @override
+  String get settingsTabletMetroAnimationOff => 'Off';
 }

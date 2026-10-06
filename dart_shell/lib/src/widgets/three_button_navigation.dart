@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/input_layout.dart';
+import '../launcher/controllers/home_overlay_navigation.dart';
 import '../state/shell_controller.dart';
 
 class ThreeButtonNavigation extends ConsumerWidget {
@@ -19,6 +20,17 @@ class ThreeButtonNavigation extends ConsumerWidget {
       ),
     );
     final controller = ref.read(shellControllerProvider.notifier);
+    final launcherModalOpen = ref.watch(
+      homeOverlayNavigationProvider.select((state) => state.modalOpen),
+    );
+
+    void goBack() {
+      if (launcherModalOpen) {
+        ref.read(homeOverlayNavigationProvider.notifier).requestBack();
+        return;
+      }
+      controller.navigateBack();
+    }
 
     void goHome() {
       if (state.overviewVisible) {
@@ -58,7 +70,7 @@ class ThreeButtonNavigation extends ConsumerWidget {
                   child: _NavigationButton(
                     semanticLabel: 'Back',
                     icon: Icons.arrow_back_rounded,
-                    onTap: controller.navigateBack,
+                    onTap: goBack,
                   ),
                 ),
                 Expanded(

@@ -15,6 +15,7 @@ import '../widgets/retained_translation.dart';
 import 'controllers/application_recents_controller.dart';
 import 'controllers/home_grid_controller.dart';
 import 'controllers/home_grid_layout.dart';
+import 'controllers/home_overlay_navigation.dart';
 import 'models/home_drag_session.dart';
 import 'models/home_grid_item.dart';
 import 'widgets/home_app_page.dart';
@@ -75,6 +76,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   _HomeResizeSession? _resizeSession;
   int? _resizeModeIndex;
   bool _appDrawerOpen = false;
+  HomeGridItem? _openFolder;
   double _currentTileWidth = 0;
   double _currentTileHeight = 0;
   int _currentRows = 0;
@@ -131,6 +133,8 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   void _cancelInteraction() {
     _dragEndTimer?.cancel();
     _appDrawerOpen = false;
+    _openFolder = null;
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
     _dragEndTimer = null;
     _activePointer = null;
     _resetTapTracking();
@@ -165,6 +169,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     _tapMoved = false;
     _tapStartedOnInteractiveItem =
         _appDrawerOpen ||
+        _openFolder != null ||
         resizeModeWasActive ||
         _pointerInsideHomeItem(event.position);
   }
@@ -208,6 +213,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       return;
     }
     _clearResizeMode();
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
     setState(() => _appDrawerOpen = true);
   }
 
@@ -215,12 +221,54 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     if (!_appDrawerOpen) {
       return;
     }
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
     setState(() => _appDrawerOpen = false);
   }
 
   void _launchFromAppDrawer(HomeGridItem item, Rect sourceRect) {
     _closeAppDrawer();
     unawaited(_launchApp(item, sourceRect));
+  }
+
+  void _createFolderFromDrawer(String name, Iterable<HomeGridItem> items) {
+    final created = ref
+        .read(homeGridControllerProvider.notifier)
+        .createFolder(name, items.map((item) => item.id));
+    if (!created) {
+      return;
+    }
+    _closeAppDrawer();
+  }
+
+  void _openFolderItem(HomeGridItem folder) {
+    if (!folder.isFolder || folder.folderItems.isEmpty) {
+      return;
+    }
+    _clearResizeMode();
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
+    setState(() => _openFolder = folder);
+  }
+
+  void _closeFolder() {
+    if (_openFolder == null) {
+      return;
+    }
+    ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(false);
+    setState(() => _openFolder = null);
+  }
+
+  void _launchFromFolder(HomeGridItem item, Rect sourceRect) {
+    _closeFolder();
+    unawaited(_launchApp(item, sourceRect));
+  }
+
+  void _renameOpenFolder(String name) {
+    final folder = _openFolder;
+    if (folder == null || !folder.isFolder) {
+      return;
+    }
+    ref.read(homeGridControllerProvider.notifier).renameFolder(folder.id, name);
+    setState(() => _openFolder = folder.withFolderName(name));
   }
 
   void _togglePinFromAppDrawer(HomeGridItem item) {
@@ -258,6 +306,11 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   }
 
   Future<void> _launchApp(HomeGridItem item, Rect sourceRect) async {
+    if (item.isFolder) {
+      _openFolderItem(item);
+      return;
+    }
+
     final localApp = item.localApp;
     if (localApp != null) {
       _launchLocalApp(localApp, sourceRect);
@@ -1065,6 +1118,21 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      homeOverlayNavigationProvider.select((state) => state.backRequestSerial),
+      (previous, next) {
+        if (previous == next || !widget.active || !widget.interactive) {
+          return;
+        }
+        if (_openFolder != null) {
+          _closeFolder();
+        } else if (_appDrawerOpen) {
+          _closeAppDrawer();
+        } else if (_resizeModeIndex != null) {
+          _clearResizeMode();
+        }
+      },
+    );
     // Page changes happen midway through a swipe. Only the dots need that
     // signal; rebuilding both visible icon grids here disrupts the gesture.
     final contents = ref.watch(

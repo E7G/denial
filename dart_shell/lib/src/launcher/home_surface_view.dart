@@ -65,7 +65,7 @@ class _HomeSurfaceView extends ConsumerWidget {
             top: ShellMetrics.statusBarHeight + 6,
             child: _MetroHeaderAction(
               icon: Icons.apps_rounded,
-              label: 'Apps',
+              label: context.l10n.tabletAppsShort,
               onTap: owner._openAppDrawer,
             ),
           ),
@@ -79,6 +79,16 @@ class _HomeSurfaceView extends ConsumerWidget {
               onClose: owner._closeAppDrawer,
               onLaunch: owner._launchFromAppDrawer,
               onTogglePin: owner._togglePinFromAppDrawer,
+              onCreateFolder: owner._createFolderFromDrawer,
+            ),
+          ),
+        if (owner._openFolder case final folder?)
+          Positioned.fill(
+            child: _MetroFolderOverlay(
+              folder: folder,
+              onClose: owner._closeFolder,
+              onLaunch: owner._launchFromFolder,
+              onRename: owner._renameOpenFolder,
             ),
           ),
       ],
@@ -128,9 +138,9 @@ class _MetroStartHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        const Text(
-          'Start',
-          style: TextStyle(
+        Text(
+          context.l10n.tabletStartTitle,
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 34,
             height: 1,
@@ -162,7 +172,7 @@ class _MetroStartHeader extends StatelessWidget {
         const Spacer(),
         _MetroHeaderAction(
           icon: Icons.apps_rounded,
-          label: 'All apps',
+          label: context.l10n.tabletAllApps,
           onTap: onAllApps,
         ),
         if (showQuickSettingsHint) ...[
@@ -179,7 +189,7 @@ class _MetroStartHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Quick settings',
+                  context.l10n.tabletQuickSettings,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.72),
                     fontSize: 12,
@@ -259,6 +269,7 @@ class _MetroAppDrawer extends StatefulWidget {
     required this.onClose,
     required this.onLaunch,
     required this.onTogglePin,
+    required this.onCreateFolder,
   });
 
   final List<HomeGridItem> items;
@@ -267,6 +278,7 @@ class _MetroAppDrawer extends StatefulWidget {
   final VoidCallback onClose;
   final void Function(HomeGridItem item, Rect sourceRect) onLaunch;
   final ValueChanged<HomeGridItem> onTogglePin;
+  final void Function(String name, Iterable<HomeGridItem> items) onCreateFolder;
 
   @override
   State<_MetroAppDrawer> createState() => _MetroAppDrawerState();
@@ -274,11 +286,15 @@ class _MetroAppDrawer extends StatefulWidget {
 
 class _MetroAppDrawerState extends State<_MetroAppDrawer> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _folderNameController = TextEditingController();
+  final Set<String> _folderSelection = <String>{};
   String _query = '';
+  bool _folderMode = false;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _folderNameController.dispose();
     super.dispose();
   }
 
@@ -286,9 +302,46 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
     return item.localApp?.titleFor(context) ?? item.app?.name ?? item.id;
   }
 
+  void _beginFolderMode() {
+    setState(() {
+      _folderMode = true;
+      _folderSelection.clear();
+      _query = '';
+      _searchController.clear();
+      _folderNameController.clear();
+    });
+  }
+
+  void _cancelFolderMode() {
+    setState(() {
+      _folderMode = false;
+      _folderSelection.clear();
+    });
+  }
+
+  void _toggleFolderSelection(HomeGridItem item) {
+    setState(() {
+      if (!_folderSelection.add(item.id)) {
+        _folderSelection.remove(item.id);
+      }
+    });
+  }
+
+  void _createFolder() {
+    if (_folderSelection.length < 2) {
+      return;
+    }
+    widget.onCreateFolder(
+      _folderNameController.text.trim().isEmpty
+          ? context.l10n.tabletFolder
+          : _folderNameController.text,
+      widget.items.where((item) => _folderSelection.contains(item.id)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final normalized = _query.trim().toLowerCase();
+    final normalized = _folderMode ? '' : _query.trim().toLowerCase();
     final items =
         widget.items
             .where((item) {
@@ -310,11 +363,13 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onVerticalDragEnd: (details) {
-        if ((details.primaryVelocity ?? 0) > 760) {
-          widget.onClose();
-        }
-      },
+      onVerticalDragEnd: _folderMode
+          ? null
+          : (details) {
+              if ((details.primaryVelocity ?? 0) > 760) {
+                widget.onClose();
+              }
+            },
       child: ColoredBox(
         color: const Color(0xF2181D23),
         child: Padding(
@@ -331,10 +386,12 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                 children: [
                   Semantics(
                     button: true,
-                    label: 'Back to Start',
+                    label: _folderMode
+                        ? context.l10n.actionCancel
+                        : context.l10n.tabletStartTitle,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: widget.onClose,
+                      onTap: _folderMode ? _cancelFolderMode : widget.onClose,
                       child: const Padding(
                         padding: EdgeInsets.all(8),
                         child: Icon(
@@ -346,9 +403,11 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'All apps',
-                    style: TextStyle(
+                  Text(
+                    _folderMode
+                        ? context.l10n.tabletNewFolder
+                        : context.l10n.tabletAllApps,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 32,
                       height: 1,
@@ -357,52 +416,73 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                     ),
                   ),
                   const Spacer(),
-                  SizedBox(
-                    width: 300,
-                    height: 42,
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (value) => setState(() => _query = value),
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      cursorColor: Colors.white,
-                      decoration: InputDecoration(
-                        hintText: 'Search apps',
-                        hintStyle: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.50),
+                  if (_folderMode) ...[
+                    SizedBox(
+                      width: 220,
+                      height: 42,
+                      child: TextField(
+                        controller: _folderNameController,
+                        maxLength: 40,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
                         ),
-                        prefixIcon: Icon(
+                        cursorColor: Colors.white,
+                        decoration: _metroTextFieldDecoration(
+                          context.l10n.tabletFolderName,
+                          Icons.folder_outlined,
+                        ).copyWith(counterText: ''),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      context.l10n.tabletSelectedCount(_folderSelection.length),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _MetroHeaderAction(
+                      icon: Icons.check_rounded,
+                      label: context.l10n.tabletCreate,
+                      onTap: _folderSelection.length >= 2
+                          ? _createFolder
+                          : () {},
+                    ),
+                  ] else ...[
+                    _MetroHeaderAction(
+                      icon: Icons.create_new_folder_outlined,
+                      label: context.l10n.tabletFolder,
+                      onTap: _beginFolderMode,
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 300,
+                      height: 42,
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (value) => setState(() => _query = value),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        cursorColor: Colors.white,
+                        decoration: _metroTextFieldDecoration(
+                          context.l10n.desktopSearchApplications,
                           Icons.search_rounded,
-                          color: Colors.white.withValues(alpha: 0.70),
-                          size: 20,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white.withValues(alpha: 0.09),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(3),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.15),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(3),
-                          borderSide: const BorderSide(
-                            color: Colors.white,
-                            width: 1.3,
-                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
               const SizedBox(height: 20),
-              if (normalized.isEmpty && widget.systemItems.isNotEmpty) ...[
+              if (!_folderMode &&
+                  normalized.isEmpty &&
+                  widget.systemItems.isNotEmpty) ...[
                 Text(
-                  'System tiles',
+                  context.l10n.tabletSystemTiles,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.72),
                     fontSize: 12,
@@ -437,8 +517,8 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                     ? Center(
                         child: Text(
                           normalized.isEmpty
-                              ? 'No applications'
-                              : 'No matching applications',
+                              ? context.l10n.tabletNoApplications
+                              : context.l10n.tabletNoMatchingApplications,
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.65),
                             fontSize: 16,
@@ -460,16 +540,23 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                           return _MetroDrawerTile(
                             item: item,
                             pinned: widget.pinnedIds.contains(item.id),
+                            selectionMode: _folderMode,
+                            selected: _folderSelection.contains(item.id),
+                            onSelect: () => _toggleFolderSelection(item),
                             onTogglePin: () => widget.onTogglePin(item),
-                            onLaunch: (sourceRect) =>
-                                widget.onLaunch(item, sourceRect),
+                            onLaunch: _folderMode
+                                ? null
+                                : (sourceRect) =>
+                                      widget.onLaunch(item, sourceRect),
                           );
                         },
                       ),
               ),
               Center(
                 child: Text(
-                  'Swipe down or tap Back to return to Start',
+                  _folderMode
+                      ? context.l10n.tabletCreateFolderHint
+                      : context.l10n.tabletDrawerHint,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.45),
                     fontSize: 11,
@@ -484,32 +571,61 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
   }
 }
 
+InputDecoration _metroTextFieldDecoration(String hint, IconData icon) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: Color(0x80FFFFFF)),
+    prefixIcon: Icon(icon, color: const Color(0xB3FFFFFF), size: 20),
+    filled: true,
+    fillColor: const Color(0x17FFFFFF),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(3),
+      borderSide: const BorderSide(color: Color(0x26FFFFFF)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(3),
+      borderSide: const BorderSide(color: Colors.white, width: 1.3),
+    ),
+  );
+}
+
 class _MetroDrawerTile extends StatelessWidget {
   const _MetroDrawerTile({
     required this.item,
     required this.pinned,
     required this.onTogglePin,
     this.onLaunch,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onSelect,
   });
 
   final HomeGridItem item;
   final bool pinned;
   final VoidCallback onTogglePin;
   final ValueChanged<Rect>? onLaunch;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback? onSelect;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: pinned ? 'Pinned to Start' : 'Not pinned to Start',
+      selected: selectionMode ? selected : null,
+      label: selectionMode
+          ? (selected ? 'Selected for folder' : 'Not selected for folder')
+          : (pinned ? 'Pinned to Start' : 'Not pinned to Start'),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onLongPress: onTogglePin,
+        onTap: selectionMode ? onSelect : null,
+        onLongPress: selectionMode ? onSelect : onTogglePin,
         child: Stack(
           fit: StackFit.expand,
           children: [
             HomeGridItemCard(
               item: item,
-              launchEnabled: onLaunch != null,
+              launchEnabled: !selectionMode && onLaunch != null,
               onLaunch: (_, sourceRect) => onLaunch?.call(sourceRect),
             ),
             Positioned(
@@ -517,10 +633,12 @@ class _MetroDrawerTile extends StatelessWidget {
               right: 5,
               child: Semantics(
                 button: true,
-                label: pinned ? 'Unpin from Start' : 'Pin to Start',
+                label: selectionMode
+                    ? (selected ? 'Remove from folder' : 'Add to folder')
+                    : (pinned ? 'Unpin from Start' : 'Pin to Start'),
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: onTogglePin,
+                  onTap: selectionMode ? onSelect : onTogglePin,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: const Color(0xCC101419),
@@ -532,9 +650,13 @@ class _MetroDrawerTile extends StatelessWidget {
                     child: SizedBox.square(
                       dimension: 34,
                       child: Icon(
-                        pinned
-                            ? Icons.push_pin_rounded
-                            : Icons.push_pin_outlined,
+                        selectionMode
+                            ? (selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.circle_outlined)
+                            : (pinned
+                                  ? Icons.push_pin_rounded
+                                  : Icons.push_pin_outlined),
                         size: 18,
                         color: Colors.white,
                       ),
@@ -546,6 +668,171 @@ class _MetroDrawerTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MetroFolderOverlay extends StatefulWidget {
+  const _MetroFolderOverlay({
+    required this.folder,
+    required this.onClose,
+    required this.onLaunch,
+    required this.onRename,
+  });
+
+  final HomeGridItem folder;
+  final VoidCallback onClose;
+  final void Function(HomeGridItem item, Rect sourceRect) onLaunch;
+  final ValueChanged<String> onRename;
+
+  @override
+  State<_MetroFolderOverlay> createState() => _MetroFolderOverlayState();
+}
+
+class _MetroFolderOverlayState extends State<_MetroFolderOverlay> {
+  late final TextEditingController _nameController = TextEditingController(
+    text: widget.folder.folderName ?? 'Folder',
+  );
+
+  @override
+  void didUpdateWidget(covariant _MetroFolderOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.folder.folderName != widget.folder.folderName &&
+        _nameController.text != widget.folder.folderName) {
+      _nameController.text = widget.folder.folderName ?? 'Folder';
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _commitName() {
+    final value = _nameController.text.trim();
+    if (value.isNotEmpty && value != widget.folder.folderName) {
+      widget.onRename(value);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onClose,
+          child: const ColoredBox(color: Color(0xB8000000)),
+        ),
+        Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 650,
+                maxHeight: 590,
+                minWidth: 360,
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xF21A2028),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.16),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x66000000),
+                      blurRadius: 28,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Semantics(
+                            button: true,
+                            label: 'Close folder',
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: widget.onClose,
+                              child: const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.arrow_back_rounded,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _nameController,
+                              maxLength: 40,
+                              onSubmitted: (_) => _commitName(),
+                              onEditingComplete: _commitName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 25,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              cursorColor: Colors.white,
+                              decoration: const InputDecoration(
+                                counterText: '',
+                                border: InputBorder.none,
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            context.l10n.tabletFolderAppCount(
+                              widget.folder.folderItems.length,
+                            ),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.62),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: GridView.builder(
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 142,
+                                mainAxisSpacing: 10,
+                                crossAxisSpacing: 10,
+                                childAspectRatio: 1,
+                              ),
+                          itemCount: widget.folder.folderItems.length,
+                          itemBuilder: (context, index) {
+                            final item = widget.folder.folderItems[index];
+                            return HomeGridItemCard(
+                              item: item,
+                              onLaunch: (_, sourceRect) =>
+                                  widget.onLaunch(item, sourceRect),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
