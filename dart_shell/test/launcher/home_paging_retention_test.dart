@@ -3,7 +3,6 @@ import 'package:denial_dart_shell/src/launcher/home_surface.dart';
 import 'package:denial_dart_shell/src/launcher/models/desktop_app.dart';
 import 'package:denial_dart_shell/src/launcher/models/home_grid_item.dart';
 import 'package:denial_dart_shell/src/launcher/widgets/home_app_page.dart';
-import 'package:denial_dart_shell/src/launcher/widgets/page_dots.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/mobile_motion_harness.dart';
 
 void main() {
-  testWidgets('page changes update dots without rebuilding populated grids', (
+  testWidgets('portrait paging stays vertical without rebuilding populated grids', (
     tester,
   ) async {
     const size = Size(600, 1000);
@@ -26,16 +25,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     final pager = tester.widget<PageView>(find.byType(PageView));
-    expect(
-      tester.widget<PageDots>(find.byType(PageDots)).count,
-      greaterThan(2),
-    );
+    expect(pager.scrollDirection, Axis.vertical);
     final page = tester.widget<HomeAppPage>(find.byType(HomeAppPage).first);
     // This is the same callback fired at the midpoint of a real PageView
     // swipe. No scrolling or new-page construction masks the invalidation.
     pager.onPageChanged!(1);
     await tester.pump();
-    expect(tester.widget<PageDots>(find.byType(PageDots)).active, 1);
+    expect(grid.state.requireValue.page, 1);
     expect(tester.widget<PageView>(find.byType(PageView)), same(pager));
     expect(
       tester.widget<HomeAppPage>(find.byType(HomeAppPage).first),
@@ -43,7 +39,7 @@ void main() {
     );
     pager.onPageChanged!(2);
     await tester.pump();
-    expect(tester.widget<PageDots>(find.byType(PageDots)).active, 2);
+    expect(grid.state.requireValue.page, 2);
     expect(
       tester.widget<HomeAppPage>(find.byType(HomeAppPage).first),
       same(page),
@@ -59,8 +55,8 @@ void main() {
           ?.id,
       'app:99',
     );
-    // Home always reserves at least two pages.
-    expect(tester.widget<PageDots>(find.byType(PageDots)).active, 1);
+    // Home always reserves at least two pages, so the current page clamps to 1.
+    expect(grid.state.requireValue.page, 1);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
