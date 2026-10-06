@@ -156,34 +156,24 @@ class _DenialSettingsApplicationState
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compactNavigation = constraints.maxWidth < 520;
+            final navigationWidth = constraints.maxWidth < 620 ? 148.0 : 184.0;
             final content = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const _SettingsHeader(),
                 Divider(height: 1, color: context.shellColors.hairlineSoft),
-                if (compactNavigation) ...[
-                  SettingsNavigation(
-                    selected: _page,
-                    compact: true,
-                    showTouchpad: true,
-                    showFingerprint: showFingerprint,
-                    onSelected: _selectPage,
-                  ),
-                  Divider(height: 1, color: context.shellColors.hairlineSoft),
-                ],
                 Expanded(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!compactNavigation)
-                        SettingsNavigation(
-                          selected: _page,
-                          compact: false,
-                          showTouchpad: true,
-                          showFingerprint: showFingerprint,
-                          onSelected: _selectPage,
-                        ),
+                      SettingsNavigation(
+                        selected: _page,
+                        compact: false,
+                        width: navigationWidth,
+                        showTouchpad: true,
+                        showFingerprint: showFingerprint,
+                        onSelected: _selectPage,
+                      ),
                       Expanded(
                         child: AnimatedSwitcher(
                           duration: Motion.cardSettle,
