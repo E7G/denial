@@ -32,6 +32,7 @@ class HomeAppPage extends StatelessWidget {
     required this.onResizeEnd,
     required this.onRemove,
     required this.onCycleColor,
+    required this.onCycleSize,
   });
 
   static const double childAspectRatio = 1.0;
@@ -83,6 +84,7 @@ class HomeAppPage extends StatelessWidget {
   final VoidCallback onResizeEnd;
   final ValueChanged<HomeGridItem> onRemove;
   final ValueChanged<HomeGridItem> onCycleColor;
+  final void Function(HomeGridItem item, int index, int pageSize) onCycleSize;
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +139,7 @@ class HomeAppPage extends StatelessWidget {
             onResizeEnd: onResizeEnd,
             onRemove: onRemove,
             onCycleColor: onCycleColor,
+            onCycleSize: onCycleSize,
           ),
       ],
     );
@@ -169,6 +172,7 @@ class _PositionedGridItem extends StatelessWidget {
     required this.onResizeEnd,
     required this.onRemove,
     required this.onCycleColor,
+    required this.onCycleSize,
   });
 
   final int index;
@@ -220,6 +224,7 @@ class _PositionedGridItem extends StatelessWidget {
   final VoidCallback onResizeEnd;
   final ValueChanged<HomeGridItem> onRemove;
   final ValueChanged<HomeGridItem> onCycleColor;
+  final void Function(HomeGridItem item, int index, int pageSize) onCycleSize;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +302,17 @@ class _PositionedGridItem extends StatelessWidget {
                 icon: Icons.palette_outlined,
                 swatch: metroTileColor(item.id, item.tileColorValue),
                 onTap: () => onCycleColor(item),
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 4),
+              child: _HomeEditButton(
+                semanticLabel: 'Cycle tile size',
+                icon: Icons.aspect_ratio_rounded,
+                onTap: () => onCycleSize(item, index, pageSize),
               ),
             ),
           ),
