@@ -20,6 +20,7 @@ class _HomeSurfaceView extends ConsumerWidget {
     final tabletSettings = ref.watch(
       shellSettingsProvider.select((settings) => settings.tablet),
     );
+    final portrait = viewSize.height > viewSize.width;
     final tabletMode = tabletSettings.enabled && viewSize.width >= 700;
     final compactPortrait =
         tabletMode &&
@@ -56,6 +57,8 @@ class _HomeSurfaceView extends ConsumerWidget {
             top: ShellMetrics.statusBarHeight + 8,
             child: _MetroStartHeader(
               onAllApps: owner._openAppDrawer,
+              onSemanticZoom: owner._openSemanticZoom,
+              showSemanticZoom: !portrait && owner._currentPageCount > 1,
               showQuickSettingsHint: tabletSettings.showQuickSettingsHint,
             ),
           )
@@ -73,6 +76,7 @@ class _HomeSurfaceView extends ConsumerWidget {
         if (owner._appDrawerOpen)
           Positioned.fill(
             child: _MetroAppDrawer(
+              focusSearch: owner._appDrawerFocusSearch,
               items: appItems,
               systemItems: systemItems,
               pinnedIds: pinnedIds,
@@ -89,6 +93,28 @@ class _HomeSurfaceView extends ConsumerWidget {
               onClose: owner._closeFolder,
               onLaunch: owner._launchFromFolder,
               onRename: owner._renameOpenFolder,
+            ),
+          ),
+        if (owner._semanticZoomOpen)
+          Positioned.fill(
+            child: _MetroSemanticZoomOverlay(
+              slots: contents.slots ?? const <HomeGridItem?>[],
+              pageSize: owner._currentPageSize,
+              pageCount: owner._currentPageCount,
+              activePage:
+                  ref.read(homeGridControllerProvider).asData?.value.page ?? 0,
+              onClose: owner._closeSemanticZoom,
+              onSelectPage: owner._jumpToStartGroup,
+            ),
+          ),
+        if (owner._charmsOpen)
+          Positioned.fill(
+            child: _MetroCharmsRail(
+              onClose: owner._closeCharms,
+              onSearch: () => owner._openAppDrawer(focusSearch: true),
+              onStart: owner._closeCharms,
+              onDevices: owner._openBluetoothFromCharms,
+              onSettings: owner._openSettingsFromCharms,
             ),
           ),
       ],
@@ -127,10 +153,14 @@ class _HomeSurfaceView extends ConsumerWidget {
 class _MetroStartHeader extends StatelessWidget {
   const _MetroStartHeader({
     required this.onAllApps,
+    required this.onSemanticZoom,
+    required this.showSemanticZoom,
     required this.showQuickSettingsHint,
   });
 
   final VoidCallback onAllApps;
+  final VoidCallback onSemanticZoom;
+  final bool showSemanticZoom;
   final bool showQuickSettingsHint;
 
   @override
@@ -175,6 +205,14 @@ class _MetroStartHeader extends StatelessWidget {
           label: context.l10n.tabletAllApps,
           onTap: onAllApps,
         ),
+        if (showSemanticZoom) ...[
+          const SizedBox(width: 12),
+          _MetroHeaderAction(
+            icon: Icons.zoom_out_map_rounded,
+            label: 'Groups',
+            onTap: onSemanticZoom,
+          ),
+        ],
         if (showQuickSettingsHint) ...[
           const SizedBox(width: 18),
           Padding(
@@ -263,6 +301,7 @@ class _MetroHeaderActionState extends State<_MetroHeaderAction> {
 
 class _MetroAppDrawer extends StatefulWidget {
   const _MetroAppDrawer({
+    required this.focusSearch,
     required this.items,
     required this.systemItems,
     required this.pinnedIds,
@@ -272,6 +311,7 @@ class _MetroAppDrawer extends StatefulWidget {
     required this.onCreateFolder,
   });
 
+  final bool focusSearch;
   final List<HomeGridItem> items;
   final List<HomeGridItem> systemItems;
   final Set<String> pinnedIds;
@@ -363,6 +403,13 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: _folderMode
+          ? null
+          : (details) {
+              if ((details.primaryVelocity ?? 0) > 720) {
+                widget.onClose();
+              }
+            },
       onVerticalDragEnd: _folderMode
           ? null
           : (details) {
@@ -462,6 +509,7 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                       height: 42,
                       child: TextField(
                         controller: _searchController,
+                        autofocus: widget.focusSearch,
                         onChanged: (value) => setState(() => _query = value),
                         style: const TextStyle(
                           color: Colors.white,
