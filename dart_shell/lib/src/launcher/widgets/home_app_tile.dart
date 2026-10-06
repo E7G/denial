@@ -91,11 +91,11 @@ class _HomeAppTileState extends State<_HomeAppTile> {
               );
               final wide = widget.colSpan > 1 && widget.rowSpan == 1;
               final large = widget.colSpan > 1 && widget.rowSpan > 1;
-              final iconExtent = (shortest * (large ? 0.46 : 0.52))
-                  .clamp(52.0, 112.0)
+              final iconExtent = (shortest * (large ? 0.50 : 0.60))
+                  .clamp(60.0, 128.0)
                   .toDouble();
-              final labelSize = (shortest * 0.115)
-                  .clamp(14.0, large ? 20.0 : 17.0)
+              final labelSize = (shortest * 0.12)
+                  .clamp(15.0, large ? 21.0 : 18.0)
                   .toDouble();
 
               final iconWidget = SizedBox.square(

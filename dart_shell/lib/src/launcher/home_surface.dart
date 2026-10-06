@@ -77,13 +77,16 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   _HomeResizeSession? _resizeSession;
   int? _resizeModeIndex;
   bool _appDrawerOpen = false;
-  bool _tabletOutputScaleBootstrapStarted = false;
+  bool _tabletOutputScaleBootstrapRunning = false;
+  bool _tabletOutputScaleBootstrapComplete = false;
+  int _tabletOutputScaleBootstrapAttempts = 0;
   HomeGridItem? _openFolder;
   double _currentTileWidth = 0;
   double _currentTileHeight = 0;
   int _currentRows = 0;
   int _currentPageCount = 0;
   Timer? _dragEndTimer;
+  Timer? _tabletOutputScaleRetryTimer;
   bool _interactionResetScheduled = false;
   DateTime _lastAutoPageTurn = DateTime.fromMillisecondsSinceEpoch(0);
   int? _activePointer;
@@ -111,53 +114,82 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   }
 
   Future<void> _bootstrapTabletOutputScale() async {
-    if (_tabletOutputScaleBootstrapStarted) {
+    if (_tabletOutputScaleBootstrapRunning ||
+        _tabletOutputScaleBootstrapComplete) {
       return;
     }
-    _tabletOutputScaleBootstrapStarted = true;
+    _tabletOutputScaleBootstrapRunning = true;
+    _tabletOutputScaleBootstrapAttempts += 1;
 
     final tabletSettings = ref.read(shellSettingsProvider).tablet;
     if (!tabletSettings.enabled) {
+      _tabletOutputScaleBootstrapComplete = true;
+      _tabletOutputScaleBootstrapRunning = false;
       return;
     }
 
-    final controller = ref.read(outputConfigurationProvider.notifier);
-    await controller.refresh();
-    if (!mounted) {
-      return;
-    }
+    try {
+      final controller = ref.read(outputConfigurationProvider.notifier);
+      await controller.refresh();
+      if (!mounted) {
+        return;
+      }
 
-    final outputState = ref.read(outputConfigurationProvider);
-    final configuration = outputState.configuration;
-    if (configuration == null ||
-        outputState.applying ||
-        configuration.outputs.length != 1 ||
-        !configuration.capabilities.apply ||
-        !configuration.capabilities.scale ||
-        !configuration.capabilities.persistent) {
-      return;
-    }
+      final outputState = ref.read(outputConfigurationProvider);
+      final configuration = outputState.configuration;
+      if (configuration == null || outputState.applying) {
+        return;
+      }
+      if (configuration.outputs.length != 1 ||
+          !configuration.capabilities.apply ||
+          !configuration.capabilities.scale ||
+          !configuration.capabilities.persistent) {
+        _tabletOutputScaleBootstrapComplete = true;
+        return;
+      }
 
-    final output = configuration.outputs.single;
-    final mode = output.currentMode;
-    final isMiPad2Panel =
-        output.name == 'DSI-1' && mode?.width == 1536 && mode?.height == 2048;
-    if (!isMiPad2Panel || output.scale >= 1.75) {
-      return;
-    }
+      final output = configuration.outputs.single;
+      final mode = output.currentMode;
+      final isMiPad2Panel =
+          output.name == 'DSI-1' && mode?.width == 1536 && mode?.height == 2048;
+      if (!isMiPad2Panel) {
+        _tabletOutputScaleBootstrapComplete = true;
+        return;
+      }
+      if (output.scale >= 1.75) {
+        _tabletOutputScaleBootstrapComplete = true;
+        return;
+      }
 
-    controller.setScale(output.name, 2.0);
-    final applied = await controller.apply();
-    if (!applied || !mounted) {
-      return;
-    }
+      controller.setScale(output.name, 2.0);
+      final applied = await controller.apply();
+      if (!applied || !mounted) {
+        return;
+      }
 
-    final confirmation = ref
-        .read(outputConfigurationProvider)
-        .configuration
-        ?.pendingConfirmation;
-    if (confirmation != null) {
-      await controller.keepChanges();
+      final confirmation = ref
+          .read(outputConfigurationProvider)
+          .configuration
+          ?.pendingConfirmation;
+      if (confirmation != null) {
+        await controller.keepChanges();
+      }
+      _tabletOutputScaleBootstrapComplete = true;
+    } finally {
+      _tabletOutputScaleBootstrapRunning = false;
+      if (mounted &&
+          !_tabletOutputScaleBootstrapComplete &&
+          _tabletOutputScaleBootstrapAttempts < 12) {
+        _tabletOutputScaleRetryTimer?.cancel();
+        _tabletOutputScaleRetryTimer = Timer(
+          const Duration(milliseconds: 750),
+          () {
+            if (mounted) {
+              unawaited(_bootstrapTabletOutputScale());
+            }
+          },
+        );
+      }
     }
   }
 
@@ -180,6 +212,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   @override
   void dispose() {
     _dragEndTimer?.cancel();
+    _tabletOutputScaleRetryTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
