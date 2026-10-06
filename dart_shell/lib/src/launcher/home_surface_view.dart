@@ -103,8 +103,12 @@ class _HomeSurfaceView extends ConsumerWidget {
               pageCount: owner._currentPageCount,
               activePage:
                   ref.read(homeGridControllerProvider).asData?.value.page ?? 0,
+              groupNames:
+                  ref.read(homeGridControllerProvider).asData?.value.groupNames ??
+                  const <int, String>{},
               onClose: owner._closeSemanticZoom,
               onSelectPage: owner._jumpToStartGroup,
+              onRenamePage: owner._renameStartGroup,
             ),
           ),
         if (owner._charmsOpen)
@@ -935,18 +939,26 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
     required this.pageSize,
     required this.pageCount,
     required this.activePage,
+    required this.groupNames,
     required this.onClose,
     required this.onSelectPage,
+    required this.onRenamePage,
   });
 
   final List<HomeGridItem?> slots;
   final int pageSize;
   final int pageCount;
   final int activePage;
+  final Map<int, String> groupNames;
   final VoidCallback onClose;
   final ValueChanged<int> onSelectPage;
+  final void Function(int page, String name) onRenamePage;
 
   String _groupLabel(BuildContext context, int page) {
+    final saved = groupNames[page];
+    if (saved != null && saved.trim().isNotEmpty) {
+      return saved;
+    }
     if (page == 0) {
       return context.l10n.tabletStartTitle;
     }
@@ -960,6 +972,37 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
       if (title != null && title.trim().isNotEmpty) return title;
     }
     return 'Group ${page + 1}';
+  }
+
+  Future<void> _renameGroup(BuildContext context, int page) async {
+    final controller = TextEditingController(text: _groupLabel(context, page));
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Name this Start group'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          decoration: const InputDecoration(hintText: 'Group name'),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result != null) {
+      onRenamePage(page, result);
+    }
   }
 
   @override
@@ -1020,6 +1063,7 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
                         return GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: () => onSelectPage(page),
+                          onLongPress: () => _renameGroup(context, page),
                           child: AnimatedScale(
                             scale: active ? 1.0 : 0.96,
                             duration: const Duration(milliseconds: 220),
@@ -1060,19 +1104,39 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(height: 10),
-                                    Text(
-                                      _groupLabel(context, page),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white.withValues(
-                                          alpha: active ? 1 : 0.86,
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _groupLabel(context, page),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(
+                                                alpha: active ? 1 : 0.86,
+                                              ),
+                                              fontSize: 16,
+                                              fontWeight: active
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                          ),
                                         ),
-                                        fontSize: 16,
-                                        fontWeight: active
-                                            ? FontWeight.w700
-                                            : FontWeight.w500,
-                                      ),
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () => _renameGroup(context, page),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(4),
+                                            child: Icon(
+                                              Icons.edit_rounded,
+                                              size: 16,
+                                              color: Colors.white.withValues(
+                                                alpha: 0.66,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
