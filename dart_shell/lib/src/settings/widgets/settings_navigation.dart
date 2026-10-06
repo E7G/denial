@@ -82,6 +82,7 @@ class SettingsNavigation extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     required this.compact,
+    this.dense = false,
     this.width = 184,
     this.showTouchpad = false,
     this.showFingerprint = false,
@@ -91,6 +92,7 @@ class SettingsNavigation extends StatelessWidget {
   final SettingsPageId selected;
   final ValueChanged<SettingsPageId> onSelected;
   final bool compact;
+  final bool dense;
   final double width;
   final bool showTouchpad;
   final bool showFingerprint;
@@ -113,6 +115,7 @@ class SettingsNavigation extends StatelessWidget {
                   page: page,
                   selected: page == selected,
                   compact: true,
+                  dense: false,
                   onPressed: () => onSelected(page),
                 ),
               ),
@@ -132,22 +135,27 @@ class SettingsNavigation extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(9, 13, 9, 12),
+          padding: EdgeInsets.fromLTRB(
+            dense ? 6 : 9,
+            dense ? 8 : 13,
+            dense ? 6 : 9,
+            dense ? 8 : 12,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: EdgeInsets.symmetric(horizontal: dense ? 6 : 10),
                 child: Text(
                   context.l10n.settingsNavigationSection,
                   style: ShellText.cardTitle.copyWith(
                     color: context.shellColors.textTertiary,
-                    fontSize: 9,
-                    letterSpacing: 1.2,
+                    fontSize: dense ? 8 : 9,
+                    letterSpacing: dense ? 0.9 : 1.2,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: dense ? 5 : 8),
               Expanded(
                 child: ListView(
                   key: settingsNavigationListKey,
@@ -159,25 +167,28 @@ class SettingsNavigation extends StatelessWidget {
                         page: page,
                         selected: page == selected,
                         compact: false,
+                        dense: dense,
                         onPressed: () => onSelected(page),
                       ),
-                      const SizedBox(height: 3),
+                      SizedBox(height: dense ? 1 : 3),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text(
-                  context.l10n.settingsStorageLocation,
-                  style: ShellText.base.copyWith(
-                    color: context.shellColors.textTertiary,
-                    fontSize: 9,
-                    height: 1.45,
+              if (!dense) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    context.l10n.settingsStorageLocation,
+                    style: ShellText.base.copyWith(
+                      color: context.shellColors.textTertiary,
+                      fontSize: 9,
+                      height: 1.45,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -197,6 +208,7 @@ class _NavigationDestination extends StatefulWidget {
     required this.page,
     required this.selected,
     required this.compact,
+    this.dense = false,
     required this.onPressed,
     super.key,
   });
@@ -204,6 +216,7 @@ class _NavigationDestination extends StatefulWidget {
   final SettingsPageId page;
   final bool selected;
   final bool compact;
+  final bool dense;
   final VoidCallback onPressed;
 
   @override
@@ -226,6 +239,7 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: ShellText.cardTitle.copyWith(
+        fontSize: widget.dense ? 11 : null,
         color: widget.selected
             ? context.shellColors.textPrimary
             : context.shellColors.textSecondary,
@@ -259,7 +273,7 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
               color: widget.selected
                   ? accent.withAlpha(36)
                   : ShellMediaColors.transparentDark,
-              borderRadius: context.shellTheme.borderRadius(12),
+              borderRadius: context.shellTheme.borderRadius(widget.dense ? 9 : 12),
               border: Border.all(
                 color: widget.selected
                     ? accent.withAlpha(112)
@@ -279,7 +293,7 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                           color: widget.selected
                               ? accent.withAlpha(20)
                               : context.shellColors.surfaceContainerHigh,
-                          borderRadius: context.shellTheme.borderRadius(12),
+                          borderRadius: context.shellTheme.borderRadius(widget.dense ? 9 : 12),
                           border: _focused ? Border.all(color: accent) : null,
                         ),
                       ),
@@ -288,8 +302,8 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                 ),
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: widget.compact ? 11 : 10,
-                    vertical: widget.compact ? 8 : 9,
+                    horizontal: widget.compact ? 11 : (widget.dense ? 7 : 10),
+                    vertical: widget.compact ? 8 : (widget.dense ? 6 : 9),
                   ),
                   child: Row(
                     mainAxisSize: widget.compact
@@ -298,12 +312,12 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                     children: [
                       Icon(
                         widget.page.icon,
-                        size: 17,
+                        size: widget.dense ? 15 : 17,
                         color: widget.selected
                             ? accent
                             : context.shellColors.textTertiary,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: widget.dense ? 6 : 8),
                       if (widget.compact) label else Expanded(child: label),
                     ],
                   ),
