@@ -31,13 +31,78 @@ class HomeLayoutRepository {
     }
   }
 
+  Future<Map<int, String>> readGroupNames() async {
+    try {
+      final file = await _paths.layoutFile();
+      if (!await file.exists()) {
+        return const <int, String>{};
+      }
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, Object?>) {
+        return const <int, String>{};
+      }
+      final rawNames = decoded['groupNames'];
+      if (rawNames is! Map) {
+        return const <int, String>{};
+      }
+      final result = <int, String>{};
+      for (final entry in rawNames.entries) {
+        final page = int.tryParse(entry.key.toString());
+        final name = entry.value;
+        if (page == null || page < 0 || name is! String) {
+          continue;
+        }
+        final normalized = name.trim();
+        if (normalized.isNotEmpty) {
+          result[page] = normalized.length <= 40
+              ? normalized
+              : normalized.substring(0, 40);
+        }
+      }
+      return Map<int, String>.unmodifiable(result);
+    } on Object {
+      return const <int, String>{};
+    }
+  }
+
+  Future<void> saveGroupNames(Map<int, String> groupNames) async {
+    try {
+      final file = await _paths.layoutFile();
+      Map<String, Object?> document = <String, Object?>{
+        'version': 5,
+        'slots': const <Object?>[],
+      };
+      if (await file.exists()) {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is Map<String, Object?>) {
+          document = Map<String, Object?>.from(decoded);
+        }
+      }
+      document['version'] = 5;
+      document['groupNames'] = <String, String>{
+        for (final entry in groupNames.entries)
+          if (entry.key >= 0 && entry.value.trim().isNotEmpty)
+            entry.key.toString(): entry.value.trim(),
+      };
+      await file.writeAsString('${jsonEncode(document)}\n', flush: true);
+    } on Object {
+      // Group metadata persistence is best effort.
+    }
+  }
+
   Future<void> saveLayout(List<HomeGridItem?> slots) async {
     try {
       final file = await _paths.layoutFile();
-      final payload = jsonEncode({
-        'version': 4,
-        'slots': slots.map(_encodeSlot).toList(growable: false),
-      });
+      Map<String, Object?> document = <String, Object?>{};
+      if (await file.exists()) {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is Map<String, Object?>) {
+          document = Map<String, Object?>.from(decoded);
+        }
+      }
+      document['version'] = 5;
+      document['slots'] = slots.map(_encodeSlot).toList(growable: false);
+      final payload = jsonEncode(document);
       await file.writeAsString('$payload\n', flush: true);
     } on Object {
       // Layout persistence is best effort; the in-memory layout remains valid.
