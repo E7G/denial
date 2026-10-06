@@ -163,6 +163,41 @@ class _MetroStartHeader extends StatelessWidget {
   final bool showSemanticZoom;
   final bool showQuickSettingsHint;
 
+  String _letterFor(BuildContext context, HomeGridItem item) {
+    final title = _titleFor(context, item).trim();
+    if (title.isEmpty) {
+      return '#';
+    }
+    final letter = title.characters.first.toUpperCase();
+    final unit = letter.codeUnitAt(0);
+    return unit >= 65 && unit <= 90 ? letter : '#';
+  }
+
+  Future<void> _showAlphabetJump(
+    BuildContext context,
+    Set<String> availableLetters,
+  ) async {
+    final selected = await showDialog<String>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.62),
+      builder: (dialogContext) => _MetroAlphabetJumpDialog(
+        availableLetters: availableLetters,
+      ),
+    );
+    if (!mounted || selected == null) {
+      return;
+    }
+    final keyContext = _letterKeys[selected]?.currentContext;
+    if (keyContext != null) {
+      await Scrollable.ensureVisible(
+        keyContext,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+        alignment: 0.08,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -327,6 +362,8 @@ class _MetroAppDrawer extends StatefulWidget {
 class _MetroAppDrawerState extends State<_MetroAppDrawer> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _folderNameController = TextEditingController();
+  final ScrollController _appListController = ScrollController();
+  final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
   final Set<String> _folderSelection = <String>{};
   String _query = '';
   bool _folderMode = false;
@@ -335,6 +372,7 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
   void dispose() {
     _searchController.dispose();
     _folderNameController.dispose();
+    _appListController.dispose();
     super.dispose();
   }
 
@@ -400,6 +438,16 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
               a,
             ).toLowerCase().compareTo(_titleFor(context, b).toLowerCase()),
           );
+    final groupedItems = <String, List<HomeGridItem>>{};
+    for (final item in items) {
+      groupedItems
+          .putIfAbsent(_letterFor(context, item), () => <HomeGridItem>[])
+          .add(item);
+    }
+    final availableLetters = groupedItems.keys.toSet();
+    for (final letter in availableLetters) {
+      _letterKeys.putIfAbsent(letter, GlobalKey.new);
+    }
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -499,6 +547,15 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                     ),
                   ] else ...[
                     _MetroHeaderAction(
+                      icon: Icons.sort_by_alpha_rounded,
+                      label: 'A–Z',
+                      onTap: () => _showAlphabetJump(
+                        context,
+                        availableLetters,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _MetroHeaderAction(
                       icon: Icons.create_new_folder_outlined,
                       label: context.l10n.tabletFolder,
                       onTap: _beginFolderMode,
@@ -573,31 +630,17 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
                           ),
                         ),
                       )
-                    : GridView.builder(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 150,
-                              mainAxisSpacing: 10,
-                              crossAxisSpacing: 10,
-                              childAspectRatio: 1,
-                            ),
-                        itemCount: items.length,
-                        itemBuilder: (context, index) {
-                          final item = items[index];
-                          return _MetroDrawerTile(
-                            item: item,
-                            pinned: widget.pinnedIds.contains(item.id),
-                            selectionMode: _folderMode,
-                            selected: _folderSelection.contains(item.id),
-                            onSelect: () => _toggleFolderSelection(item),
-                            onTogglePin: () => widget.onTogglePin(item),
-                            onLaunch: _folderMode
-                                ? null
-                                : (sourceRect) =>
-                                      widget.onLaunch(item, sourceRect),
-                          );
-                        },
+                    : _MetroAlphabeticalApps(
+                        controller: _appListController,
+                        groups: groupedItems,
+                        letterKeys: _letterKeys,
+                        titleFor: (item) => _titleFor(context, item),
+                        pinnedIds: widget.pinnedIds,
+                        selectionMode: _folderMode,
+                        selectedIds: _folderSelection,
+                        onSelect: _toggleFolderSelection,
+                        onTogglePin: widget.onTogglePin,
+                        onLaunch: _folderMode ? null : widget.onLaunch,
                       ),
               ),
               Center(
