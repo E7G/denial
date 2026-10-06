@@ -163,41 +163,6 @@ class _MetroStartHeader extends StatelessWidget {
   final bool showSemanticZoom;
   final bool showQuickSettingsHint;
 
-  String _letterFor(BuildContext context, HomeGridItem item) {
-    final title = _titleFor(context, item).trim();
-    if (title.isEmpty) {
-      return '#';
-    }
-    final letter = title.characters.first.toUpperCase();
-    final unit = letter.codeUnitAt(0);
-    return unit >= 65 && unit <= 90 ? letter : '#';
-  }
-
-  Future<void> _showAlphabetJump(
-    BuildContext context,
-    Set<String> availableLetters,
-  ) async {
-    final selected = await showDialog<String>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.62),
-      builder: (dialogContext) => _MetroAlphabetJumpDialog(
-        availableLetters: availableLetters,
-      ),
-    );
-    if (!mounted || selected == null) {
-      return;
-    }
-    final keyContext = _letterKeys[selected]?.currentContext;
-    if (keyContext != null) {
-      await Scrollable.ensureVisible(
-        keyContext,
-        duration: const Duration(milliseconds: 360),
-        curve: Curves.easeOutCubic,
-        alignment: 0.08,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -378,6 +343,41 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
 
   String _titleFor(BuildContext context, HomeGridItem item) {
     return item.localApp?.titleFor(context) ?? item.app?.name ?? item.id;
+  }
+
+  String _letterFor(BuildContext context, HomeGridItem item) {
+    final title = _titleFor(context, item).trim();
+    if (title.isEmpty) {
+      return '#';
+    }
+    final letter = title.substring(0, 1).toUpperCase();
+    final unit = letter.codeUnitAt(0);
+    return unit >= 65 && unit <= 90 ? letter : '#';
+  }
+
+  Future<void> _showAlphabetJump(
+    BuildContext context,
+    Set<String> availableLetters,
+  ) async {
+    final selected = await showDialog<String>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.62),
+      builder: (dialogContext) => _MetroAlphabetJumpDialog(
+        availableLetters: availableLetters,
+      ),
+    );
+    if (!mounted || selected == null) {
+      return;
+    }
+    final keyContext = _letterKeys[selected]?.currentContext;
+    if (keyContext != null) {
+      await Scrollable.ensureVisible(
+        keyContext,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOutCubic,
+        alignment: 0.08,
+      );
+    }
   }
 
   void _beginFolderMode() {
