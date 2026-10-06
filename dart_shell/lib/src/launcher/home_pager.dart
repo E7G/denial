@@ -19,10 +19,11 @@ class _HomePager extends ConsumerWidget {
       shellSettingsProvider.select((settings) => settings.tablet),
     );
     final viewSize = MediaQuery.sizeOf(context);
+    final portrait = viewSize.height > viewSize.width;
     final compactPortrait =
         tabletSettings.enabled &&
         tabletSettings.portraitCompact &&
-        viewSize.height > viewSize.width;
+        portrait;
 
     final density = compactPortrait
         ? TabletTileDensity.compact
@@ -90,6 +91,7 @@ class _HomePager extends ConsumerWidget {
         final slots = contents.slots ?? const <HomeGridItem?>[];
         final pageCount = HomeGridLayout.pageCountForSlots(slots, pageSize);
         owner._currentPageCount = pageCount;
+        owner._currentPageSize = pageSize;
         final currentPage =
             owner.ref.read(homeGridControllerProvider).asData?.value.page ?? 0;
         final safePage = currentPage.clamp(0, pageCount - 1).toInt();
@@ -101,6 +103,10 @@ class _HomePager extends ConsumerWidget {
                   : HomeEmptyState(label: context.l10n.commonLoading)
             : PageView.builder(
                 controller: owner._pageController,
+                scrollDirection: portrait ? Axis.vertical : Axis.horizontal,
+                physics: const PageScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
                 itemCount: pageCount,
                 onPageChanged: (page) =>
                     owner._handlePageChanged(page, pageCount),
@@ -152,12 +158,20 @@ class _HomePager extends ConsumerWidget {
                 ),
               ),
             ),
-            Positioned(
-              top: pageDotsTop,
-              left: 0,
-              right: 0,
-              child: _HomePageDots(count: pageCount),
-            ),
+            if (!portrait)
+              Positioned(
+                top: pageDotsTop,
+                left: 0,
+                right: 0,
+                child: _HomePageDots(count: pageCount),
+              )
+            else if (pageCount > 1)
+              Positioned(
+                right: 6,
+                top: 0,
+                bottom: 0,
+                child: _PhonePageRail(count: pageCount),
+              ),
           ],
         );
       },
@@ -178,5 +192,42 @@ class _HomePageDots extends ConsumerWidget {
       ),
     );
     return PageDots(count: count, active: page.clamp(0, count - 1));
+  }
+}
+
+
+class _PhonePageRail extends ConsumerWidget {
+  const _PhonePageRail({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final page = ref.watch(
+      homeGridControllerProvider.select(
+        (value) => value.asData?.value.page ?? 0,
+      ),
+    );
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var index = 0; index < count; index += 1)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              margin: const EdgeInsets.symmetric(vertical: 3),
+              width: index == page ? 4 : 3,
+              height: index == page ? 22 : 9,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(
+                  alpha: index == page ? 0.92 : 0.28,
+                ),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
