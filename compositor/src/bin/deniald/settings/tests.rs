@@ -123,6 +123,33 @@ fn migrates_existing_shell_document_without_losing_sections() {
 }
 
 #[test]
+fn schema_29_shell_update_preserves_tablet_settings() {
+    let temporary = TemporaryDirectory::new("settings-tablet-schema");
+    let mut manager = SettingsManager::load_path(temporary.settings_path()).unwrap();
+    let update = manager
+        .prepare_shell_update(
+            manager.revision(),
+            &shell_document(serde_json::json!({
+                "appearance": {"colorSchemePreference": "preferDark"},
+                "tablet": {
+                    "enabled": true,
+                    "tileDensity": "comfortable",
+                    "tileOpacity": 0.92,
+                    "navigationMode": "threeButton"
+                }
+            })),
+        )
+        .expect("schema 29 tablet settings should be accepted");
+    manager.commit(update).unwrap();
+
+    let document: Value = serde_json::from_str(&manager.document_json().unwrap()).unwrap();
+    assert_eq!(document["version"], 29);
+    assert_eq!(document["tablet"]["enabled"], true);
+    assert_eq!(document["tablet"]["tileDensity"], "comfortable");
+    assert_eq!(document["tablet"]["navigationMode"], "threeButton");
+}
+
+#[test]
 fn malformed_document_is_never_overwritten_during_startup() {
     let temporary = TemporaryDirectory::new("settings-malformed");
     let path = temporary.settings_path();
