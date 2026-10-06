@@ -339,6 +339,35 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     }
   }
 
+  bool _handleSemanticPinch() {
+    if (_pinchConsumed ||
+        _pointerPositions.length != 2 ||
+        _appDrawerOpen ||
+        _openFolder != null ||
+        _semanticZoomOpen ||
+        _charmsOpen) {
+      return false;
+    }
+    final size = MediaQuery.sizeOf(context);
+    if (size.height > size.width || _currentPageCount <= 1) {
+      return false;
+    }
+    final startDistance = _pinchStartDistance;
+    if (startDistance == null || startDistance < 32) {
+      return false;
+    }
+    final points = _pointerPositions.values.toList(growable: false);
+    final currentDistance = (points[0] - points[1]).distance;
+    if (currentDistance / startDistance > 0.68) {
+      return false;
+    }
+    _pinchConsumed = true;
+    _activePointer = null;
+    _resetTapTracking();
+    _openSemanticZoom();
+    return true;
+  }
+
   void _openAppDrawer({bool focusSearch = false}) {
     _clearResizeMode();
     ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
