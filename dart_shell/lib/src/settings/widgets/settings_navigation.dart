@@ -144,7 +144,9 @@ class SettingsNavigation extends StatelessWidget {
               dense ? 12 : 18,
               16,
               10,
-              24 + MediaQuery.viewPaddingOf(context).bottom + (dense ? 104 : 72),
+              24 +
+                  MediaQuery.viewPaddingOf(context).bottom +
+                  (dense ? 104 : 72),
             ),
             children: [
               Padding(
@@ -371,64 +373,68 @@ class _NavigationDestinationState extends State<_NavigationDestination> {
                               : ShellMediaColors.transparentDark,
                         ),
                 ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedOpacity(
-                      duration: motionDuration,
-                      curve: Motion.standard,
-                      opacity: _hovered || _focused ? 1 : 0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: widget.selected
-                              ? accent.withAlpha(20)
-                              : context.shellColors.surfaceContainerHigh,
-                          borderRadius: widget.metro
-                              ? BorderRadius.zero
-                              : context.shellTheme.borderRadius(widget.dense ? 9 : 12),
-                          border: _focused ? Border.all(color: accent) : null,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: AnimatedOpacity(
+                          duration: motionDuration,
+                          curve: Motion.standard,
+                          opacity: _hovered || _focused ? 1 : 0,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: widget.selected
+                                  ? accent.withAlpha(20)
+                                  : context.shellColors.surfaceContainerHigh,
+                              borderRadius: widget.metro
+                                  ? BorderRadius.zero
+                                  : context.shellTheme.borderRadius(
+                                      widget.dense ? 9 : 12,
+                                    ),
+                              border: _focused
+                                  ? Border.all(color: accent)
+                                  : null,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: widget.compact
-                        ? 11
-                        : widget.metro
-                        ? 14
-                        : (widget.dense ? 7 : 10),
-                    vertical: widget.compact
-                        ? 8
-                        : widget.metro
-                        ? (widget.dense ? 13 : 15)
-                        : (widget.dense ? 6 : 9),
-                  ),
-                  child: Row(
-                    mainAxisSize: widget.compact
-                        ? MainAxisSize.min
-                        : MainAxisSize.max,
-                    children: [
-                      Icon(
-                        widget.page.icon,
-                        size: widget.metro
-                            ? (widget.dense ? 26 : 28)
-                            : (widget.dense ? 15 : 17),
-                        color: widget.selected
-                            ? accent
-                            : context.shellColors.textTertiary,
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: widget.compact
+                            ? 11
+                            : widget.metro
+                            ? 14
+                            : (widget.dense ? 7 : 10),
+                        vertical: widget.compact
+                            ? 8
+                            : widget.metro
+                            ? (widget.dense ? 13 : 15)
+                            : (widget.dense ? 6 : 9),
                       ),
-                      SizedBox(
-                        width: widget.metro ? 15 : (widget.dense ? 6 : 8),
+                      child: Row(
+                        mainAxisSize: widget.compact
+                            ? MainAxisSize.min
+                            : MainAxisSize.max,
+                        children: [
+                          Icon(
+                            widget.page.icon,
+                            size: widget.metro
+                                ? (widget.dense ? 26 : 28)
+                                : (widget.dense ? 15 : 17),
+                            color: widget.selected
+                                ? accent
+                                : context.shellColors.textTertiary,
+                          ),
+                          SizedBox(
+                            width: widget.metro ? 15 : (widget.dense ? 6 : 8),
+                          ),
+                          if (widget.compact) label else Expanded(child: label),
+                        ],
                       ),
-                      if (widget.compact) label else Expanded(child: label),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
               ),
             ),
           ),
