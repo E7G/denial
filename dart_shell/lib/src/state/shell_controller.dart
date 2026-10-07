@@ -919,7 +919,8 @@ class ShellController extends Notifier<ShellState>
   void closeEdgePanel() {
     if (!state.edgePanelVisible &&
         state.edgePanelDrag == Offset.zero &&
-        !state.edgePanelDragActive) {
+        !state.edgePanelDragActive &&
+        state.edgePanelViewportScroll == 0.0) {
       return;
     }
 
@@ -927,6 +928,7 @@ class ShellController extends Notifier<ShellState>
       edgePanelVisible: false,
       edgePanelDrag: Offset.zero,
       edgePanelDragActive: false,
+      edgePanelViewportScroll: 0.0,
     );
   }
 

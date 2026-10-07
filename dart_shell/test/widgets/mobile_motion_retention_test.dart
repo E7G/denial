@@ -194,11 +194,17 @@ void main() {
       }
       expect(builds, isEmpty);
       debugOnRebuildDirtyWidget = previous;
-      shell.position(0);
+      // Exercise the real close path: a manually panned app must return to
+      // its exact top-left origin when the software keyboard is dismissed.
+      shell.closeEdgePanel();
       await tester.pump();
+      expect(shell.state.edgePanelViewportScroll, 0.0);
+      // The content must snap back immediately; the keyboard itself may still
+      // be finishing its short exit animation during this frame.
+      expect(tester.getTopLeft(find.byKey(contentKey)), Offset.zero);
+      await tester.pumpAndSettle();
       expect(find.byType(ShellOskPanel), findsNothing);
       expect(keyboard.evaluate().single, same(keyboardElement));
-      expect(tester.getTopLeft(find.byKey(contentKey)), Offset.zero);
       shell.position(0.5);
       await tester.pump();
       expect(
