@@ -54,6 +54,29 @@ void main() {
     },
   );
 
+  testWidgets('Windows OSK hosts IME candidates in its top toolbar row', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        const ShellOskPanel(
+          candidateBar: ColoredBox(
+            color: Color(0xFF202020),
+            child: Center(child: Text('候选词')),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('osk-candidate-strip')), findsOneWidget);
+    expect(find.text('候选词'), findsOneWidget);
+    final candidateTop = tester.getTopLeft(
+      find.byKey(const ValueKey('osk-candidate-strip')),
+    );
+    final qTop = tester.getTopLeft(find.text('q'));
+    expect(candidateTop.dy, lessThan(qTop.dy));
+  });
+
   testWidgets(
     'Windows OSK exposes emoji, layout chooser, traditional keys and hide action',
     (tester) async {

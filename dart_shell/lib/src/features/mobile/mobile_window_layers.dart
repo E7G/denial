@@ -84,14 +84,18 @@ class MobileInputMethodPopupLayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshot = ref.watch(
       shellControllerProvider.select(
-        (state) =>
-            (sequence: state.windowSnapshotSequence, windows: state.windows),
+        (state) => (
+          sequence: state.windowSnapshotSequence,
+          windows: state.windows,
+          keyboardVisible:
+              state.edgePanelVisible || state.edgePanelDragProgress > 0.001,
+        ),
       ),
     );
     final popups = snapshot.windows
         .where((window) => window.isInputMethodPopup && window.geometry != null)
         .toList(growable: false);
-    if (popups.isEmpty) {
+    if (snapshot.keyboardVisible || popups.isEmpty) {
       return const SizedBox.shrink();
     }
     return IgnorePointer(

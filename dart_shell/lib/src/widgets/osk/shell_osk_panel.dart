@@ -66,6 +66,7 @@ class ShellOskPanel extends StatefulWidget {
     this.onDismiss,
     this.loadClipboard,
     this.pasteClipboard,
+    this.candidateBar,
   });
 
   final ValueChanged<ShellOskKeyIntent>? onKey;
@@ -73,6 +74,7 @@ class ShellOskPanel extends StatefulWidget {
   final VoidCallback? onDismiss;
   final Future<ClipboardHistorySnapshot> Function()? loadClipboard;
   final Future<void> Function(ClipboardHistoryEntry entry)? pasteClipboard;
+  final Widget? candidateBar;
 
   @override
   State<ShellOskPanel> createState() => _ShellOskPanelState();
@@ -133,6 +135,7 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
                   pane: _pane,
                   layoutMode: _layoutMode,
                   chineseInputEnabled: _chineseInputEnabled,
+                  candidateBar: widget.candidateBar,
                   onKeyboard: () => _setPane(_OskPane.keyboard),
                   onEmoji: () => _setPane(_OskPane.emoji),
                   onClipboard: _openClipboard,
@@ -460,6 +463,7 @@ class _WindowsOskToolbar extends StatelessWidget {
     required this.pane,
     required this.layoutMode,
     required this.chineseInputEnabled,
+    required this.candidateBar,
     required this.onKeyboard,
     required this.onEmoji,
     required this.onClipboard,
@@ -471,6 +475,7 @@ class _WindowsOskToolbar extends StatelessWidget {
   final _OskPane pane;
   final _OskLayoutMode layoutMode;
   final bool chineseInputEnabled;
+  final Widget? candidateBar;
   final VoidCallback onKeyboard;
   final VoidCallback onEmoji;
   final VoidCallback onClipboard;
@@ -525,14 +530,25 @@ class _WindowsOskToolbar extends StatelessWidget {
           onTap: onLayouts,
           semanticLabel: '键盘布局',
         ),
-        const Spacer(),
+        const SizedBox(width: 8),
+        Expanded(
+          child: candidateBar == null
+              ? const SizedBox.expand()
+              : ClipRRect(
+                  key: const ValueKey('osk-candidate-strip'),
+                  borderRadius: BorderRadius.circular(6),
+                  child: candidateBar!,
+                ),
+        ),
+        const SizedBox(width: 8),
         GestureDetector(
           key: const ValueKey('osk-language-toggle'),
           behavior: HitTestBehavior.opaque,
           onTap: onToggleLanguage,
           child: Container(
+            width: 54,
             height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: chineseInputEnabled
                   ? context.shellTheme.accentPalette.container

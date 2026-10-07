@@ -11,6 +11,7 @@ import '../theme/shell_theme.dart';
 import 'osk/shell_osk_panel.dart';
 import 'retained_translation.dart';
 import 'shell_backdrop_blur.dart';
+import 'window_surface_tree.dart';
 
 /// Keeps the mobile software keyboard above applications and shell surfaces,
 /// including the compositor-owned lock screen.
@@ -270,6 +271,23 @@ class _EdgePanelContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(shellControllerProvider.notifier);
     final bridge = ref.read(denialBridgeProvider);
+    final snapshot = ref.watch(
+      shellControllerProvider.select(
+        (state) =>
+            (sequence: state.windowSnapshotSequence, windows: state.windows),
+      ),
+    );
+    final inputMethodPopups = snapshot.windows
+        .where(
+          (window) =>
+              window.isInputMethodPopup &&
+              window.geometry != null &&
+              !window.contentCoordinateRect.isEmpty,
+        )
+        .toList(growable: false);
+    final candidatePopup = inputMethodPopups.isEmpty
+        ? null
+        : inputMethodPopups.last;
     final clipboard = ref.read(clipboardHistoryServiceProvider);
     final haptics = ref.read(hapticsServiceProvider);
     final theme = ShellTheme.of(context);
@@ -297,6 +315,16 @@ class _EdgePanelContent extends ConsumerWidget {
                 await clipboard.activate(entry.id);
                 bridge.sendKeyboardKey('v', ctrl: true);
               },
+              candidateBar: candidatePopup == null
+                  ? null
+                  : RepaintBoundary(
+                      child: WindowSurfaceTree(
+                        window: candidatePopup,
+                        includePopups: true,
+                        clipToBounds: true,
+                        filterQuality: FilterQuality.low,
+                      ),
+                    ),
               onKey: (intent) => _sendOskIntent(bridge, intent),
             ),
           ),
