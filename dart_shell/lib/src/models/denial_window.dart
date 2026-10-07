@@ -324,8 +324,12 @@ class DenialWindow {
     }
   }
 
-  Rect mapSurfaceRect(DenialSurfaceLayer layer, Rect targetContentRect) {
-    final source = presentationCoordinateRect;
+  Rect mapSurfaceRect(
+    DenialSurfaceLayer layer,
+    Rect targetContentRect, {
+    Rect? sourceRect,
+  }) {
+    final source = sourceRect ?? presentationCoordinateRect;
     if (source.width <= 0.0 ||
         source.height <= 0.0 ||
         targetContentRect.width <= 0.0 ||

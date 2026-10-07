@@ -13,6 +13,8 @@ class WindowTextureRect extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.alignment = Alignment.topCenter,
     this.allowPopupOverflow = false,
+    this.cropToContentBounds = false,
+    this.sourceCropTop = 0.0,
   });
 
   final DenialWindow window;
@@ -21,6 +23,8 @@ class WindowTextureRect extends StatelessWidget {
   final BoxFit fit;
   final Alignment alignment;
   final bool allowPopupOverflow;
+  final bool cropToContentBounds;
+  final double sourceCropTop;
 
   @override
   Widget build(BuildContext context) {
@@ -35,16 +39,48 @@ class WindowTextureRect extends StatelessWidget {
         fit: fit,
         alignment: alignment,
         child: SizedBox(
-          width: window.width.toDouble(),
-          height: window.height.toDouble(),
+          width: _presentationWidth(window, cropToContentBounds),
+          height: _presentationHeight(
+            window,
+            cropToContentBounds,
+            sourceCropTop,
+          ),
           child: WindowSurfaceTree(
             window: window,
             includePopups: true,
             clipToBounds: !allowPopupOverflow,
+            sourceCropTop: sourceCropTop,
             filterQuality: FilterQuality.low,
           ),
         ),
       ),
     );
   }
+}
+
+double _presentationWidth(DenialWindow window, bool cropToContentBounds) {
+  if (!cropToContentBounds) {
+    return window.width.toDouble();
+  }
+  final scale = window.scale120 > 0 ? window.scale120 / 120.0 : 1.0;
+  final width = window.presentationCoordinateRect.width * scale;
+  return width > 0.0 ? width : window.width.toDouble();
+}
+
+double _presentationHeight(
+  DenialWindow window,
+  bool cropToContentBounds,
+  double sourceCropTop,
+) {
+  if (!cropToContentBounds && sourceCropTop <= 0.0) {
+    return window.height.toDouble();
+  }
+  final scale = window.scale120 > 0 ? window.scale120 / 120.0 : 1.0;
+  final sourceHeight = window.presentationCoordinateRect.height;
+  final visibleHeight = (sourceHeight - sourceCropTop).clamp(
+    1.0,
+    double.infinity,
+  );
+  final height = visibleHeight * scale;
+  return height > 0.0 ? height : window.height.toDouble();
 }

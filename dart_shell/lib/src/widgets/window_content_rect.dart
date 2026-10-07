@@ -24,6 +24,8 @@ class WindowContentRect extends ConsumerWidget {
     this.fit = BoxFit.cover,
     this.alignment = Alignment.topCenter,
     this.allowPopupOverflow = false,
+    this.cropToContentBounds = false,
+    this.sourceCropTop = 0.0,
   });
 
   final DenialWindow window;
@@ -33,6 +35,8 @@ class WindowContentRect extends ConsumerWidget {
   final BoxFit fit;
   final Alignment alignment;
   final bool allowPopupOverflow;
+  final bool cropToContentBounds;
+  final double sourceCropTop;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,6 +48,8 @@ class WindowContentRect extends ConsumerWidget {
         fit: fit,
         alignment: alignment,
         allowPopupOverflow: allowPopupOverflow,
+        cropToContentBounds: cropToContentBounds,
+        sourceCropTop: sourceCropTop,
       );
     }
 

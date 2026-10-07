@@ -60,6 +60,7 @@ class _MobileApplicationSceneState extends State<MobileApplicationScene> {
               onProgressChanged: (progress) =>
                   _overviewProgress.value = progress,
             ),
+            const MobileInputMethodPopupLayer(),
           ],
         ),
       ),

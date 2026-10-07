@@ -22,6 +22,7 @@ class ShellMetrics {
   static const double appSwitchGap = 18.0;
   static const double statusBarHeight = 48.0;
   static const double appStatusBarHeight = statusBarHeight;
+  static const double mobileNativeTitleBarCrop = 48.0;
   static const double statusDragHeight = statusBarHeight;
   static const double quickSettingsPanelHeight = 488.0;
   static const double quickSettingsDragDistance = quickSettingsPanelHeight;

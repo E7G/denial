@@ -129,14 +129,21 @@ class ShellInputLayoutCoordinator {
         if (!region.intersect(canvas).isEmpty) region.intersect(canvas),
     ];
 
-    final inputRegions = inputWindow == null
-        ? const <InputWindowRegion>[]
-        : _inputRegionsForWindow(
-            window: inputWindow,
-            viewSize: viewSize,
-            contentOffset: contentOffset,
-            inputBottom: inputBottom,
-          );
+    final inputRegions = <InputWindowRegion>[
+      if (inputWindow != null)
+        ..._inputRegionsForWindow(
+          window: inputWindow,
+          viewSize: viewSize,
+          contentOffset: contentOffset,
+          inputBottom: inputBottom,
+        ),
+      ..._inputMethodPopupRegions(
+        windows: state.windows,
+        viewSize: viewSize,
+        contentOffset: contentOffset,
+        hitTest: !interactions.capturesFullScene && !quickSettingsActive,
+      ),
+    ];
 
     _publishInputLayout(
       viewSize: viewSize,
@@ -146,6 +153,50 @@ class ShellInputLayoutCoordinator {
       keyboardCapture: quickSettingsActive || interactions.capturesKeyboard,
       exclusiveShellMode: interactions.compositorExclusive,
     );
+  }
+
+  List<InputWindowRegion> _inputMethodPopupRegions({
+    required List<DenialWindow> windows,
+    required Size viewSize,
+    required double contentOffset,
+    required bool hitTest,
+  }) {
+    final canvas = Offset.zero & viewSize;
+    final regions = <InputWindowRegion>[];
+    for (final popup in windows) {
+      final geometry = popup.geometry;
+      final source = popup.contentCoordinateRect;
+      if (!popup.isInputMethodPopup ||
+          geometry == null ||
+          geometry.isEmpty ||
+          source.isEmpty) {
+        continue;
+      }
+      final visual = geometry.shift(Offset(0, -contentOffset));
+      final clipped = visual.intersect(canvas);
+      if (clipped.isEmpty) {
+        continue;
+      }
+      final scaleX = source.width / visual.width;
+      final scaleY = source.height / visual.height;
+      regions.add(
+        InputWindowRegion(
+          window: popup,
+          surfaceId: popup.objectId,
+          rect: clipped,
+          sourceRect: Rect.fromLTWH(
+            source.left + (clipped.left - visual.left) * scaleX,
+            source.top + (clipped.top - visual.top) * scaleY,
+            clipped.width * scaleX,
+            clipped.height * scaleY,
+          ),
+          z: 1000000000,
+          hitTest: hitTest,
+          geometryLocked: true,
+        ),
+      );
+    }
+    return regions;
   }
 
   List<InputWindowRegion> _inputRegionsForWindow({

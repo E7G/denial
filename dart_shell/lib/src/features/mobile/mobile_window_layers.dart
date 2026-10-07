@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../widgets/window_surface_tree.dart';
 import 'mobile_primary_window_stage.dart';
 
 /// Each animated layer observes only the state it presents.
@@ -72,6 +73,47 @@ class _MobilePrimaryWindowLayerState
           ),
         );
       },
+    );
+  }
+}
+
+class MobileInputMethodPopupLayer extends ConsumerWidget {
+  const MobileInputMethodPopupLayer({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final snapshot = ref.watch(
+      shellControllerProvider.select(
+        (state) =>
+            (sequence: state.windowSnapshotSequence, windows: state.windows),
+      ),
+    );
+    final popups = snapshot.windows
+        .where((window) => window.isInputMethodPopup && window.geometry != null)
+        .toList(growable: false);
+    if (popups.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.hardEdge,
+        children: [
+          for (final popup in popups)
+            if (popup.geometry case final geometry?)
+              Positioned.fromRect(
+                rect: geometry,
+                child: RepaintBoundary(
+                  child: WindowSurfaceTree(
+                    window: popup,
+                    includePopups: true,
+                    clipToBounds: false,
+                    filterQuality: FilterQuality.low,
+                  ),
+                ),
+              ),
+        ],
+      ),
     );
   }
 }

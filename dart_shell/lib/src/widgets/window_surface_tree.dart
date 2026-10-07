@@ -56,6 +56,7 @@ class WindowSurfaceTree extends StatelessWidget {
     this.filterQuality = FilterQuality.none,
     this.includePopups = false,
     this.clipToBounds = true,
+    this.sourceCropTop = 0.0,
     this.presentationScale,
     this.pixelGridOrigin = Offset.zero,
   });
@@ -64,6 +65,7 @@ class WindowSurfaceTree extends StatelessWidget {
   final FilterQuality filterQuality;
   final bool includePopups;
   final bool clipToBounds;
+  final double sourceCropTop;
 
   /// Scale and origin of the output that owns this surface. When omitted,
   /// ordinary Flutter view metrics are used for non-desktop callers.
@@ -85,30 +87,77 @@ class WindowSurfaceTree extends StatelessWidget {
             filterQuality: filterQuality,
             presentationScale: presentationScale,
             pixelGridOrigin: pixelGridOrigin,
+            sourceCropTop: sourceCropTop,
           );
         }
 
         final targetRect = Offset.zero & target;
-        final stack = Stack(
-          clipBehavior: clipToBounds ? Clip.hardEdge : Clip.none,
+        final sourceFrame = window.presentationCoordinateRect;
+        final maxCrop = (sourceFrame.height - 1.0).clamp(0.0, double.infinity);
+        final cropTop = sourceCropTop.clamp(0.0, maxCrop).toDouble();
+        final mappedSource = cropTop > 0.0
+            ? Rect.fromLTRB(
+                sourceFrame.left,
+                sourceFrame.top + cropTop,
+                sourceFrame.right,
+                sourceFrame.bottom,
+              )
+            : sourceFrame;
+        Widget layerWidget(DenialSurfaceLayer layer) {
+          return Positioned.fromRect(
+            rect: window.mapSurfaceRect(
+              layer,
+              targetRect,
+              sourceRect: mappedSource,
+            ),
+            child: SurfaceLayerTexture(
+              layer: layer,
+              filterQuality: filterQuality,
+              presentationScale: presentationScale,
+              pixelGridOrigin: pixelGridOrigin,
+            ),
+          );
+        }
+
+        final mainTree = ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.hardEdge,
+            children: [
+              for (final layer in window.mainSurfaceLayers)
+                if (layer.textureId > 0) layerWidget(layer),
+            ],
+          ),
+        );
+        if (!includePopups) {
+          return mainTree;
+        }
+        final popupLayers = window.popupSurfaceLayers
+            .where((layer) => layer.textureId > 0)
+            .toList(growable: false);
+        if (popupLayers.isEmpty) {
+          return mainTree;
+        }
+        if (clipToBounds) {
+          return ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              clipBehavior: Clip.hardEdge,
+              children: [
+                mainTree,
+                for (final layer in popupLayers) layerWidget(layer),
+              ],
+            ),
+          );
+        }
+        return Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
           children: [
-            for (final layer
-                in includePopups
-                    ? window.surfaceLayers
-                    : window.mainSurfaceLayers)
-              if (layer.textureId > 0)
-                Positioned.fromRect(
-                  rect: window.mapSurfaceRect(layer, targetRect),
-                  child: SurfaceLayerTexture(
-                    layer: layer,
-                    filterQuality: filterQuality,
-                    presentationScale: presentationScale,
-                    pixelGridOrigin: pixelGridOrigin,
-                  ),
-                ),
+            mainTree,
+            for (final layer in popupLayers) layerWidget(layer),
           ],
         );
-        return clipToBounds ? ClipRect(child: stack) : stack;
       },
     );
   }
@@ -192,12 +241,14 @@ class _LegacyWindowTexture extends StatelessWidget {
     required this.filterQuality,
     required this.presentationScale,
     required this.pixelGridOrigin,
+    required this.sourceCropTop,
   });
 
   final DenialWindow window;
   final FilterQuality filterQuality;
   final double? presentationScale;
   final Offset pixelGridOrigin;
+  final double sourceCropTop;
 
   @override
   Widget build(BuildContext context) {
@@ -216,11 +267,17 @@ class _LegacyWindowTexture extends StatelessWidget {
             sourceHeight <= 0.0) {
           return const SizedBox.shrink();
         }
+        final presentationHeight = window.presentationCoordinateRect.height;
+        final maxCrop = (presentationHeight - 1.0).clamp(0.0, double.infinity);
+        final cropLogical = sourceCropTop.clamp(0.0, maxCrop).toDouble();
+        final cropPixels = presentationHeight > 0.0
+            ? cropLogical * sourceHeight / presentationHeight
+            : 0.0;
         final sourceRect = Rect.fromLTWH(
           window.textureSourceX,
-          window.textureSourceY,
+          window.textureSourceY + cropPixels,
           sourceWidth,
-          sourceHeight,
+          (sourceHeight - cropPixels).clamp(1.0, double.infinity),
         );
         final devicePixelRatio =
             presentationScale ?? MediaQuery.devicePixelRatioOf(context);
