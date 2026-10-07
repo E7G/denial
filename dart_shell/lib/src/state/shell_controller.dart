@@ -932,6 +932,14 @@ class ShellController extends Notifier<ShellState>
     );
   }
 
+  void dismissEdgePanelFromUser() {
+    final textInput = _lastTextInput;
+    if (textInput?.active == true) {
+      _bridge.dismissKeyboardPanel(textInput!.activationSerial);
+    }
+    closeEdgePanel();
+  }
+
   void updateEdgePanelViewportScroll(double delta, double maxScroll) {
     if (!state.edgePanelVisible || delta == 0.0 || maxScroll <= 0.0) {
       return;

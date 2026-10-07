@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/input_layout.dart';
 import '../platform/denial_bridge.dart';
+import '../services/clipboard_history_service.dart';
 import '../services/haptics_service.dart';
 import '../state/shell_controller.dart';
 import '../theme/motion.dart';
@@ -189,7 +190,6 @@ class _EdgePanelLayerState extends ConsumerState<EdgePanelLayer>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _EdgePanelScrollStrip(enabled: _scrollReady),
                   RetainedTranslation(
                     translation: _translation,
                     child: const _EdgePanelSheet(),
@@ -311,15 +311,15 @@ class _EdgePanelContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(shellControllerProvider.notifier);
     final bridge = ref.read(denialBridgeProvider);
+    final clipboard = ref.read(clipboardHistoryServiceProvider);
     final haptics = ref.read(hapticsServiceProvider);
     final theme = ShellTheme.of(context);
     return ShellBackdropBlur(
       separateChild: true,
       blur: theme.effectivePanelOpacity < 1.0,
-      borderRadius: BorderRadius.vertical(
-        top: Radius.circular(theme.panelRadius),
-      ),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: theme.panelColor(context.shellColors.panelBackground),
@@ -334,6 +334,12 @@ class _EdgePanelContent extends ConsumerWidget {
           child: TextFieldTapRegion(
             child: ShellOskPanel(
               onKeyTap: haptics.pulse,
+              onDismiss: controller.dismissEdgePanelFromUser,
+              loadClipboard: clipboard.snapshot,
+              pasteClipboard: (entry) async {
+                await clipboard.activate(entry.id);
+                bridge.sendKeyboardKey('v', ctrl: true);
+              },
               onKey: (intent) => _sendOskIntent(bridge, intent),
             ),
           ),
