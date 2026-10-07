@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/input_layout.dart';
 import '../platform/denial_bridge.dart';
 import '../services/clipboard_history_service.dart';
+import '../services/fcitx_kimpanel_service.dart';
 import '../services/haptics_service.dart';
 import '../state/shell_controller.dart';
 import '../theme/motion.dart';
@@ -11,7 +14,6 @@ import '../theme/shell_theme.dart';
 import 'osk/shell_osk_panel.dart';
 import 'retained_translation.dart';
 import 'shell_backdrop_blur.dart';
-import 'window_surface_tree.dart';
 
 /// Keeps the mobile software keyboard above applications and shell surfaces,
 /// including the compositor-owned lock screen.
@@ -20,6 +22,11 @@ class MobileSystemKeyboardLayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Own the Kimpanel panel name for the whole mobile session, not only while
+    // the keyboard is visible. Fcitx can then switch away from its floating
+    // ClassicUI before the first composition starts.
+    final candidateService = ref.watch(fcitxKimpanelServiceProvider);
+    unawaited(candidateService.start().catchError((Object _) {}));
     final enabled = ref.watch(
       shellControllerProvider.select((state) => !state.launchTransitionActive),
     );
@@ -271,23 +278,7 @@ class _EdgePanelContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(shellControllerProvider.notifier);
     final bridge = ref.read(denialBridgeProvider);
-    final snapshot = ref.watch(
-      shellControllerProvider.select(
-        (state) =>
-            (sequence: state.windowSnapshotSequence, windows: state.windows),
-      ),
-    );
-    final inputMethodPopups = snapshot.windows
-        .where(
-          (window) =>
-              window.isInputMethodPopup &&
-              window.geometry != null &&
-              !window.contentCoordinateRect.isEmpty,
-        )
-        .toList(growable: false);
-    final candidatePopup = inputMethodPopups.isEmpty
-        ? null
-        : inputMethodPopups.last;
+    final candidateService = ref.read(fcitxKimpanelServiceProvider);
     final clipboard = ref.read(clipboardHistoryServiceProvider);
     final haptics = ref.read(hapticsServiceProvider);
     final theme = ShellTheme.of(context);
@@ -315,16 +306,16 @@ class _EdgePanelContent extends ConsumerWidget {
                 await clipboard.activate(entry.id);
                 bridge.sendKeyboardKey('v', ctrl: true);
               },
-              candidateBar: candidatePopup == null
-                  ? null
-                  : RepaintBoundary(
-                      child: WindowSurfaceTree(
-                        window: candidatePopup,
-                        includePopups: true,
-                        clipToBounds: true,
-                        filterQuality: FilterQuality.low,
-                      ),
-                    ),
+              candidateListenable: candidateService.candidateListenable,
+              onCandidateSelected: (index) {
+                unawaited(candidateService.selectCandidate(index));
+              },
+              onCandidatePreviousPage: () {
+                unawaited(candidateService.previousPage());
+              },
+              onCandidateNextPage: () {
+                unawaited(candidateService.nextPage());
+              },
               onKey: (intent) => _sendOskIntent(bridge, intent),
             ),
           ),

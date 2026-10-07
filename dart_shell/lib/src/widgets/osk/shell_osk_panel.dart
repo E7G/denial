@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../localization/denial_localizations.dart';
 import '../../models/clipboard_history.dart';
+import '../../services/fcitx_kimpanel_service.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
 
@@ -66,7 +67,10 @@ class ShellOskPanel extends StatefulWidget {
     this.onDismiss,
     this.loadClipboard,
     this.pasteClipboard,
-    this.candidateBar,
+    this.candidateListenable,
+    this.onCandidateSelected,
+    this.onCandidatePreviousPage,
+    this.onCandidateNextPage,
   });
 
   final ValueChanged<ShellOskKeyIntent>? onKey;
@@ -74,7 +78,10 @@ class ShellOskPanel extends StatefulWidget {
   final VoidCallback? onDismiss;
   final Future<ClipboardHistorySnapshot> Function()? loadClipboard;
   final Future<void> Function(ClipboardHistoryEntry entry)? pasteClipboard;
-  final Widget? candidateBar;
+  final ValueListenable<FcitxCandidateSnapshot>? candidateListenable;
+  final ValueChanged<int>? onCandidateSelected;
+  final VoidCallback? onCandidatePreviousPage;
+  final VoidCallback? onCandidateNextPage;
 
   @override
   State<ShellOskPanel> createState() => _ShellOskPanelState();
@@ -135,7 +142,10 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
                   pane: _pane,
                   layoutMode: _layoutMode,
                   chineseInputEnabled: _chineseInputEnabled,
-                  candidateBar: widget.candidateBar,
+                  candidateListenable: widget.candidateListenable,
+                  onCandidateSelected: _selectCandidate,
+                  onCandidatePreviousPage: _previousCandidatePage,
+                  onCandidateNextPage: _nextCandidatePage,
                   onKeyboard: () => _setPane(_OskPane.keyboard),
                   onEmoji: () => _setPane(_OskPane.emoji),
                   onClipboard: _openClipboard,
@@ -277,6 +287,21 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
   void _insertEmoji(String emoji) {
     widget.onKeyTap?.call();
     widget.onKey?.call(ShellOskKeyIntent.text(emoji));
+  }
+
+  void _selectCandidate(int index) {
+    widget.onKeyTap?.call();
+    widget.onCandidateSelected?.call(index);
+  }
+
+  void _previousCandidatePage() {
+    widget.onKeyTap?.call();
+    widget.onCandidatePreviousPage?.call();
+  }
+
+  void _nextCandidatePage() {
+    widget.onKeyTap?.call();
+    widget.onCandidateNextPage?.call();
   }
 
   void _selectLayout(_OskLayoutMode mode) {
@@ -463,7 +488,10 @@ class _WindowsOskToolbar extends StatelessWidget {
     required this.pane,
     required this.layoutMode,
     required this.chineseInputEnabled,
-    required this.candidateBar,
+    required this.candidateListenable,
+    required this.onCandidateSelected,
+    required this.onCandidatePreviousPage,
+    required this.onCandidateNextPage,
     required this.onKeyboard,
     required this.onEmoji,
     required this.onClipboard,
@@ -475,7 +503,10 @@ class _WindowsOskToolbar extends StatelessWidget {
   final _OskPane pane;
   final _OskLayoutMode layoutMode;
   final bool chineseInputEnabled;
-  final Widget? candidateBar;
+  final ValueListenable<FcitxCandidateSnapshot>? candidateListenable;
+  final ValueChanged<int>? onCandidateSelected;
+  final VoidCallback? onCandidatePreviousPage;
+  final VoidCallback? onCandidateNextPage;
   final VoidCallback onKeyboard;
   final VoidCallback onEmoji;
   final VoidCallback onClipboard;
@@ -532,13 +563,14 @@ class _WindowsOskToolbar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: candidateBar == null
-              ? const SizedBox.expand()
-              : ClipRRect(
-                  key: const ValueKey('osk-candidate-strip'),
-                  borderRadius: BorderRadius.circular(6),
-                  child: candidateBar!,
-                ),
+          child: pane == _OskPane.keyboard
+              ? _WindowsCandidateStrip(
+                  candidateListenable: candidateListenable,
+                  onSelected: onCandidateSelected,
+                  onPreviousPage: onCandidatePreviousPage,
+                  onNextPage: onCandidateNextPage,
+                )
+              : const SizedBox.expand(),
         ),
         const SizedBox(width: 8),
         GestureDetector(
@@ -581,6 +613,243 @@ class _WindowsOskToolbar extends StatelessWidget {
           semanticLabel: '隐藏键盘',
         ),
       ],
+    );
+  }
+}
+
+class _WindowsCandidateStrip extends StatelessWidget {
+  const _WindowsCandidateStrip({
+    required this.candidateListenable,
+    required this.onSelected,
+    required this.onPreviousPage,
+    required this.onNextPage,
+  });
+
+  final ValueListenable<FcitxCandidateSnapshot>? candidateListenable;
+  final ValueChanged<int>? onSelected;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenable = candidateListenable;
+    if (listenable == null) {
+      return const SizedBox.expand(key: ValueKey('osk-candidates-empty'));
+    }
+    return ValueListenableBuilder<FcitxCandidateSnapshot>(
+      valueListenable: listenable,
+      builder: (context, snapshot, _) {
+        final show =
+            snapshot.available && snapshot.visible && snapshot.items.isNotEmpty;
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 120),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: !show
+              ? const SizedBox.expand(key: ValueKey('osk-candidates-empty'))
+              : Row(
+                  key: const ValueKey('osk-candidates-visible'),
+                  children: [
+                    Expanded(
+                      child: ListView.separated(
+                        key: const ValueKey('osk-candidate-list'),
+                        scrollDirection: Axis.horizontal,
+                        physics: const ClampingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        itemCount: snapshot.items.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 2),
+                        itemBuilder: (context, index) {
+                          final item = snapshot.items[index];
+                          return _OskCandidateButton(
+                            key: ValueKey(
+                              'osk-candidate-' + item.index.toString(),
+                            ),
+                            item: item,
+                            selected: snapshot.cursor == item.index,
+                            onTap: onSelected == null
+                                ? null
+                                : () => onSelected!(item.index),
+                          );
+                        },
+                      ),
+                    ),
+                    if (snapshot.hasPrevious || snapshot.hasNext) ...[
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        height: 20,
+                        width: 1,
+                        child: ColoredBox(
+                          color: context.shellColors.hairlineSoft,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      _OskCandidatePageButton(
+                        key: const ValueKey('osk-candidate-page-up'),
+                        icon: Icons.chevron_left_rounded,
+                        enabled: snapshot.hasPrevious,
+                        onTap: onPreviousPage,
+                        semanticLabel: '上一页候选词',
+                      ),
+                      _OskCandidatePageButton(
+                        key: const ValueKey('osk-candidate-page-down'),
+                        icon: Icons.chevron_right_rounded,
+                        enabled: snapshot.hasNext,
+                        onTap: onNextPage,
+                        semanticLabel: '下一页候选词',
+                      ),
+                    ],
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
+
+class _OskCandidateButton extends StatefulWidget {
+  const _OskCandidateButton({
+    super.key,
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final FcitxCandidateItem item;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  State<_OskCandidateButton> createState() => _OskCandidateButtonState();
+}
+
+class _OskCandidateButtonState extends State<_OskCandidateButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value || widget.onTap == null) {
+      return;
+    }
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = context.shellTheme.accentPalette;
+    final background = widget.selected
+        ? accent.container
+        : _pressed
+        ? context.shellColors.surfaceContainerHighest
+        : const Color(0x00000000);
+    final foreground = widget.selected
+        ? accent.onContainer
+        : context.shellColors.panelText;
+    final labelColor = widget.selected
+        ? accent.onContainer.withValues(alpha: 0.72)
+        : context.shellColors.textTertiary;
+
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      label: [
+        if (widget.item.label.isNotEmpty) widget.item.label,
+        widget.item.text,
+      ].join(' '),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Listener(
+          onPointerDown: (_) => _setPressed(true),
+          onPointerUp: (_) => _setPressed(false),
+          onPointerCancel: (_) => _setPressed(false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            curve: Curves.easeOutCubic,
+            height: 32,
+            constraints: const BoxConstraints(maxWidth: 210),
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.item.label.isNotEmpty) ...[
+                  Text(
+                    widget.item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: ShellText.base.copyWith(
+                      color: labelColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                ],
+                Flexible(
+                  child: Text(
+                    widget.item.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: ShellText.base.copyWith(
+                      color: foreground,
+                      fontSize: 16,
+                      fontWeight: widget.selected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OskCandidatePageButton extends StatelessWidget {
+  const _OskCandidatePageButton({
+    super.key,
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    required this.semanticLabel,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback? onTap;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: semanticLabel,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: SizedBox(
+          width: 30,
+          height: 32,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 19,
+              color: enabled
+                  ? context.shellColors.panelText
+                  : context.shellColors.textTertiary.withValues(alpha: 0.38),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

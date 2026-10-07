@@ -71,7 +71,7 @@ class ShellInputLayoutCoordinator {
       viewSize,
       edgePanelProgress,
     );
-    final baseSoftwareKeyboardRegions = ShellMetrics.softwareKeyboardRegions(
+    final softwareKeyboardRegions = ShellMetrics.softwareKeyboardRegions(
       viewSize,
       progress: edgePanelProgress,
       scrollStripVisible: false,
@@ -91,32 +91,12 @@ class ShellInputLayoutCoordinator {
               hitTest: false,
             ),
         ],
-        softwareKeyboardRegions: baseSoftwareKeyboardRegions,
+        softwareKeyboardRegions: softwareKeyboardRegions,
         keyboardCapture: true,
         exclusiveShellMode: true,
       );
       return;
     }
-
-    DenialWindow? dockedInputMethodPopup;
-    if (edgePanelActive) {
-      for (final window in state.windows.reversed) {
-        final geometry = window.geometry;
-        if (window.isInputMethodPopup &&
-            geometry != null &&
-            !geometry.isEmpty &&
-            !window.contentCoordinateRect.isEmpty) {
-          dockedInputMethodPopup = window;
-          break;
-        }
-      }
-    }
-    final candidateRect = dockedInputMethodPopup == null
-        ? Rect.zero
-        : ShellMetrics.oskCandidateRect(viewSize, edgePanelProgress);
-    final softwareKeyboardRegions = candidateRect.isEmpty
-        ? baseSoftwareKeyboardRegions
-        : _rectWithoutHole(edgePanelRect, candidateRect);
 
     // The Windows-style touch keyboard overlays the app. Native hit testing
     // must therefore stay in the same unshifted coordinate space as the
@@ -136,8 +116,7 @@ class ShellInputLayoutCoordinator {
         canvas
       else if (edgePanelActive) ...[
         ShellMetrics.statusRect(viewSize),
-        if (edgePanelRect.height > 0.0)
-          ..._rectWithoutHole(edgePanelRect, candidateRect),
+        if (edgePanelRect.height > 0.0) edgePanelRect,
       ] else ...[
         ShellMetrics.statusRect(viewSize),
         ShellMetrics.gestureRect(viewSize),
@@ -159,8 +138,6 @@ class ShellInputLayoutCoordinator {
         windows: state.windows,
         viewSize: viewSize,
         contentOffset: contentOffset,
-        dockedPopup: dockedInputMethodPopup,
-        dockedRect: candidateRect,
         hitTest: !interactions.capturesFullScene && !quickSettingsActive,
       ),
     ];
@@ -179,8 +156,6 @@ class ShellInputLayoutCoordinator {
     required List<DenialWindow> windows,
     required Size viewSize,
     required double contentOffset,
-    required DenialWindow? dockedPopup,
-    required Rect dockedRect,
     required bool hitTest,
   }) {
     final canvas = Offset.zero & viewSize;
@@ -194,11 +169,7 @@ class ShellInputLayoutCoordinator {
           source.isEmpty) {
         continue;
       }
-      final docked =
-          dockedPopup?.objectId == popup.objectId && !dockedRect.isEmpty;
-      final visual = docked
-          ? dockedRect
-          : geometry.shift(Offset(0, -contentOffset));
+      final visual = geometry.shift(Offset(0, -contentOffset));
       final clipped = visual.intersect(canvas);
       if (clipped.isEmpty) {
         continue;
@@ -223,27 +194,6 @@ class ShellInputLayoutCoordinator {
       );
     }
     return regions;
-  }
-
-  List<Rect> _rectWithoutHole(Rect outer, Rect hole) {
-    if (outer.isEmpty || hole.isEmpty) {
-      return outer.isEmpty ? const <Rect>[] : <Rect>[outer];
-    }
-    final cut = outer.intersect(hole);
-    if (cut.isEmpty) {
-      return <Rect>[outer];
-    }
-    final regions = <Rect>[
-      if (cut.top > outer.top)
-        Rect.fromLTRB(outer.left, outer.top, outer.right, cut.top),
-      if (cut.bottom < outer.bottom)
-        Rect.fromLTRB(outer.left, cut.bottom, outer.right, outer.bottom),
-      if (cut.left > outer.left)
-        Rect.fromLTRB(outer.left, cut.top, cut.left, cut.bottom),
-      if (cut.right < outer.right)
-        Rect.fromLTRB(cut.right, cut.top, outer.right, cut.bottom),
-    ];
-    return regions.where((region) => !region.isEmpty).toList(growable: false);
   }
 
   List<InputWindowRegion> _inputRegionsForWindow({

@@ -16,14 +16,6 @@ class ShellMetrics {
   static const double edgePanelScrollStripWidth = 18.0;
   static const double edgePanelScrollMultiplier = 1.15;
 
-  // Windows-style touch keyboard toolbar geometry. Keep these values shared
-  // with ShellOskPanel so an input-method popup can be painted and hit-tested
-  // in the exact same candidate strip.
-  static const double oskToolbarTopPadding = 6.0;
-  static const double oskToolbarHeight = 38.0;
-  static const double oskCandidateLeftInset = 212.0;
-  static const double oskCandidateRightInset = 112.0;
-
   /// Visual gutter between the outgoing and incoming windows during a
   /// horizontal app switch. The switch animation must travel `width + this`
   /// so the incoming window lands exactly centred.
@@ -73,23 +65,6 @@ class ShellMetrics {
   static Rect edgePanelRect(Size viewSize, double progress) {
     final height = edgePanelHeight(viewSize) * progress.clamp(0.0, 1.0);
     return Rect.fromLTWH(0, viewSize.height - height, viewSize.width, height);
-  }
-
-  static Rect oskCandidateRect(Size viewSize, double progress) {
-    final panel = edgePanelRect(viewSize, progress);
-    if (panel.isEmpty) {
-      return Rect.zero;
-    }
-    final left = oskCandidateLeftInset.clamp(0.0, viewSize.width).toDouble();
-    final right = (viewSize.width - oskCandidateRightInset)
-        .clamp(left, viewSize.width)
-        .toDouble();
-    final top = panel.top + oskToolbarTopPadding;
-    final bottom = (top + oskToolbarHeight).clamp(top, panel.bottom).toDouble();
-    if (right <= left || bottom <= top) {
-      return Rect.zero;
-    }
-    return Rect.fromLTRB(left, top, right, bottom).intersect(panel);
   }
 
   static Rect edgePanelScrollStripRect(Size viewSize) {
