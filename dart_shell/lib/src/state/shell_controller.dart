@@ -688,6 +688,7 @@ class ShellController extends Notifier<ShellState>
       edgePanelVisible: false,
       edgePanelDrag: Offset.zero,
       edgePanelDragActive: false,
+      edgePanelViewportScroll: 0.0,
     );
   }
 
@@ -906,6 +907,7 @@ class ShellController extends Notifier<ShellState>
       edgePanelVisible: true,
       edgePanelDrag: Offset.zero,
       edgePanelDragActive: false,
+      edgePanelViewportScroll: 0.0,
       overviewVisible: false,
       gestureDrag: Offset.zero,
       quickSettingsVisible: false,

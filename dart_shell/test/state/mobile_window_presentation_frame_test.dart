@@ -42,7 +42,7 @@ void main() {
   });
 
   test(
-    'keyboard viewport offset shifts native content without reintroducing inset texture',
+    'manual keyboard viewport pan shifts native content without reintroducing inset texture',
     () {
       final frame = mobileWindowPresentationFrame(
         viewSize: const Size(768, 1024),

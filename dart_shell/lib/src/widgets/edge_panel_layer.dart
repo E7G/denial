@@ -52,9 +52,12 @@ class _MobileKeyboardViewportState
   double _panelHeight = 0;
 
   void _updateTranslation(({double progress, double scroll}) position) {
+    // Windows-style docked keyboard behavior: opening the keyboard keeps the
+    // application anchored. Only an explicit viewport-pan gesture moves app
+    // content upward when a bottom field needs extra room.
     final keyboardOffset = _panelHeight * position.progress;
-    final scroll = position.scroll.clamp(0.0, keyboardOffset);
-    _translation.value = Offset(0, -(keyboardOffset - scroll));
+    final manualPan = position.scroll.clamp(0.0, keyboardOffset);
+    _translation.value = Offset(0, -manualPan * position.progress);
   }
 
   @override
@@ -262,7 +265,7 @@ class _EdgePanelScrollStrip extends ConsumerWidget {
         behavior: HitTestBehavior.opaque,
         onVerticalDragUpdate: (details) {
           controller.updateEdgePanelViewportScroll(
-            details.delta.dy * ShellMetrics.edgePanelScrollMultiplier,
+            -details.delta.dy * ShellMetrics.edgePanelScrollMultiplier,
             panelHeight,
           );
         },

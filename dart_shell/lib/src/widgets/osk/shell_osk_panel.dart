@@ -93,20 +93,20 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
       builder: (context, constraints) {
         final compact =
             constraints.maxWidth < 560 || constraints.maxHeight < 390;
-        final horizontalPadding = compact ? 8.0 : 12.0;
-        final topPadding = compact ? 10.0 : 14.0;
-        final keyGap = compact ? 5.0 : 6.0;
-        final rowGap = compact ? 6.0 : 7.0;
+        final horizontalPadding = compact ? 6.0 : 8.0;
+        final topPadding = compact ? 7.0 : 9.0;
+        final keyGap = compact ? 4.0 : 5.0;
+        final rowGap = compact ? 4.0 : 5.0;
         final availableHeight =
             constraints.maxHeight -
             topPadding -
             bottomPadding -
             rowGap * (rows.length - 1);
         final maxRowHeight = rows.length <= 4
-            ? (compact ? 78.0 : 88.0)
-            : (compact ? 70.0 : 76.0);
+            ? (compact ? 72.0 : 78.0)
+            : (compact ? 66.0 : 72.0);
         final rowHeight = (availableHeight / rows.length)
-            .clamp(48.0, maxRowHeight)
+            .clamp(46.0, maxRowHeight)
             .toDouble();
 
         return Padding(
@@ -382,8 +382,8 @@ class _OskKeyButton extends StatefulWidget {
 
 class _OskKeyButtonState extends State<_OskKeyButton>
     with SingleTickerProviderStateMixin {
-  static const Duration _minimumVisibleDuration = Duration(milliseconds: 180);
-  static const Duration _fadeOutDuration = Duration(milliseconds: 360);
+  static const Duration _minimumVisibleDuration = Duration(milliseconds: 42);
+  static const Duration _fadeOutDuration = Duration(milliseconds: 90);
 
   late final AnimationController _glow = AnimationController(
     vsync: this,
@@ -458,28 +458,17 @@ class _OskKeyButtonState extends State<_OskKeyButton>
                 glow * 0.55,
               )!;
               final border = Color.lerp(baseBorder, accent, glow)!;
-              final glowAlpha = (132 * glow).round().clamp(0, 255);
-
               return DecoratedBox(
                 decoration: BoxDecoration(
                   color: Color.lerp(
                     background,
                     widget.selected
-                        ? context.shellTheme.accentPalette.onContainer
-                        : accent,
-                    glow * 0.48,
+                        ? context.shellTheme.accentPalette.container
+                        : context.shellColors.surfaceContainerHighest,
+                    glow * 0.72,
                   ),
-                  borderRadius: context.shellTheme.borderRadius(16),
-                  border: Border.all(color: border),
-                  boxShadow: glowAlpha <= 0
-                      ? []
-                      : [
-                          BoxShadow(
-                            color: accent.withAlpha(glowAlpha),
-                            blurRadius: 22 * glow,
-                            spreadRadius: 1.2 * glow,
-                          ),
-                        ],
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: border, width: 1),
                 ),
                 child: Center(
                   child: widget.spec.icon == null
@@ -493,7 +482,7 @@ class _OskKeyButtonState extends State<_OskKeyButton>
                           color: foreground,
                           isWide: widget.spec.flex >= 28,
                         )
-                      : Icon(widget.spec.icon, color: foreground, size: 24),
+                      : Icon(widget.spec.icon, color: foreground, size: 22),
                 ),
               );
             },
@@ -590,8 +579,8 @@ class _OskKeyLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = ShellText.cardTitle.copyWith(
       color: color,
-      fontSize: isWide ? 18 : 20,
-      fontWeight: isWide ? FontWeight.w700 : FontWeight.w600,
+      fontSize: isWide ? 17 : 21,
+      fontWeight: isWide ? FontWeight.w600 : FontWeight.w500,
       height: 1,
     );
 
@@ -781,7 +770,7 @@ const _letterRows = [
     _OskKeySpec.text('j'),
     _OskKeySpec.text('k'),
     _OskKeySpec.text('l'),
-  ], sideInset: 28),
+  ], sideInset: 18),
   _OskRowData([
     _OskKeySpec.control(
       _OskControl.shift,
@@ -842,7 +831,7 @@ const _numberRows = [
     _OskKeySpec.text('+'),
     _OskKeySpec.text('('),
     _OskKeySpec.text(')'),
-  ], sideInset: 28),
+  ], sideInset: 18),
   _OskRowData([
     _OskKeySpec.control(_OskControl.extraSymbols, flex: 15),
     _OskKeySpec.text('*'),

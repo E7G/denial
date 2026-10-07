@@ -99,7 +99,7 @@ class ShellInputLayoutCoordinator {
     }
 
     final contentOffset = edgePanelActive
-        ? (edgePanelRect.height - state.edgePanelViewportScroll)
+        ? (state.edgePanelViewportScroll * state.edgePanelDragProgress)
               .clamp(0.0, edgePanelRect.height)
               .toDouble()
         : 0.0;

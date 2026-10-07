@@ -10,7 +10,7 @@ class ShellMetrics {
   static const double gestureBottomInset = -8.0;
   static const double edgePanelGestureWidth = 220.0;
   static const double edgePanelGestureHeight = 18.0;
-  static const double edgePanelMaxHeight = 368.0;
+  static const double edgePanelMaxHeight = 352.0;
   static const double edgePanelOpenDistance = 86.0;
   static const double edgePanelDragDistance = edgePanelMaxHeight;
   static const double edgePanelScrollStripWidth = 18.0;
@@ -60,7 +60,7 @@ class ShellMetrics {
     final maxHeight = viewSize.height < edgePanelMaxHeight
         ? viewSize.height
         : edgePanelMaxHeight;
-    return (viewSize.height * 0.30).clamp(0.0, maxHeight).toDouble();
+    return (viewSize.height * 0.32).clamp(0.0, maxHeight).toDouble();
   }
 
   static Rect edgePanelRect(Size viewSize, double progress) {

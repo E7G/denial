@@ -188,7 +188,7 @@ void main() {
         await tester.pump();
         expect(
           tester.getTopLeft(find.byKey(contentKey)).dy,
-          closeTo(-height * progress + scroll, 0.001),
+          closeTo(-scroll * progress, 0.001),
         );
         expect(keyboard.evaluate().single, same(keyboardElement));
       }
