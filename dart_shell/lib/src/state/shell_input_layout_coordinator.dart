@@ -207,19 +207,11 @@ class ShellInputLayoutCoordinator {
     if (frame.isEmpty || content.isEmpty) {
       return const <InputWindowRegion>[];
     }
-    final cropTop = !window.isLocalFlutter && window.serverSideDecorated
-        ? ShellMetrics.mobileNativeTitleBarCrop
-        : 0.0;
-    final maxCrop = (frame.height - 1.0).clamp(0.0, double.infinity);
-    final clampedCropTop = cropTop.clamp(0.0, maxCrop).toDouble();
-    final sourceFrame = clampedCropTop > 0.0
-        ? Rect.fromLTRB(
-            frame.left,
-            frame.top + clampedCropTop,
-            frame.right,
-            frame.bottom,
-          )
-        : frame;
+    // presentationCoordinateRect is already the compositor-published client
+    // frame. The 48 px system/status inset lives outside this source frame, so
+    // applying a second title-bar crop here would discard real application
+    // content and make hit testing disagree with what is painted.
+    final sourceFrame = frame;
     final sourceContent = content.intersect(sourceFrame);
     if (sourceContent.isEmpty) {
       return const <InputWindowRegion>[];

@@ -88,10 +88,10 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
         fit: BoxFit.contain,
         alignment: Alignment.center,
         allowPopupOverflow: true,
+        // The compositor already publishes the client content frame after the
+        // real mobile status-bar inset. Do not crop a second synthetic title
+        // strip here: doing so removes genuine app pixels on SSD/CSD windows.
         cropToContentBounds: true,
-        sourceCropTop: window.serverSideDecorated
-            ? ShellMetrics.mobileNativeTitleBarCrop
-            : 0.0,
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:denial_dart_shell/src/input/input_layout.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/shell_state.dart';
 import 'package:denial_dart_shell/src/widgets/edge_panel_layer.dart';
+import 'package:denial_dart_shell/src/widgets/window_content_rect.dart';
 import 'package:denial_dart_shell/src/widgets/osk/shell_osk_panel.dart';
 import 'package:denial_dart_shell/src/widgets/overview/overview_grid.dart';
 import 'package:denial_dart_shell/src/widgets/overview/overview_window_preview.dart';
@@ -98,6 +99,32 @@ void main() {
     expect(target.evaluate().single, same(targetElement));
     expect(tester.getRect(target), original);
     expect(current, findsNothing);
+  });
+
+  testWidgets('native mobile stage keeps the complete client source frame', (
+    tester,
+  ) async {
+    final drag = ValueNotifier(0.0);
+    addTearDown(drag.dispose);
+    final window = motionWindow(7);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: mobileMotionHarness(
+          MobilePrimaryWindowStage(
+            currentWindow: window,
+            switchTargetWindow: null,
+            switchDragX: drag,
+            opacity: 1,
+          ),
+        ),
+      ),
+    );
+
+    final content = tester.widget<WindowContentRect>(
+      find.byType(WindowContentRect),
+    );
+    expect(content.cropToContentBounds, isTrue);
+    expect(content.sourceCropTop, 0.0);
   });
 
   testWidgets(

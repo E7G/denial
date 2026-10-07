@@ -262,7 +262,10 @@ class DenialWindow {
     return Rect.fromLTWH(surfaceX, surfaceY, fallbackWidth, fallbackHeight);
   }
 
-  /// Native frame bounds include any compositor-owned system-bar strip.
+  /// Client presentation bounds published by the compositor.
+  ///
+  /// Mobile system/status insets are handled outside this source frame by the
+  /// shell, so callers must not subtract them again from these coordinates.
   Rect get presentationCoordinateRect => surfaceWidth > 0 && surfaceHeight > 0
       ? Rect.fromLTWH(surfaceX, surfaceY, surfaceWidth, surfaceHeight)
       : contentCoordinateRect;
