@@ -164,58 +164,22 @@ impl WaylandFrontend {
         );
     }
 
-    pub(super) fn mobile_window_inset(&self, window: &Window) -> i32 {
-        let Some(geometry) = self.mobile_window_geometry(window) else {
-            return 0;
-        };
-        self.output_for_geometry(geometry).map_or(0, |output| {
-            (geometry.loc.y - output.logical_geometry.loc.y).max(0)
-        })
-    }
-}
-
-impl WaylandFrontend {
-    /// Project a larger window canvas around the original client buffer. The
-    /// engine draws the reserved strip inside the root TextureLayer; client
-    /// DMA-BUF imports, storage, and buffer-only updates remain unchanged.
-    pub(super) fn project_mobile_inset(
+    pub(super) fn clip_mobile_surface_tree_to_content(
         &self,
         window: &Window,
         content: Rectangle<i32, Logical>,
         layers: &mut [SurfaceLayerDescription],
         textures: &mut [ExternalTextureFrame],
-    ) -> Rectangle<i32, Logical> {
-        let top = self.mobile_window_inset(window);
-        if top <= 0 {
-            return content;
+    ) {
+        if !self.mobile_shell || self.mobile_window_geometry(window).is_none() {
+            return;
         }
         let Some(root_id) = self
             .window_root_surface(window)
             .and_then(|root| self.surface_id(&root))
         else {
-            return content;
+            return;
         };
-        let Some(root_index) = layers
-            .iter()
-            .position(|layer| layer.surface_id == root_id && layer.texture_id > 0)
-        else {
-            return content;
-        };
-        let frame = Rectangle::new(
-            (content.loc.x, content.loc.y - top).into(),
-            (content.size.w, content.size.h.saturating_add(top)).into(),
-        );
-        let scale = self
-            .output_for_geometry(self.window_geometry_target(window))
-            .map_or(1.0, |output| {
-                output.output.current_scale().fractional_scale()
-            });
-        let width = (f64::from(frame.size.w) * scale).round().max(1.0);
-        let height = (f64::from(frame.size.h) * scale).round().max(1.0);
-        let sx = width / f64::from(frame.size.w);
-        let sy = height / f64::from(frame.size.h);
-        // Clip ordinary children in source geometry, without adding Flutter
-        // clip layers. Popups retain their own surface-tree coordinates.
         for layer in layers
             .iter_mut()
             .filter(|layer| layer.popup_root_surface_id == 0)
@@ -229,44 +193,6 @@ impl WaylandFrontend {
                 texture.expects_sample = false;
             }
         }
-        let root = &mut layers[root_index];
-        let presentation = denial_flutter_engine::ExternalTexturePresentation {
-            struct_size: std::mem::size_of::<denial_flutter_engine::ExternalTexturePresentation>(),
-            width,
-            height,
-            source: [
-                root.texture_source_x,
-                root.texture_source_y,
-                root.texture_source_width,
-                root.texture_source_height,
-            ],
-            destination: [
-                (root.surface_x - f64::from(frame.loc.x)) * sx,
-                (root.surface_y - f64::from(frame.loc.y)) * sy,
-                root.surface_width * sx,
-                root.surface_height * sy,
-            ],
-            background: [0.0, 0.0, width, f64::from(top) * sy],
-            // The engine samples the current app image; black is the empty-source fallback.
-            background_argb: 0xff000000,
-        };
-        if let Some(texture) = textures
-            .iter_mut()
-            .find(|texture| texture.texture_id == root_id as i64)
-        {
-            texture.presentation = Some(presentation);
-        }
-        root.width = width as u32;
-        root.height = height as u32;
-        root.surface_x = f64::from(frame.loc.x);
-        root.surface_y = f64::from(frame.loc.y);
-        root.surface_width = f64::from(frame.size.w);
-        root.surface_height = f64::from(frame.size.h);
-        root.texture_source_x = 0.0;
-        root.texture_source_y = 0.0;
-        root.texture_source_width = width;
-        root.texture_source_height = height;
-        frame
     }
 }
 
@@ -286,15 +212,11 @@ fn clip_layer_to_content(
         (layer.surface_y + layer.surface_height).min(f64::from(content.loc.y + content.size.h));
     if right <= left || bottom <= top {
         if root {
-            // Keep the root texture as the virtual canvas for the strip even
-            // when all client content is supplied by subsurfaces.
             layer.surface_width = 0.0;
             layer.surface_height = 0.0;
             layer.texture_source_width = 0.0;
             layer.texture_source_height = 0.0;
         } else {
-            // Preserve non-empty protocol geometry and parent identity for
-            // descendants, but do not paint or wait to sample this buffer.
             layer.texture_id = 0;
         }
         return;

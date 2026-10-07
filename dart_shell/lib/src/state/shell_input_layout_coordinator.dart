@@ -15,11 +15,13 @@ Rect mobileWindowPresentationFrame({
   if (viewSize.isEmpty || frame.isEmpty) {
     return Rect.zero;
   }
+  final topInset = contain ? ShellMetrics.appStatusBarHeight : 0.0;
+  final targetHeight = (viewSize.height - topInset).clamp(0.0, viewSize.height);
   final target = Rect.fromLTWH(
     0,
-    -contentOffset,
+    topInset - contentOffset,
     viewSize.width,
-    viewSize.height,
+    targetHeight,
   );
   final widthScale = target.width / frame.width;
   final heightScale = target.height / frame.height;
@@ -157,26 +159,43 @@ class ShellInputLayoutCoordinator {
     if (frame.isEmpty || content.isEmpty) {
       return const <InputWindowRegion>[];
     }
+    final cropTop = !window.isLocalFlutter && window.serverSideDecorated
+        ? ShellMetrics.mobileNativeTitleBarCrop
+        : 0.0;
+    final maxCrop = (frame.height - 1.0).clamp(0.0, double.infinity);
+    final clampedCropTop = cropTop.clamp(0.0, maxCrop).toDouble();
+    final sourceFrame = clampedCropTop > 0.0
+        ? Rect.fromLTRB(
+            frame.left,
+            frame.top + clampedCropTop,
+            frame.right,
+            frame.bottom,
+          )
+        : frame;
+    final sourceContent = content.intersect(sourceFrame);
+    if (sourceContent.isEmpty) {
+      return const <InputWindowRegion>[];
+    }
     // Match the texture's top-centred BoxFit.contain. This keeps fixed-size
     // and legacy clients fully visible instead of cropping them to the mobile
     // viewport, while retaining exact source-coordinate routing for touch.
     final fullContentRect = mobileWindowPresentationFrame(
       viewSize: viewSize,
-      frame: frame,
+      frame: sourceFrame,
       contentOffset: contentOffset,
       contain: !window.isLocalFlutter,
     );
     if (fullContentRect.isEmpty) {
       return const <InputWindowRegion>[];
     }
-    final scale = fullContentRect.width / frame.width;
+    final scale = fullContentRect.width / sourceFrame.width;
     final frameLeft = fullContentRect.left;
     final frameTop = fullContentRect.top;
     final clientRect = Rect.fromLTWH(
-      frameLeft + (content.left - frame.left) * scale,
-      frameTop + (content.top - frame.top) * scale,
-      content.width * scale,
-      content.height * scale,
+      frameLeft + (sourceContent.left - sourceFrame.left) * scale,
+      frameTop + (sourceContent.top - sourceFrame.top) * scale,
+      sourceContent.width * scale,
+      sourceContent.height * scale,
     );
     final clip = Rect.fromLTRB(0, 0, viewSize.width, inputBottom);
     final rect = clientRect.intersect(clip);
@@ -184,14 +203,18 @@ class ShellInputLayoutCoordinator {
       return const <InputWindowRegion>[];
     }
     final sourceRect = Rect.fromLTWH(
-      content.left + (rect.left - clientRect.left) / scale,
-      content.top + (rect.top - clientRect.top) / scale,
+      sourceContent.left + (rect.left - clientRect.left) / scale,
+      sourceContent.top + (rect.top - clientRect.top) / scale,
       rect.width / scale,
       rect.height / scale,
     );
     final regions = <InputWindowRegion>[];
     for (final popup in window.popupRoots.toList(growable: false).reversed) {
-      final popupRect = window.mapSurfaceRect(popup, fullContentRect);
+      final popupRect = window.mapSurfaceRect(
+        popup,
+        fullContentRect,
+        sourceRect: sourceFrame,
+      );
       final clipped = popupRect.intersect(clip);
       if (clipped.isEmpty ||
           popupRect.width <= 0.0 ||

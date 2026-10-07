@@ -3,35 +3,32 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'landscape native client fills width and leaves only proportional space',
-    () {
-      final frame = mobileWindowPresentationFrame(
-        viewSize: const Size(768, 1024),
-        frame: const Rect.fromLTWH(0, 0, 1920, 1080),
-        contentOffset: 0,
-        contain: true,
-      );
-
-      expect(frame.left, closeTo(0, 0.001));
-      expect(frame.top, closeTo(296, 0.001));
-      expect(frame.width, closeTo(768, 0.001));
-      expect(frame.height, closeTo(432, 0.001));
-    },
-  );
-
-  test('matching aspect ratio fills the complete app viewport', () {
+  test('landscape native client maximizes below the real status bar', () {
     final frame = mobileWindowPresentationFrame(
       viewSize: const Size(768, 1024),
-      frame: const Rect.fromLTWH(0, 0, 768, 1024),
+      frame: const Rect.fromLTWH(0, 0, 1920, 1080),
       contentOffset: 0,
       contain: true,
     );
 
-    expect(frame, const Rect.fromLTWH(0, 0, 768, 1024));
+    expect(frame.left, closeTo(0, 0.001));
+    expect(frame.top, closeTo(320, 0.001));
+    expect(frame.width, closeTo(768, 0.001));
+    expect(frame.height, closeTo(432, 0.001));
   });
 
-  test('legacy cover behavior remains available for local shell apps', () {
+  test('matching native aspect fills the complete area below status bar', () {
+    final frame = mobileWindowPresentationFrame(
+      viewSize: const Size(768, 1024),
+      frame: const Rect.fromLTWH(0, 0, 768, 976),
+      contentOffset: 0,
+      contain: true,
+    );
+
+    expect(frame, const Rect.fromLTWH(0, 48, 768, 976));
+  });
+
+  test('legacy cover behavior remains full-screen for local shell apps', () {
     final frame = mobileWindowPresentationFrame(
       viewSize: const Size(768, 1024),
       frame: const Rect.fromLTWH(0, 0, 1920, 1080),
@@ -44,17 +41,20 @@ void main() {
     expect(frame.left, lessThan(0));
   });
 
-  test('keyboard viewport offset shifts the same proportional frame', () {
-    final frame = mobileWindowPresentationFrame(
-      viewSize: const Size(768, 1024),
-      frame: const Rect.fromLTWH(0, 0, 1920, 1080),
-      contentOffset: 180,
-      contain: true,
-    );
+  test(
+    'keyboard viewport offset shifts native content without reintroducing inset texture',
+    () {
+      final frame = mobileWindowPresentationFrame(
+        viewSize: const Size(768, 1024),
+        frame: const Rect.fromLTWH(0, 0, 1920, 1080),
+        contentOffset: 180,
+        contain: true,
+      );
 
-    expect(frame.left, closeTo(0, 0.001));
-    expect(frame.top, closeTo(116, 0.001));
-    expect(frame.width, closeTo(768, 0.001));
-    expect(frame.height, closeTo(432, 0.001));
-  });
+      expect(frame.left, closeTo(0, 0.001));
+      expect(frame.top, closeTo(140, 0.001));
+      expect(frame.width, closeTo(768, 0.001));
+      expect(frame.height, closeTo(432, 0.001));
+    },
+  );
 }

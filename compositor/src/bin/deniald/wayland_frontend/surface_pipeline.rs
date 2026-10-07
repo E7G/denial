@@ -919,7 +919,13 @@ impl WaylandFrontend {
                 );
             }
 
-            let frame = self.project_mobile_inset(window, content, &mut layers, &mut textures);
+            self.clip_mobile_surface_tree_to_content(
+                window,
+                content,
+                &mut layers,
+                &mut textures,
+            );
+            let frame = content;
 
             for layer in &layers {
                 if layer.texture_id > 0 {

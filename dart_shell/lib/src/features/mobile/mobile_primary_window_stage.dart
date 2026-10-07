@@ -2,6 +2,7 @@ import 'package:denial_dart_shell/denial.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../input/input_layout.dart';
 import '../../widgets/retained_translation.dart';
 
 /// Keeps both app subtrees laid out while the switch gesture moves their layers.
@@ -77,14 +78,21 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
         fit: BoxFit.cover,
       );
     }
-    return WindowContentRect(
-      key: ValueKey<int>(window.objectId),
-      window: window,
-      active: active,
-      borderRadius: transitionRadius,
-      fit: BoxFit.contain,
-      alignment: Alignment.center,
-      allowPopupOverflow: true,
+    return Padding(
+      padding: const EdgeInsets.only(top: ShellMetrics.appStatusBarHeight),
+      child: WindowContentRect(
+        key: ValueKey<int>(window.objectId),
+        window: window,
+        active: active,
+        borderRadius: transitionRadius,
+        fit: BoxFit.contain,
+        alignment: Alignment.center,
+        allowPopupOverflow: true,
+        cropToContentBounds: true,
+        sourceCropTop: window.serverSideDecorated
+            ? ShellMetrics.mobileNativeTitleBarCrop
+            : 0.0,
+      ),
     );
   }
 
