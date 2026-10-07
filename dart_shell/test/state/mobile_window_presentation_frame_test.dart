@@ -41,20 +41,17 @@ void main() {
     expect(frame.left, lessThan(0));
   });
 
-  test(
-    'manual keyboard viewport pan shifts native content without reintroducing inset texture',
-    () {
-      final frame = mobileWindowPresentationFrame(
-        viewSize: const Size(768, 1024),
-        frame: const Rect.fromLTWH(0, 0, 1920, 1080),
-        contentOffset: 180,
-        contain: true,
-      );
+  test('stationary keyboard overlay keeps native content anchored', () {
+    final frame = mobileWindowPresentationFrame(
+      viewSize: const Size(768, 1024),
+      frame: const Rect.fromLTWH(0, 0, 1920, 1080),
+      contentOffset: 0,
+      contain: true,
+    );
 
-      expect(frame.left, closeTo(0, 0.001));
-      expect(frame.top, closeTo(140, 0.001));
-      expect(frame.width, closeTo(768, 0.001));
-      expect(frame.height, closeTo(432, 0.001));
-    },
-  );
+    expect(frame.left, closeTo(0, 0.001));
+    expect(frame.top, closeTo(320, 0.001));
+    expect(frame.width, closeTo(768, 0.001));
+    expect(frame.height, closeTo(432, 0.001));
+  });
 }

@@ -186,16 +186,13 @@ void main() {
         final scroll = frame.toDouble();
         shell.position(progress, scroll: scroll);
         await tester.pump();
-        expect(
-          tester.getTopLeft(find.byKey(contentKey)).dy,
-          closeTo(-scroll * progress, 0.001),
-        );
+        expect(tester.getTopLeft(find.byKey(contentKey)), Offset.zero);
         expect(keyboard.evaluate().single, same(keyboardElement));
       }
       expect(builds, isEmpty);
       debugOnRebuildDirtyWidget = previous;
-      // Exercise the real close path: a manually panned app must return to
-      // its exact top-left origin when the software keyboard is dismissed.
+      // Exercise the real close path: even stale viewport-pan state must never
+      // move the app, and dismissal still clears that legacy state.
       shell.closeEdgePanel();
       await tester.pump();
       expect(shell.state.edgePanelViewportScroll, 0.0);

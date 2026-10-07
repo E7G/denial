@@ -37,61 +37,18 @@ class MobileSystemKeyboardLayer extends ConsumerWidget {
 /// The keyboard and its right-edge scroll strip must remain stationary, so
 /// every full-screen surface that should follow the user's viewport pan wraps
 /// itself in this boundary instead of duplicating the translation.
-class MobileKeyboardViewport extends ConsumerStatefulWidget {
+class MobileKeyboardViewport extends StatelessWidget {
   const MobileKeyboardViewport({required this.child, super.key});
 
   final Widget child;
 
   @override
-  ConsumerState<MobileKeyboardViewport> createState() =>
-      _MobileKeyboardViewportState();
-}
-
-class _MobileKeyboardViewportState
-    extends ConsumerState<MobileKeyboardViewport> {
-  final _translation = ValueNotifier(Offset.zero);
-  double _panelHeight = 0;
-
-  void _updateTranslation(({double progress, double scroll}) position) {
-    // Windows-style docked keyboard behavior: opening the keyboard keeps the
-    // application anchored. Only an explicit viewport-pan gesture moves app
-    // content upward when a bottom field needs extra room.
-    final keyboardOffset = _panelHeight * position.progress;
-    final manualPan = position.scroll.clamp(0.0, keyboardOffset);
-    _translation.value = Offset(0, -manualPan * position.progress);
-  }
-
-  @override
-  void dispose() {
-    _translation.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    ref.listen(
-      shellControllerProvider.select(
-        (state) => (
-          progress: state.edgePanelDragProgress,
-          scroll: state.edgePanelViewportScroll,
-        ),
-      ),
-      (_, next) => _updateTranslation(next),
-    );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _panelHeight = ShellMetrics.edgePanelHeight(constraints.biggest);
-        final state = ref.read(shellControllerProvider);
-        _updateTranslation((
-          progress: state.edgePanelDragProgress,
-          scroll: state.edgePanelViewportScroll,
-        ));
-        return RetainedTranslation(
-          translation: _translation,
-          child: RepaintBoundary(child: widget.child),
-        );
-      },
-    );
+    // Windows touch keyboard behavior: the docked keyboard is an overlay.
+    // Never translate the application scene. This deliberately removes the
+    // old viewport-pan state so dismissing the keyboard cannot leave the app
+    // shifted with its top edge off-screen.
+    return RepaintBoundary(child: child);
   }
 }
 

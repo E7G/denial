@@ -74,7 +74,7 @@ class ShellInputLayoutCoordinator {
     final softwareKeyboardRegions = ShellMetrics.softwareKeyboardRegions(
       viewSize,
       progress: edgePanelProgress,
-      scrollStripVisible: state.edgePanelVisible,
+      scrollStripVisible: false,
     );
     if (state.lockLayerVisible) {
       final lockBackgroundWindow = state.primaryWindow;
@@ -98,11 +98,10 @@ class ShellInputLayoutCoordinator {
       return;
     }
 
-    final contentOffset = edgePanelActive
-        ? (state.edgePanelViewportScroll * state.edgePanelDragProgress)
-              .clamp(0.0, edgePanelRect.height)
-              .toDouble()
-        : 0.0;
+    // The Windows-style touch keyboard overlays the app. Native hit testing
+    // must therefore stay in the same unshifted coordinate space as the
+    // visual window, regardless of any stale legacy viewport-pan state.
+    const contentOffset = 0.0;
     final inputBottom = edgePanelActive
         ? edgePanelRect.top.clamp(0.0, viewSize.height).toDouble()
         : viewSize.height;
@@ -118,8 +117,6 @@ class ShellInputLayoutCoordinator {
       else if (edgePanelActive) ...[
         ShellMetrics.statusRect(viewSize),
         if (edgePanelRect.height > 0.0) edgePanelRect,
-        if (state.edgePanelVisible)
-          ShellMetrics.edgePanelScrollStripRect(viewSize),
       ] else ...[
         ShellMetrics.statusRect(viewSize),
         ShellMetrics.gestureRect(viewSize),
