@@ -595,11 +595,13 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
       profile: quickSettings.profile,
       onToggleWifi: networkController.toggleWireless,
       onOpenWifi: () {
+        ref.read(shellControllerProvider.notifier).closeQuickSettings();
         ref
             .read(shellSurfaceControllerProvider.notifier)
             .show(
               keyName: 'wifi-details',
               debugLabel: 'Wi-Fi details',
+              presentation: ShellSurfacePresentation.fullscreen,
               builder: (_, handle) => WifiDetailSurface(onClose: handle.close),
             );
       },
@@ -611,6 +613,7 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
             .show(
               keyName: 'bluetooth-details',
               debugLabel: 'Bluetooth details',
+              presentation: ShellSurfacePresentation.fullscreen,
               builder: (_, handle) =>
                   BluetoothDetailSurface(onClose: handle.close),
             );
@@ -697,7 +700,8 @@ class _ShadeQuickEntrance extends ConsumerWidget {
             ),
           ),
           ShadeActions(
-            onOpenEdit: () => _openSettings(ref, page: SettingsPageId.tabletMetro),
+            onOpenEdit: () =>
+                _openSettings(ref, page: SettingsPageId.tabletMetro),
             onOpenSettings: () => _openSettings(ref),
             onOpenPower: () => showPowerSessionSurface(ref),
           ),

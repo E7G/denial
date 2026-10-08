@@ -10,6 +10,7 @@ import '../state/cursor_theme.dart';
 import '../state/desktop_notifications.dart';
 import '../state/display_layout.dart';
 import '../state/shell_controller.dart';
+import '../state/shell_profile.dart';
 import '../wallpaper/state/wallpaper_accent.dart';
 import '../widgets/shell_surface_host.dart';
 
@@ -111,6 +112,9 @@ class _ShellRuntimeBindingsState extends ConsumerState<ShellRuntimeBindings> {
         .show(
           keyName: 'bluetooth-details',
           debugLabel: 'Bluetooth pairing',
+          presentation: ref.read(shellProfileProvider) == ShellProfile.mobile
+              ? ShellSurfacePresentation.fullscreen
+              : ShellSurfacePresentation.modal,
           builder: (context, handle) => builder(context, handle.close),
         );
   }

@@ -9,6 +9,7 @@ import '../../../l10n/generated/app_localizations.dart';
 import '../../localization/denial_localizations.dart';
 import '../../services/bluetooth_service.dart';
 import '../../state/bluetooth.dart';
+import '../../state/shell_profile.dart';
 import '../../theme/motion.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
@@ -143,30 +144,55 @@ class _BluetoothDetailSurfaceState
         !state.powerChanging;
     final theme = ShellTheme.of(context);
     final l10n = context.l10n;
+    final mobileApplication =
+        ref.watch(shellProfileProvider) == ShellProfile.mobile;
 
     return SafeArea(
-      minimum: const EdgeInsets.all(16),
+      minimum: mobileApplication ? EdgeInsets.zero : const EdgeInsets.all(16),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 720),
+          constraints: mobileApplication
+              ? BoxConstraints.tight(MediaQuery.sizeOf(context))
+              : const BoxConstraints(maxWidth: 560, maxHeight: 720),
           child: ShellBackdropBlur(
             separateChild: true,
-            blur: theme.effectivePanelOpacity < 1.0,
-            borderRadius: BorderRadius.circular(theme.panelRadius),
+            blur: !mobileApplication && theme.effectivePanelOpacity < 1.0,
+            borderRadius: mobileApplication
+                ? BorderRadius.zero
+                : BorderRadius.circular(theme.panelRadius),
             child: DecoratedBox(
+              key: ValueKey<String>(
+                mobileApplication
+                    ? 'bluetooth-application-surface'
+                    : 'bluetooth-dialog-surface',
+              ),
               decoration: BoxDecoration(
                 color: theme.panelColor(context.shellColors.panelBackground),
-                borderRadius: BorderRadius.circular(theme.panelRadius),
-                border: Border.all(color: context.shellColors.hairline),
+                borderRadius: mobileApplication
+                    ? BorderRadius.zero
+                    : BorderRadius.circular(theme.panelRadius),
+                border: mobileApplication
+                    ? null
+                    : Border.all(color: context.shellColors.hairline),
               ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                padding: mobileApplication
+                    ? const EdgeInsets.fromLTRB(14, 10, 14, 14)
+                    : const EdgeInsets.fromLTRB(18, 16, 18, 18),
                 child: FocusTraversalGroup(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Row(
                         children: [
+                          if (mobileApplication) ...[
+                            _BluetoothIconButton(
+                              label: l10n.bluetoothCloseDetails,
+                              icon: Icons.arrow_back_rounded,
+                              onPressed: _close,
+                            ),
+                            const SizedBox(width: 7),
+                          ],
                           Icon(
                             Icons.bluetooth_rounded,
                             size: 23,
@@ -222,12 +248,14 @@ class _BluetoothDetailSurfaceState
                                 ? () => unawaited(controller.stopScan())
                                 : controller.scan,
                           ),
-                          const SizedBox(width: 7),
-                          _BluetoothIconButton(
-                            label: l10n.bluetoothCloseDetails,
-                            icon: Icons.close_rounded,
-                            onPressed: _close,
-                          ),
+                          if (!mobileApplication) ...[
+                            const SizedBox(width: 7),
+                            _BluetoothIconButton(
+                              label: l10n.bluetoothCloseDetails,
+                              icon: Icons.close_rounded,
+                              onPressed: _close,
+                            ),
+                          ],
                         ],
                       ),
                       if (state.error != null) ...[

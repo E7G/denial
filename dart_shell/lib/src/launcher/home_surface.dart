@@ -455,6 +455,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
         .show(
           keyName: 'bluetooth-details',
           debugLabel: 'Bluetooth details',
+          presentation: ShellSurfacePresentation.fullscreen,
           builder: (_, handle) => BluetoothDetailSurface(onClose: handle.close),
         );
   }
