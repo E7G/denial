@@ -265,7 +265,7 @@ class _LockAuthenticationPanel extends StatelessWidget {
   }
 }
 
-class _MobileLockAuthenticationPanel extends StatelessWidget {
+class _MobileLockAuthenticationPanel extends ConsumerWidget {
   const _MobileLockAuthenticationPanel({
     required this.state,
     required this.controller,
@@ -283,7 +283,7 @@ class _MobileLockAuthenticationPanel extends StatelessWidget {
   final VoidCallback onCancel;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final prompt = state.prompt;
     final error =
@@ -303,201 +303,229 @@ class _MobileLockAuthenticationPanel extends StatelessWidget {
       30,
     );
     final accent = ShellTheme.of(context).accentPalette;
-    final size = MediaQuery.sizeOf(context);
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final keyboardProgress = ref.watch(
+      shellControllerProvider.select((state) => state.edgePanelDragProgress),
+    );
+    final tabletSettings = ref.watch(
+      shellSettingsProvider.select((settings) => settings.tablet),
+    );
+    final avoidance = resolveLockKeyboardAvoidance(
+      viewSize: size,
+      safePadding: media.padding,
+      keyboardProgress: keyboardProgress,
+      tabletSettings: tabletSettings,
+    );
+    final availableHeight = avoidance.availableHeight(
+      viewSize: size,
+      safePadding: media.padding,
+    );
 
     return Positioned.fill(
       child: MobileKeyboardViewport(
         child: SafeArea(
           minimum: const EdgeInsets.fromLTRB(18, 12, 18, 22),
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 480,
-                maxHeight: math.max(210.0, size.height * 0.58),
-              ),
-              child: DecoratedBox(
-                key: const ValueKey<String>('mobile-lock-authentication-panel'),
-                decoration: BoxDecoration(
-                  color: context.shellColors.surfaceContainerLow,
-                  borderRadius: context.shellTheme.borderRadius(24),
-                  border: Border.all(color: context.shellColors.hairline),
+          child: Padding(
+            key: const ValueKey<String>('mobile-lock-keyboard-avoidance'),
+            padding: EdgeInsets.only(
+              top: avoidance.topInset,
+              bottom: avoidance.bottomInset,
+            ),
+            child: Align(
+              alignment: avoidance.alignment,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 480,
+                  maxHeight: math.min(size.height * 0.58, availableHeight),
                 ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-                  child: FocusTraversalGroup(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
+                child: DecoratedBox(
+                  key: const ValueKey<String>(
+                    'mobile-lock-authentication-panel',
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.shellColors.surfaceContainerLow,
+                    borderRadius: context.shellTheme.borderRadius(24),
+                    border: Border.all(color: context.shellColors.hairline),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                    child: FocusTraversalGroup(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  l10n.lockUnlockDenial,
+                                  style: ShellText.base.copyWith(
+                                    fontSize: 23,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.35,
+                                  ),
+                                ),
+                              ),
+                              _MobileLockCancelButton(
+                                label: l10n.commonCancel,
+                                onPressed: onCancel,
+                              ),
+                            ],
+                          ),
+                          if (!state.available) ...[
+                            const SizedBox(height: 7),
+                            Text(
+                              l10n.lockAuthenticationUnavailable,
+                              style: ShellText.base.copyWith(
+                                color: context.shellColors.textTertiary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                          if (message != null && message.isNotEmpty) ...[
+                            const SizedBox(height: 13),
+                            Semantics(
+                              liveRegion: true,
+                              label: message,
                               child: Text(
-                                l10n.lockUnlockDenial,
+                                message,
                                 style: ShellText.base.copyWith(
-                                  fontSize: 23,
-                                  height: 1.1,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.35,
+                                  color: error
+                                      ? context.shellColors.performanceBad
+                                      : context.shellColors.textSecondary,
+                                  fontSize: 13,
+                                  height: 1.3,
+                                  fontWeight: error
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
                                 ),
                               ),
                             ),
-                            _MobileLockCancelButton(
-                              label: l10n.commonCancel,
-                              onPressed: onCancel,
-                            ),
                           ],
-                        ),
-                        if (!state.available) ...[
-                          const SizedBox(height: 7),
-                          Text(
-                            l10n.lockAuthenticationUnavailable,
-                            style: ShellText.base.copyWith(
-                              color: context.shellColors.textTertiary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                        if (message != null && message.isNotEmpty) ...[
-                          const SizedBox(height: 13),
-                          Semantics(
-                            liveRegion: true,
-                            label: message,
-                            child: Text(
-                              message,
-                              style: ShellText.base.copyWith(
-                                color: error
-                                    ? context.shellColors.performanceBad
-                                    : context.shellColors.textSecondary,
-                                fontSize: 13,
-                                height: 1.3,
-                                fontWeight: error
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
+                          if (state.rateLimited) ...[
+                            const SizedBox(height: 10),
+                            Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                l10n.lockRetryInSeconds(cooldownSeconds),
+                                style: ShellText.base.copyWith(
+                                  color: context.shellColors.performanceWarning,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                        if (state.rateLimited) ...[
-                          const SizedBox(height: 10),
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              l10n.lockRetryInSeconds(cooldownSeconds),
+                          ],
+                          if (canRespond) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              (promptLabel == null ||
+                                      promptLabel.isEmpty ||
+                                      error)
+                                  ? l10n.lockAuthenticationResponse
+                                  : promptLabel,
                               style: ShellText.base.copyWith(
-                                color: context.shellColors.performanceWarning,
+                                color: context.shellColors.textSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                        ],
-                        if (canRespond) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            (promptLabel == null ||
-                                    promptLabel.isEmpty ||
-                                    error)
-                                ? l10n.lockAuthenticationResponse
-                                : promptLabel,
-                            style: ShellText.base.copyWith(
-                              color: context.shellColors.textSecondary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          Semantics(
-                            label: prompt!.obscure
-                                ? l10n.lockPasswordObscured
-                                : l10n.lockAuthenticationResponse,
-                            textField: true,
-                            obscured: prompt.obscure,
-                            child: TextFieldTapRegion(
-                              child: AnimatedBuilder(
-                                animation: focusNode,
-                                builder: (context, child) => DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: context.shellColors.background
-                                        .withValues(alpha: 0.72),
-                                    borderRadius: context.shellTheme
-                                        .borderRadius(14),
-                                    border: Border.all(
-                                      color: focusNode.hasFocus
-                                          ? accent.primary
-                                          : context.shellColors.hairline,
+                            const SizedBox(height: 7),
+                            Semantics(
+                              label: prompt!.obscure
+                                  ? l10n.lockPasswordObscured
+                                  : l10n.lockAuthenticationResponse,
+                              textField: true,
+                              obscured: prompt.obscure,
+                              child: TextFieldTapRegion(
+                                child: AnimatedBuilder(
+                                  animation: focusNode,
+                                  builder: (context, child) => DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: context.shellColors.background
+                                          .withValues(alpha: 0.72),
+                                      borderRadius: context.shellTheme
+                                          .borderRadius(14),
+                                      border: Border.all(
+                                        color: focusNode.hasFocus
+                                            ? accent.primary
+                                            : context.shellColors.hairline,
+                                      ),
                                     ),
+                                    child: child,
                                   ),
-                                  child: child,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    15,
-                                    5,
-                                    6,
-                                    5,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: EditableText(
-                                          key: const ValueKey<String>(
-                                            'lock-authentication-field',
-                                          ),
-                                          controller: controller,
-                                          focusNode: focusNode,
-                                          style: context.shellTheme.text.base
-                                              .copyWith(
-                                                fontSize: 17,
-                                                letterSpacing: prompt.obscure
-                                                    ? 2.2
-                                                    : 0,
-                                              ),
-                                          cursorColor: accent.primary,
-                                          backgroundCursorColor:
-                                              context.shellColors.textTertiary,
-                                          selectionColor: accent.selection,
-                                          obscureText: prompt.obscure,
-                                          obscuringCharacter: '•',
-                                          autocorrect: false,
-                                          enableSuggestions: false,
-                                          enableInteractiveSelection: false,
-                                          keyboardType:
-                                              TextInputType.visiblePassword,
-                                          textInputAction: TextInputAction.done,
-                                          inputFormatters: [
-                                            LengthLimitingTextInputFormatter(
-                                              1024,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      15,
+                                      5,
+                                      6,
+                                      5,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: EditableText(
+                                            key: const ValueKey<String>(
+                                              'lock-authentication-field',
                                             ),
-                                          ],
-                                          onSubmitted: (_) => onSubmit(),
+                                            controller: controller,
+                                            focusNode: focusNode,
+                                            style: context.shellTheme.text.base
+                                                .copyWith(
+                                                  fontSize: 17,
+                                                  letterSpacing: prompt.obscure
+                                                      ? 2.2
+                                                      : 0,
+                                                ),
+                                            cursorColor: accent.primary,
+                                            backgroundCursorColor: context
+                                                .shellColors
+                                                .textTertiary,
+                                            selectionColor: accent.selection,
+                                            obscureText: prompt.obscure,
+                                            obscuringCharacter: '•',
+                                            autocorrect: false,
+                                            enableSuggestions: false,
+                                            enableInteractiveSelection: false,
+                                            keyboardType:
+                                                TextInputType.visiblePassword,
+                                            textInputAction:
+                                                TextInputAction.done,
+                                            inputFormatters: [
+                                              LengthLimitingTextInputFormatter(
+                                                1024,
+                                              ),
+                                            ],
+                                            onSubmitted: (_) => onSubmit(),
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _MobileLockSubmitButton(
-                                        label: l10n.lockUnlock,
-                                        onPressed: onSubmit,
-                                      ),
-                                    ],
+                                        const SizedBox(width: 8),
+                                        _MobileLockSubmitButton(
+                                          label: l10n.lockUnlock,
+                                          onPressed: onSubmit,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ] else ...[
-                          const SizedBox(height: 16),
-                          _MobileLockPrimaryButton(
-                            label: state.busy
-                                ? l10n.lockAuthenticating
-                                : state.rateLimited
-                                ? l10n.lockPleaseWait
-                                : l10n.lockTryAgain,
-                            enabled: canBegin,
-                            onPressed: onBegin,
-                          ),
+                          ] else ...[
+                            const SizedBox(height: 16),
+                            _MobileLockPrimaryButton(
+                              label: state.busy
+                                  ? l10n.lockAuthenticating
+                                  : state.rateLimited
+                                  ? l10n.lockPleaseWait
+                                  : l10n.lockTryAgain,
+                              enabled: canBegin,
+                              onPressed: onBegin,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

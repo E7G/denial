@@ -16,6 +16,7 @@ import '../../models/shell_power_status.dart';
 import '../../platform/authentication_protocol.dart';
 import '../../settings/settings_controller.dart';
 import '../../state/authentication.dart';
+import '../../state/shell_controller.dart';
 import '../../state/display_layout.dart';
 import '../../state/shell_profile.dart';
 import '../../state/system_status.dart';
@@ -23,6 +24,7 @@ import '../../theme/motion.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
 import '../edge_panel_layer.dart';
+import 'lock_keyboard_avoidance.dart';
 import '../shell_wallpaper.dart';
 import '../shade/status_glyphs.dart';
 
