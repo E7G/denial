@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart' show Icons;
@@ -681,6 +682,9 @@ class _ShadeQuickEntrance extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider).value ?? DateTime.now();
+    final screenshotRunning = ref.watch(
+      quickSettingsProvider.select((state) => state.screenshotRunning),
+    );
     final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -700,6 +704,17 @@ class _ShadeQuickEntrance extends ConsumerWidget {
             ),
           ),
           ShadeActions(
+            screenshotBusy: screenshotRunning,
+            onTakeScreenshot: screenshotRunning
+                ? null
+                : () {
+                    ref
+                        .read(shellControllerProvider.notifier)
+                        .closeQuickSettings();
+                    unawaited(
+                      ref.read(quickSettingsProvider.notifier).takeScreenshot(),
+                    );
+                  },
             onOpenEdit: () =>
                 _openSettings(ref, page: SettingsPageId.tabletMetro),
             onOpenSettings: () => _openSettings(ref),

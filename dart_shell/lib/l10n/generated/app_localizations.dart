@@ -2100,6 +2100,12 @@ abstract class AppLocalizations {
   /// **'Close quick settings'**
   String get quickSettingsClose;
 
+  /// English UI text for quickSettingsScreenshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshot'**
+  String get quickSettingsScreenshot;
+
   /// English UI text for quickSettingsControls.
   ///
   /// In en, this message translates to:

@@ -1,14 +1,10 @@
-import 'dart:async';
 import 'dart:math' as math;
-
-import 'package:flutter/material.dart' show Icons;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../input/input_layout.dart';
 import '../../localization/denial_localizations.dart';
-import '../../services/system_actions_service.dart';
 import '../../state/shell_controller.dart';
 import '../../state/system_status.dart';
 import '../../theme/motion.dart';
@@ -141,8 +137,6 @@ class ShadeStatusBar extends ConsumerWidget {
                         children: [
                           IgnorePointer(child: _StatusClock(color: color)),
                           const Spacer(),
-                          _StatusScreenshotButton(color: color),
-                          const SizedBox(width: 9),
                           IgnorePointer(child: _StatusCluster(color: color)),
                         ],
                       ),
@@ -153,70 +147,6 @@ class ShadeStatusBar extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StatusScreenshotButton extends ConsumerStatefulWidget {
-  const _StatusScreenshotButton({required this.color});
-
-  final Color color;
-
-  @override
-  ConsumerState<_StatusScreenshotButton> createState() =>
-      _StatusScreenshotButtonState();
-}
-
-class _StatusScreenshotButtonState
-    extends ConsumerState<_StatusScreenshotButton> {
-  bool _pressed = false;
-  bool _capturing = false;
-
-  Future<void> _capture() async {
-    if (_capturing) {
-      return;
-    }
-    setState(() {
-      _capturing = true;
-      _pressed = false;
-    });
-    // Let the pressed feedback clear before the compositor samples the live
-    // output so the screenshot contains the normal status bar.
-    await Future<void>.delayed(const Duration(milliseconds: 90));
-    if (!mounted) {
-      return;
-    }
-    try {
-      await ref.read(systemActionsServiceProvider).takeScreenshot();
-    } finally {
-      if (mounted) {
-        setState(() => _capturing = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = widget.color.withValues(
-      alpha: _capturing ? 0.42 : (_pressed ? 0.62 : 0.9),
-    );
-    return Semantics(
-      button: true,
-      enabled: !_capturing,
-      label: 'Screenshot',
-      child: GestureDetector(
-        key: const ValueKey<String>('status-screenshot-action'),
-        behavior: HitTestBehavior.opaque,
-        onTapDown: _capturing ? null : (_) => setState(() => _pressed = true),
-        onTapCancel: _capturing ? null : () => setState(() => _pressed = false),
-        onTapUp: _capturing ? null : (_) => setState(() => _pressed = false),
-        onTap: _capturing ? null : () => unawaited(_capture()),
-        child: SizedBox(
-          width: 30,
-          height: 28,
-          child: Icon(Icons.screenshot_rounded, color: color, size: 18),
-        ),
       ),
     );
   }

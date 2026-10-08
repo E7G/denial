@@ -1691,6 +1691,10 @@
     "description": "English UI text for quickSettingsBatterySaver."
   },
   "quickSettingsClose": "Close quick settings",
+  "quickSettingsScreenshot": "Screenshot",
+  "@quickSettingsScreenshot": {
+    "description": "English UI text for quickSettingsScreenshot."
+  },
   "@quickSettingsClose": {
     "description": "English UI text for quickSettingsClose."
   },

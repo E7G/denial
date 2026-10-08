@@ -1,7 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../state/shade_navigation.dart';
 import '../../state/shell_controller.dart';
 import '../../theme/motion.dart';
 import 'quick_settings_panel.dart';
@@ -98,12 +97,6 @@ class _SystemShadeLayerState extends ConsumerState<SystemShadeLayer>
             !state.quickSettingsVisible && !state.quickSettingsDragActive,
       ),
     );
-    ref.listen<int>(quickSettingsPageRequestProvider, (previous, next) {
-      if (previous == next || _page == ShadePage.quickSettings) {
-        return;
-      }
-      setState(() => _page = ShadePage.quickSettings);
-    });
     ref.listen<(bool, double, bool)>(
       shellControllerProvider.select(
         (state) => (

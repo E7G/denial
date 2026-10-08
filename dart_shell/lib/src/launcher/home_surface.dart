@@ -9,7 +9,6 @@ import '../local_apps/local_flutter_application.dart';
 import '../localization/denial_localizations.dart';
 import '../state/display_layout.dart';
 import '../state/output_configuration.dart';
-import '../state/shade_navigation.dart';
 import '../state/shell_controller.dart';
 import '../settings/settings_controller.dart';
 import '../settings/embedded_settings_surface.dart';
@@ -465,12 +464,11 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     });
   }
 
-  void _openQuickSettingsFromStart() {
+  void _openSettingsFromStart() {
     _clearResizeMode();
     _lastBackgroundTapTime = null;
     _lastBackgroundTapPosition = null;
-    ref.read(quickSettingsPageRequestProvider.notifier).request();
-    ref.read(shellControllerProvider.notifier).openQuickSettings();
+    showEmbeddedSettingsSurface(ref);
   }
 
   void _closeAppDrawer() {

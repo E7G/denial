@@ -1134,6 +1134,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickSettingsClose => '关闭快速设置';
 
   @override
+  String get quickSettingsScreenshot => '截屏';
+
+  @override
   String get quickSettingsControls => '控件';
 
   @override

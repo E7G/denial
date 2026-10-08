@@ -4,6 +4,7 @@ import 'package:denial_dart_shell/src/launcher/models/desktop_app.dart';
 import 'package:denial_dart_shell/src/launcher/models/home_grid_item.dart';
 import 'package:denial_dart_shell/src/settings/settings_controller.dart';
 import 'package:denial_dart_shell/src/settings/shell_settings.dart';
+import 'package:denial_dart_shell/src/widgets/shell_surface_host.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/shell_state.dart';
 import 'package:flutter/material.dart';
@@ -83,7 +84,7 @@ void main() {
     expect(find.text('App 119'), findsNothing);
   });
 
-  testWidgets('Start Quick settings button opens the real system shade', (
+  testWidgets('Start Settings action opens fullscreen Denial Settings', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(size);
@@ -113,14 +114,21 @@ void main() {
       container.read(shellControllerProvider).quickSettingsVisible,
       isFalse,
     );
+    expect(container.read(shellSurfaceControllerProvider), isEmpty);
+
     await tester.tap(
-      find.byKey(const ValueKey<String>('start-quick-settings-action')),
+      find.byKey(const ValueKey<String>('start-settings-action')),
     );
     await tester.pump();
+
     expect(
       container.read(shellControllerProvider).quickSettingsVisible,
-      isTrue,
+      isFalse,
     );
+    final surfaces = container.read(shellSurfaceControllerProvider);
+    expect(surfaces, hasLength(1));
+    expect(surfaces.single.keyName, 'embedded-settings');
+    expect(surfaces.single.presentation, ShellSurfacePresentation.fullscreen);
   });
 
   testWidgets('portrait drawer reveal begins before swipe release', (

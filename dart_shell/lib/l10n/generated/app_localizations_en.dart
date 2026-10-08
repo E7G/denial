@@ -1169,6 +1169,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickSettingsClose => 'Close quick settings';
 
   @override
+  String get quickSettingsScreenshot => 'Screenshot';
+
+  @override
   String get quickSettingsControls => 'Controls';
 
   @override

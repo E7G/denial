@@ -464,15 +464,15 @@ class QuickSettingsController extends Notifier<QuickSettingsState>
 
   /// Captures a screenshot. The caller is expected to dismiss the shade first;
   /// the settle delay gives that animation time to clear the frame.
-  Future<void> takeScreenshot() async {
+  Future<bool> takeScreenshot() async {
     if (state.screenshotRunning) {
-      return;
+      return false;
     }
     final generation = _buildGeneration;
     state = state.copyWith(screenshotRunning: true);
     try {
       await Future<void>.delayed(_screenshotSettleDelay);
-      await _actions.takeScreenshot();
+      return await _actions.takeScreenshot();
     } finally {
       if (isBuildGenerationActive(generation)) {
         state = state.copyWith(screenshotRunning: false);

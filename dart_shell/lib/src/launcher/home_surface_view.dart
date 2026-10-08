@@ -56,7 +56,7 @@ class _HomeSurfaceView extends ConsumerWidget {
             top: headerTop,
             child: _MetroStartHeader(
               onAllApps: owner._openAppDrawer,
-              onQuickSettings: owner._openQuickSettingsFromStart,
+              onSettings: owner._openSettingsFromStart,
               onSemanticZoom: owner._openSemanticZoom,
               showSemanticZoom: !portrait && owner._currentPageCount > 1,
             ),
@@ -76,10 +76,10 @@ class _HomeSurfaceView extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 _MetroHeaderAction(
-                  key: const ValueKey<String>('start-quick-settings-action'),
-                  icon: Icons.tune_rounded,
-                  label: context.l10n.tabletQuickSettings,
-                  onTap: owner._openQuickSettingsFromStart,
+                  key: const ValueKey<String>('start-settings-action'),
+                  icon: Icons.settings_rounded,
+                  label: context.l10n.settingsApplicationTitle,
+                  onTap: owner._openSettingsFromStart,
                 ),
               ],
             ),
@@ -174,13 +174,13 @@ class _HomeSurfaceView extends ConsumerWidget {
 class _MetroStartHeader extends StatelessWidget {
   const _MetroStartHeader({
     required this.onAllApps,
-    required this.onQuickSettings,
+    required this.onSettings,
     required this.onSemanticZoom,
     required this.showSemanticZoom,
   });
 
   final VoidCallback onAllApps;
-  final VoidCallback onQuickSettings;
+  final VoidCallback onSettings;
   final VoidCallback onSemanticZoom;
   final bool showSemanticZoom;
 
@@ -242,10 +242,10 @@ class _MetroStartHeader extends StatelessWidget {
             ],
             const SizedBox(width: 12),
             _MetroHeaderAction(
-              key: const ValueKey<String>('start-quick-settings-action'),
-              icon: Icons.tune_rounded,
-              label: context.l10n.tabletQuickSettings,
-              onTap: onQuickSettings,
+              key: const ValueKey<String>('start-settings-action'),
+              icon: Icons.settings_rounded,
+              label: context.l10n.settingsApplicationTitle,
+              onTap: onSettings,
             ),
           ],
         );

@@ -13,8 +13,7 @@ class SystemActionsService {
 
   final DenialBridge? _bridge;
 
-  Future<void> takeScreenshot() {
-    _bridge?.takeScreenshot();
-    return Future<void>.value();
+  Future<bool> takeScreenshot() async {
+    return _bridge?.takeScreenshot() ?? false;
   }
 }
