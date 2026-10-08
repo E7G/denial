@@ -25,6 +25,7 @@ pub(super) const WINDOW_TOUCH_STRIP_HEIGHT: f64 = 48.0;
 pub(super) const WINDOW_TOUCH_CORNER_SIZE: f64 = 64.0;
 
 const MOVE_SLOP: f64 = 4.0;
+const CONTENT_SCROLL_SLOP: f64 = 6.0;
 const MINIMIZE_SWIPE_DISTANCE: f64 = 96.0;
 const PINCH_SLOP: f64 = 16.0;
 const PINCH_TRANSLATION_DOMINANCE: f64 = 1.5;
@@ -42,6 +43,7 @@ pub(super) struct TouchWindowTarget {
     pub in_gesture_strip: bool,
     pub in_move_corner: bool,
     pub geometry_locked: bool,
+    pub single_finger_scroll: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,12 +63,28 @@ pub(super) enum TouchWindowAction {
     Gesture(ShortcutGesture),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum TouchScrollPhase {
+    Begin,
+    Update,
+    End,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct TouchScrollUpdate {
+    pub window_id: u64,
+    pub position: Point<f64, Logical>,
+    pub delta: Point<f64, Logical>,
+    pub phase: TouchScrollPhase,
+}
+
 #[derive(Debug, Default, PartialEq)]
 pub(super) struct TouchGestureUpdate {
     pub consume: bool,
     /// Contacts which may already have entered Flutter or a Wayland client.
     pub captured_slots: Vec<i32>,
     pub actions: Vec<TouchWindowAction>,
+    pub scrolls: Vec<TouchScrollUpdate>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -86,6 +104,13 @@ enum Gesture {
         last_geometry: WindowGeometry,
         started: bool,
         geometry_locked: bool,
+    },
+    ContentScroll {
+        slot: i32,
+        window_id: u64,
+        origin: Point<f64, Logical>,
+        last_position: Point<f64, Logical>,
+        started: bool,
     },
     PinchCandidate {
         slots: [i32; 2],
@@ -126,6 +151,7 @@ impl Gesture {
     fn window_id(self) -> u64 {
         match self {
             Self::Move { window_id, .. }
+            | Self::ContentScroll { window_id, .. }
             | Self::PinchCandidate { window_id, .. }
             | Self::Pinch { window_id, .. }
             | Self::MinimizeSwipe { window_id, .. }
@@ -138,6 +164,9 @@ impl Gesture {
     fn includes(self, slot: i32) -> bool {
         match self {
             Self::Move {
+                slot: gesture_slot, ..
+            }
+            | Self::ContentScroll {
                 slot: gesture_slot, ..
             } => gesture_slot == slot,
             Self::PinchCandidate { slots, .. }
@@ -208,6 +237,7 @@ impl TouchGestureState {
                 consume: true,
                 captured_slots: self.capture_slots(&[slot]),
                 actions: Vec::new(),
+                scrolls: Vec::new(),
             };
         }
 
@@ -222,6 +252,7 @@ impl TouchGestureState {
                     consume: true,
                     captured_slots: self.capture_slots(&[slot]),
                     actions: Vec::new(),
+                    scrolls: Vec::new(),
                 };
             }
             return self.begin_four_finger(same_window, target);
@@ -236,6 +267,7 @@ impl TouchGestureState {
                     consume: true,
                     captured_slots: self.capture_slots(&[slot]),
                     actions: Vec::new(),
+                    scrolls: Vec::new(),
                 };
             }
             return self.begin_three_finger(same_window, target.window_id);
@@ -247,13 +279,19 @@ impl TouchGestureState {
             if matches!(gesture, Gesture::Move { .. }) && same_window.len() == 2 {
                 return self.promote_move_to_two_fingers(gesture, same_window, target);
             }
-            return TouchGestureUpdate {
-                consume: self
-                    .contacts
-                    .get(&slot)
-                    .is_some_and(|contact| contact.captured),
-                ..TouchGestureUpdate::default()
-            };
+            if matches!(gesture, Gesture::ContentScroll { started: false, .. })
+                && same_window.len() == 2
+            {
+                self.gesture = None;
+            } else {
+                return TouchGestureUpdate {
+                    consume: self
+                        .contacts
+                        .get(&slot)
+                        .is_some_and(|contact| contact.captured),
+                    ..TouchGestureUpdate::default()
+                };
+            }
         }
         if self.gesture.is_some() {
             return TouchGestureUpdate::default();
@@ -277,6 +315,17 @@ impl TouchGestureState {
                 return TouchGestureUpdate::default();
             }
             return self.begin_pinch_candidate(slots, target.geometry);
+        }
+
+        if target.single_finger_scroll && !target.in_move_corner {
+            self.gesture = Some(Gesture::ContentScroll {
+                slot,
+                window_id: target.window_id,
+                origin: position,
+                last_position: position,
+                started: false,
+            });
+            return TouchGestureUpdate::default();
         }
 
         if target.in_move_corner && !target.geometry_locked {
@@ -305,6 +354,57 @@ impl TouchGestureState {
         };
         contact.position = position;
         let captured = contact.captured;
+
+        if matches!(
+            self.gesture,
+            Some(Gesture::ContentScroll {
+                slot: gesture_slot,
+                started: false,
+                ..
+            }) if gesture_slot == slot
+        ) {
+            let Some(Gesture::ContentScroll {
+                slot: gesture_slot,
+                window_id,
+                origin,
+                last_position: _,
+                started: false,
+            }) = self.gesture.take()
+            else {
+                unreachable!();
+            };
+            let travel = position - origin;
+            if travel.x * travel.x + travel.y * travel.y < CONTENT_SCROLL_SLOP * CONTENT_SCROLL_SLOP
+            {
+                self.gesture = Some(Gesture::ContentScroll {
+                    slot: gesture_slot,
+                    window_id,
+                    origin,
+                    last_position: origin,
+                    started: false,
+                });
+                return TouchGestureUpdate::default();
+            }
+            let captured_slots = self.capture_slots(&[slot]);
+            self.gesture = Some(Gesture::ContentScroll {
+                slot: gesture_slot,
+                window_id,
+                origin,
+                last_position: position,
+                started: true,
+            });
+            return TouchGestureUpdate {
+                consume: true,
+                captured_slots,
+                scrolls: vec![TouchScrollUpdate {
+                    window_id,
+                    position,
+                    delta: Point::from((-travel.x, -travel.y)),
+                    phase: TouchScrollPhase::Begin,
+                }],
+                ..TouchGestureUpdate::default()
+            };
+        }
 
         if matches!(
             self.gesture,
@@ -361,6 +461,7 @@ impl TouchGestureState {
                             geometry,
                         },
                     ],
+                    scrolls: Vec::new(),
                 };
             }
             self.gesture = Some(Gesture::PinchCandidate {
@@ -428,6 +529,7 @@ impl TouchGestureState {
                         geometry: last_geometry,
                     },
                 ],
+                scrolls: Vec::new(),
             };
         }
 
@@ -439,6 +541,24 @@ impl TouchGestureState {
             return update;
         };
         match &mut gesture {
+            Gesture::ContentScroll {
+                slot: gesture_slot,
+                window_id,
+                last_position,
+                started: true,
+                ..
+            } if *gesture_slot == slot => {
+                let movement = position - *last_position;
+                *last_position = position;
+                if movement.x != 0.0 || movement.y != 0.0 {
+                    update.scrolls.push(TouchScrollUpdate {
+                        window_id: *window_id,
+                        position,
+                        delta: Point::from((-movement.x, -movement.y)),
+                        phase: TouchScrollPhase::Update,
+                    });
+                }
+            }
             Gesture::Move {
                 slot: gesture_slot,
                 window_id,
@@ -586,7 +706,25 @@ impl TouchGestureState {
             self.gesture = Some(gesture);
             return update;
         }
-        if matches!(gesture, Gesture::PinchCandidate { .. }) {
+        if matches!(
+            gesture,
+            Gesture::PinchCandidate { .. } | Gesture::ContentScroll { started: false, .. }
+        ) {
+            return update;
+        }
+        if let Gesture::ContentScroll {
+            window_id,
+            last_position,
+            started: true,
+            ..
+        } = gesture
+        {
+            update.scrolls.push(TouchScrollUpdate {
+                window_id,
+                position: last_position,
+                delta: Point::from((0.0, 0.0)),
+                phase: TouchScrollPhase::End,
+            });
             return update;
         }
 
@@ -650,6 +788,7 @@ impl TouchGestureState {
                 consume: true,
                 captured_slots: self.capture_slots(&slots),
                 actions,
+                scrolls: Vec::new(),
             }
         } else {
             let initial_geometry = match move_gesture {
@@ -678,6 +817,7 @@ impl TouchGestureState {
             consume: true,
             captured_slots: self.capture_slots(&slots),
             actions: Vec::new(),
+            scrolls: Vec::new(),
         }
     }
 
@@ -726,6 +866,7 @@ impl TouchGestureState {
             consume: true,
             captured_slots,
             actions,
+            scrolls: Vec::new(),
         }
     }
 
@@ -761,6 +902,7 @@ impl TouchGestureState {
             consume: true,
             captured_slots,
             actions,
+            scrolls: Vec::new(),
         }
     }
 
@@ -1282,6 +1424,7 @@ mod tests {
             in_gesture_strip: false,
             in_move_corner,
             geometry_locked,
+            single_finger_scroll: false,
         }
     }
 
@@ -1352,6 +1495,54 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn terminal_style_single_finger_drag_becomes_content_scroll_after_slop() {
+        let mut gestures = TouchGestureState::default();
+        let mut scroll_target = target(false, false);
+        scroll_target.single_finger_scroll = true;
+        let origin = Point::from((200.0, 300.0));
+
+        assert_eq!(
+            gestures.down(9, origin, Some(scroll_target)),
+            TouchGestureUpdate::default()
+        );
+        assert_eq!(
+            gestures.motion(9, Point::from((202.0, 297.0))),
+            TouchGestureUpdate::default()
+        );
+
+        let begin = gestures.motion(9, Point::from((200.0, 290.0)));
+        assert!(begin.consume);
+        assert_eq!(begin.captured_slots, vec![9]);
+        assert_eq!(begin.scrolls.len(), 1);
+        assert_eq!(begin.scrolls[0].phase, TouchScrollPhase::Begin);
+        assert_eq!(begin.scrolls[0].delta, Point::from((0.0, 10.0)));
+
+        let update = gestures.motion(9, Point::from((200.0, 280.0)));
+        assert!(update.consume);
+        assert_eq!(update.scrolls.len(), 1);
+        assert_eq!(update.scrolls[0].phase, TouchScrollPhase::Update);
+        assert_eq!(update.scrolls[0].delta, Point::from((0.0, 10.0)));
+
+        let end = gestures.up(9);
+        assert!(end.consume);
+        assert_eq!(end.scrolls.len(), 1);
+        assert_eq!(end.scrolls[0].phase, TouchScrollPhase::End);
+    }
+
+    #[test]
+    fn terminal_style_stationary_touch_remains_a_client_tap() {
+        let mut gestures = TouchGestureState::default();
+        let mut scroll_target = target(false, false);
+        scroll_target.single_finger_scroll = true;
+        let origin = Point::from((200.0, 300.0));
+        assert_eq!(
+            gestures.down(10, origin, Some(scroll_target)),
+            TouchGestureUpdate::default()
+        );
+        assert_eq!(gestures.up(10), TouchGestureUpdate::default());
     }
 
     #[test]

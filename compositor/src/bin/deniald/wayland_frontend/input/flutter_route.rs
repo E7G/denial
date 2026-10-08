@@ -8,10 +8,14 @@ pub(super) fn apply_touch_gesture_update(
     state: &mut RuntimeState,
     update: TouchGestureUpdate,
 ) -> bool {
-    let actions_pending = !update.actions.is_empty();
+    let actions_pending = !update.actions.is_empty() || !update.scrolls.is_empty();
     let canceled_client_route = cancel_captured_touch_routes(state, &update.captured_slots);
     touch_gestures::apply_actions(state, update.actions);
-    canceled_client_route || actions_pending
+    let mut scrolled_client = false;
+    for scroll in update.scrolls {
+        scrolled_client |= route_direct_touch_scroll(state, scroll);
+    }
+    canceled_client_route || actions_pending || scrolled_client
 }
 
 #[cfg(feature = "flutter")]
@@ -44,6 +48,53 @@ pub(super) fn cancel_captured_touch_routes(state: &mut RuntimeState, slots: &[i3
         }
     }
     cancel_client
+}
+
+#[cfg(feature = "flutter")]
+fn route_direct_touch_scroll(state: &mut RuntimeState, scroll: TouchScrollUpdate) -> bool {
+    let time = state
+        .wayland
+        .as_ref()
+        .expect("missing Wayland frontend")
+        .start_time
+        .elapsed()
+        .as_millis() as u32;
+
+    if scroll.phase != TouchScrollPhase::End {
+        let target = {
+            let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
+            let Some(route) = frontend.input_route(scroll.position).cloned() else {
+                return false;
+            };
+            if route.region.window_id != scroll.window_id {
+                return false;
+            }
+            PointerMotionTarget::client(&route, scroll.position)
+        };
+        route_pointer_motion(state, scroll.position, target, time, None);
+    }
+
+    let pointer = state
+        .wayland
+        .as_ref()
+        .expect("missing Wayland frontend")
+        .seat
+        .get_pointer()
+        .expect("seat has no pointer");
+    let mut frame = AxisFrame::new(time).source(AxisSource::Finger);
+    if scroll.phase == TouchScrollPhase::End {
+        frame = frame.stop(Axis::Horizontal).stop(Axis::Vertical);
+    } else {
+        if scroll.delta.x != 0.0 {
+            frame = frame.value(Axis::Horizontal, scroll.delta.x);
+        }
+        if scroll.delta.y != 0.0 {
+            frame = frame.value(Axis::Vertical, scroll.delta.y);
+        }
+    }
+    pointer.axis(state, frame);
+    pointer.frame(state);
+    true
 }
 
 #[cfg(feature = "flutter")]

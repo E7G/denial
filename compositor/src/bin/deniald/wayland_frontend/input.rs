@@ -66,9 +66,11 @@ use super::WaylandFrontend;
 use super::input_source::init_joystick_activity;
 use super::input_source::{InputBatchEvent, LibinputBatchSource};
 #[cfg(feature = "flutter")]
+use super::managed_window::ManagedWindow;
+#[cfg(feature = "flutter")]
 use super::touch_gestures::{
-    self, TouchGestureUpdate, TouchWindowTarget, WINDOW_TOUCH_CORNER_SIZE,
-    WINDOW_TOUCH_STRIP_HEIGHT,
+    self, TouchGestureUpdate, TouchScrollPhase, TouchScrollUpdate, TouchWindowTarget,
+    WINDOW_TOUCH_CORNER_SIZE, WINDOW_TOUCH_STRIP_HEIGHT,
 };
 
 #[path = "input/flutter_route.rs"]
@@ -490,6 +492,23 @@ impl ClientInputRoute {
 }
 
 #[cfg(feature = "flutter")]
+fn terminal_prefers_single_finger_scroll(app_id: &str) -> bool {
+    matches!(
+        app_id.trim().to_ascii_lowercase().as_str(),
+        "org.gnome.console"
+            | "kgx"
+            | "org.gnome.terminal"
+            | "org.gnome.terminal-server"
+            | "com.raggesilver.blackbox"
+            | "io.elementary.terminal"
+            | "org.kde.konsole"
+            | "xfce4-terminal"
+            | "alacritty"
+            | "foot"
+    )
+}
+
+#[cfg(feature = "flutter")]
 impl WaylandFrontend {
     #[cfg(feature = "xwayland")]
     pub(super) fn invalidate_window_input_routes(&mut self, window: &smithay::desktop::Window) {
@@ -894,17 +913,23 @@ impl WaylandFrontend {
             .windows
             .iter()
             .find(|region| region_accepts_input(region, scene_position))?;
-        let geometry = if self.local_windows.contains(region.window_id) {
-            self.local_flutter_window_geometry(region.window_id)?
+        let (geometry, single_finger_scroll) = if self.local_windows.contains(region.window_id) {
+            (self.local_flutter_window_geometry(region.window_id)?, false)
         } else {
             let window = self.window_for_id(region.window_id)?;
             let geometry = self.window_geometry_target(&window);
-            super::super::wire::WindowGeometry {
-                x: f64::from(geometry.loc.x),
-                y: f64::from(geometry.loc.y),
-                width: f64::from(geometry.size.w),
-                height: f64::from(geometry.size.h),
-            }
+            let single_finger_scroll = ManagedWindow::new(&window)
+                .map(|managed| managed.metadata().1)
+                .is_some_and(|app_id| terminal_prefers_single_finger_scroll(&app_id));
+            (
+                super::super::wire::WindowGeometry {
+                    x: f64::from(geometry.loc.x),
+                    y: f64::from(geometry.loc.y),
+                    width: f64::from(geometry.size.w),
+                    height: f64::from(geometry.size.h),
+                },
+                single_finger_scroll,
+            )
         };
         Some(TouchWindowTarget {
             window_id: region.window_id,
@@ -922,6 +947,7 @@ impl WaylandFrontend {
                 on_horizontal_edge && on_vertical_edge
             },
             geometry_locked: region.geometry_locked(),
+            single_finger_scroll,
         })
     }
 
@@ -2590,6 +2616,15 @@ fn process_flutter_keyboard_transition(
 #[cfg(all(test, feature = "flutter"))]
 mod client_input_mapping_tests {
     use super::*;
+
+    #[test]
+    fn kgx_uses_android_style_single_finger_scroll_fallback() {
+        assert!(terminal_prefers_single_finger_scroll("org.gnome.Console"));
+        assert!(terminal_prefers_single_finger_scroll("kgx"));
+        assert!(!terminal_prefers_single_finger_scroll(
+            "org.gnome.TextEditor"
+        ));
+    }
 
     #[test]
     fn mapped_focus_origin_preserves_scaled_client_local_position() {
