@@ -196,15 +196,16 @@ class _DenialSettingsApplicationState
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) {
-                final slide = Tween<Offset>(
-                  begin: const Offset(0.045, 0),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
-                );
+                final slide =
+                    Tween<Offset>(
+                      begin: const Offset(0.045, 0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    );
                 return FadeTransition(
                   opacity: animation,
                   child: SlideTransition(position: slide, child: child),
@@ -265,15 +266,14 @@ class _DenialSettingsApplicationState
                                   showFingerprint: showFingerprint,
                                   onSelected: _selectPage,
                                 )
-                              : Padding(
-                                  key: ValueKey<SettingsPageId>(_page),
-                                  padding: const EdgeInsets.fromLTRB(
-                                    8,
-                                    4,
-                                    8,
-                                    0,
+                              : SizedBox.expand(
+                                  key: const ValueKey<String>(
+                                    'settings-phone-page-fullbleed',
                                   ),
-                                  child: animatedPage(),
+                                  child: KeyedSubtree(
+                                    key: ValueKey<SettingsPageId>(_page),
+                                    child: animatedPage(),
+                                  ),
                                 ),
                         ),
                       ),

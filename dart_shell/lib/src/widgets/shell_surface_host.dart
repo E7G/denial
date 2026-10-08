@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/shell_interaction_registry.dart';
+import '../state/shell_profile.dart';
 import '../theme/motion.dart';
 import '../theme/shell_theme.dart';
 
@@ -234,6 +235,7 @@ class _ManagedShellSurfaceLayerState
   late final AnimationController _controller;
   late final Animation<double> _opacity;
   late final Animation<double> _scale;
+  late final Animation<Offset> _mobileSlide;
   final FocusScopeNode _focusScopeNode = FocusScopeNode(
     debugLabel: 'managed-shell-surface',
   );
@@ -263,6 +265,10 @@ class _ManagedShellSurfaceLayerState
     );
     _opacity = curved;
     _scale = Tween<double>(begin: 0.96, end: 1.0).animate(curved);
+    _mobileSlide = Tween<Offset>(
+      begin: const Offset(0, 0.055),
+      end: Offset.zero,
+    ).animate(curved);
     unawaited(_controller.forward());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !widget.surface.closing) {
@@ -313,6 +319,8 @@ class _ManagedShellSurfaceLayerState
         surface.dismissPolicy == ShellDismissPolicy.outsideTapAndEscape;
     final dismissOnEscape =
         surface.dismissPolicy == ShellDismissPolicy.outsideTapAndEscape;
+    final mobileProfile =
+        ref.watch(shellProfileProvider) == ShellProfile.mobile;
 
     return IgnorePointer(
       ignoring: surface.closing,
@@ -350,6 +358,11 @@ class _ManagedShellSurfaceLayerState
                     child: SizedBox.expand(
                       child: surface.builder(context, handle),
                     ),
+                  )
+                else if (mobileProfile)
+                  SlideTransition(
+                    position: _mobileSlide,
+                    child: surface.builder(context, handle),
                   )
                 else
                   ScaleTransition(

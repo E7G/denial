@@ -4,11 +4,14 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
 import '../../localization/denial_localizations.dart';
 import '../../models/clipboard_history.dart';
 import '../../services/fcitx_kimpanel_service.dart';
+import '../../settings/settings_controller.dart';
+import '../../settings/shell_settings.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
 
@@ -59,7 +62,7 @@ class ShellOskKeyIntent {
   final ShellOskKeyPhase phase;
 }
 
-class ShellOskPanel extends StatefulWidget {
+class ShellOskPanel extends ConsumerStatefulWidget {
   const ShellOskPanel({
     super.key,
     this.onKey,
@@ -84,19 +87,27 @@ class ShellOskPanel extends StatefulWidget {
   final VoidCallback? onCandidateNextPage;
 
   @override
-  State<ShellOskPanel> createState() => _ShellOskPanelState();
+  ConsumerState<ShellOskPanel> createState() => _ShellOskPanelState();
 }
 
-class _ShellOskPanelState extends State<ShellOskPanel> {
+class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
   _OskLayer _layer = _OskLayer.letters;
   _OskPane _pane = _OskPane.keyboard;
-  _OskLayoutMode _layoutMode = _OskLayoutMode.standard;
+  late _OskLayoutMode _layoutMode;
   bool _shiftEnabled = false;
   bool _capsLocked = false;
   bool _ctrlArmed = false;
   bool _chineseInputEnabled = false;
   DateTime? _lastShiftTapAt;
   Future<ClipboardHistorySnapshot>? _clipboardSnapshot;
+
+  @override
+  void initState() {
+    super.initState();
+    _layoutMode = _oskLayoutFromSetting(
+      ref.read(shellSettingsProvider).tablet.oskLayoutMode,
+    );
+  }
 
   @override
   void didChangeDependencies() {
@@ -115,6 +126,15 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<TabletOskLayoutMode>(
+      shellSettingsProvider.select((settings) => settings.tablet.oskLayoutMode),
+      (previous, next) {
+        final restored = _oskLayoutFromSetting(next);
+        if (restored != _layoutMode && mounted) {
+          setState(() => _layoutMode = restored);
+        }
+      },
+    );
     final bottomPadding = math.max(MediaQuery.paddingOf(context).bottom, 8.0);
 
     return LayoutBuilder(
@@ -306,6 +326,9 @@ class _ShellOskPanelState extends State<ShellOskPanel> {
 
   void _selectLayout(_OskLayoutMode mode) {
     widget.onKeyTap?.call();
+    ref
+        .read(shellSettingsProvider.notifier)
+        .setTabletOskLayoutMode(_oskLayoutSetting(mode));
     setState(() {
       _layoutMode = mode;
       _pane = _OskPane.keyboard;
@@ -1567,6 +1590,19 @@ enum _OskLayer { letters, numbers, symbols }
 enum _OskPane { keyboard, emoji, clipboard, layouts }
 
 enum _OskLayoutMode { standard, split, traditional }
+
+_OskLayoutMode _oskLayoutFromSetting(TabletOskLayoutMode mode) =>
+    switch (mode) {
+      TabletOskLayoutMode.standard => _OskLayoutMode.standard,
+      TabletOskLayoutMode.split => _OskLayoutMode.split,
+      TabletOskLayoutMode.traditional => _OskLayoutMode.traditional,
+    };
+
+TabletOskLayoutMode _oskLayoutSetting(_OskLayoutMode mode) => switch (mode) {
+  _OskLayoutMode.standard => TabletOskLayoutMode.standard,
+  _OskLayoutMode.split => TabletOskLayoutMode.split,
+  _OskLayoutMode.traditional => TabletOskLayoutMode.traditional,
+};
 
 enum _OskControl {
   shift,

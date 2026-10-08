@@ -459,6 +459,12 @@ class ShellSettingsController extends Notifier<ShellSettings> {
     );
   }
 
+  void setTabletOskLayoutMode(TabletOskLayoutMode value) {
+    _update(
+      state.copyWith(tablet: state.tablet.copyWith(oskLayoutMode: value)),
+    );
+  }
+
   void setOverlayPlacement(
     ShellOverlaySurface surface,
     ShellPopupPlacement placement,

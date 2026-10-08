@@ -1,5 +1,7 @@
 import 'package:denial_dart_shell/src/localization/denial_localizations.dart';
 import 'package:denial_dart_shell/src/services/fcitx_kimpanel_service.dart';
+import 'package:denial_dart_shell/src/settings/settings_controller.dart';
+import 'package:denial_dart_shell/src/settings/shell_settings.dart';
 import 'package:denial_dart_shell/src/theme/shell_theme.dart';
 import 'package:denial_dart_shell/src/widgets/osk/shell_osk_panel.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
@@ -7,8 +9,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Widget _host(Widget child) {
+Widget _host(Widget child, {_MemorySettings? settings}) {
+  final memory = settings ?? _MemorySettings();
   return ProviderScope(
+    overrides: [
+      shellSettingsProvider.overrideWith(
+        () => _MemorySettingsController(memory),
+      ),
+    ],
     child: DenialLocalizationScope(
       locale: const Locale('zh'),
       child: Directionality(
@@ -53,6 +61,33 @@ void main() {
       expect(intents.last.key, 'space');
       expect(intents.last.ctrl, isTrue);
       expect(find.text('ENG'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'Windows OSK restores the persisted traditional layout after remount',
+    (tester) async {
+      final settings = _MemorySettings();
+
+      await tester.pumpWidget(_host(const ShellOskPanel(), settings: settings));
+      await tester.tap(find.byKey(const ValueKey('osk-layout-pane')));
+      await tester.pump();
+      await tester.tap(find.text('传统'));
+      await tester.pump();
+
+      expect(
+        settings.value.tablet.oskLayoutMode,
+        TabletOskLayoutMode.traditional,
+      );
+      expect(find.text('Esc'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await tester.pumpWidget(_host(const ShellOskPanel(), settings: settings));
+      await tester.pump();
+
+      expect(find.text('Esc'), findsOneWidget);
+      expect(find.text('Tab'), findsOneWidget);
     },
   );
 
@@ -150,4 +185,25 @@ void main() {
       expect(dismissed, isTrue);
     },
   );
+}
+
+class _MemorySettings {
+  ShellSettings value = const ShellSettings();
+}
+
+class _MemorySettingsController extends ShellSettingsController {
+  _MemorySettingsController(this.memory);
+
+  final _MemorySettings memory;
+
+  @override
+  ShellSettings build() => memory.value;
+
+  @override
+  void setTabletOskLayoutMode(TabletOskLayoutMode value) {
+    memory.value = state.copyWith(
+      tablet: state.tablet.copyWith(oskLayoutMode: value),
+    );
+    state = memory.value;
+  }
 }

@@ -2,6 +2,7 @@ part of 'bluetooth_detail_surface.dart';
 
 class _BluetoothPairingPanel extends StatelessWidget {
   const _BluetoothPairingPanel({
+    required this.mobileApplication,
     required this.request,
     required this.responseController,
     required this.responseFocus,
@@ -10,6 +11,7 @@ class _BluetoothPairingPanel extends StatelessWidget {
     required this.onReject,
   });
 
+  final bool mobileApplication;
   final BluetoothPairingRequest request;
   final TextEditingController responseController;
   final FocusNode responseFocus;
@@ -26,7 +28,9 @@ class _BluetoothPairingPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.shellColors.surfaceContainerHigh,
-        borderRadius: context.shellTheme.borderRadius(16),
+        borderRadius: mobileApplication
+            ? BorderRadius.circular(22)
+            : context.shellTheme.borderRadius(16),
         border: Border.all(
           color: inputError == null
               ? context.shellColors.hairlineSoft
@@ -34,7 +38,12 @@ class _BluetoothPairingPanel extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.fromLTRB(
+          mobileApplication ? 18 : 12,
+          mobileApplication ? 16 : 12,
+          mobileApplication ? 18 : 12,
+          mobileApplication ? 14 : 12,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -47,7 +56,12 @@ class _BluetoothPairingPanel extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: ShellText.cardTitle,
+                    style: mobileApplication
+                        ? ShellText.base.copyWith(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w400,
+                          )
+                        : ShellText.cardTitle,
                   ),
                 ),
               ],

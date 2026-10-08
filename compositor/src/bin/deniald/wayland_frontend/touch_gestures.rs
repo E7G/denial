@@ -25,7 +25,9 @@ pub(super) const WINDOW_TOUCH_STRIP_HEIGHT: f64 = 48.0;
 pub(super) const WINDOW_TOUCH_CORNER_SIZE: f64 = 64.0;
 
 const MOVE_SLOP: f64 = 4.0;
-const CONTENT_SCROLL_SLOP: f64 = 6.0;
+// VTE starts text selection on very small touch motion. Win the gesture before
+// forwarding that first drag-like motion, while still tolerating tap jitter.
+const CONTENT_SCROLL_SLOP: f64 = 2.0;
 const MINIMIZE_SWIPE_DISTANCE: f64 = 96.0;
 const PINCH_SLOP: f64 = 16.0;
 const PINCH_TRANSLATION_DOMINANCE: f64 = 1.5;
@@ -383,7 +385,15 @@ impl TouchGestureState {
                     last_position: origin,
                     started: false,
                 });
-                return TouchGestureUpdate::default();
+                // Do not forward sub-slop touch motion to terminal clients.
+                // VTE begins a selection as soon as it sees touch motion, so
+                // even a 1 px sample before the compositor wins scrolling can
+                // leave a highlighted range behind. The original down/up still
+                // reaches the client, preserving ordinary taps.
+                return TouchGestureUpdate {
+                    consume: true,
+                    ..TouchGestureUpdate::default()
+                };
             }
             let captured_slots = self.capture_slots(&[slot]);
             self.gesture = Some(Gesture::ContentScroll {
@@ -1508,19 +1518,20 @@ mod tests {
             gestures.down(9, origin, Some(scroll_target)),
             TouchGestureUpdate::default()
         );
-        assert_eq!(
-            gestures.motion(9, Point::from((202.0, 297.0))),
-            TouchGestureUpdate::default()
-        );
+        let jitter = gestures.motion(9, Point::from((200.0, 299.0)));
+        assert!(jitter.consume);
+        assert!(jitter.captured_slots.is_empty());
+        assert!(jitter.scrolls.is_empty());
 
-        let begin = gestures.motion(9, Point::from((200.0, 290.0)));
+        let begin = gestures.motion(9, Point::from((200.0, 297.8)));
         assert!(begin.consume);
         assert_eq!(begin.captured_slots, vec![9]);
         assert_eq!(begin.scrolls.len(), 1);
         assert_eq!(begin.scrolls[0].phase, TouchScrollPhase::Begin);
-        assert_eq!(begin.scrolls[0].delta, Point::from((0.0, 10.0)));
+        assert!(begin.scrolls[0].delta.x.abs() < f64::EPSILON);
+        assert!((begin.scrolls[0].delta.y - 2.2).abs() < 0.000001);
 
-        let update = gestures.motion(9, Point::from((200.0, 280.0)));
+        let update = gestures.motion(9, Point::from((200.0, 287.8)));
         assert!(update.consume);
         assert_eq!(update.scrolls.len(), 1);
         assert_eq!(update.scrolls[0].phase, TouchScrollPhase::Update);
@@ -1543,6 +1554,28 @@ mod tests {
             TouchGestureUpdate::default()
         );
         assert_eq!(gestures.up(10), TouchGestureUpdate::default());
+    }
+
+    #[test]
+    fn terminal_style_tap_jitter_is_consumed_without_starting_selection_or_scroll() {
+        let mut gestures = TouchGestureState::default();
+        let mut scroll_target = target(false, false);
+        scroll_target.single_finger_scroll = true;
+        let origin = Point::from((200.0, 300.0));
+
+        assert_eq!(
+            gestures.down(11, origin, Some(scroll_target)),
+            TouchGestureUpdate::default()
+        );
+        let jitter = gestures.motion(11, Point::from((201.0, 300.0)));
+        assert!(jitter.consume);
+        assert!(jitter.captured_slots.is_empty());
+        assert!(jitter.actions.is_empty());
+        assert!(jitter.scrolls.is_empty());
+
+        // The compositor never captured the contact, so the client still gets
+        // the matching up and observes an ordinary tap.
+        assert_eq!(gestures.up(11), TouchGestureUpdate::default());
     }
 
     #[test]

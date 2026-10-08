@@ -177,108 +177,132 @@ class _BluetoothDetailSurfaceState
               ),
               child: Padding(
                 padding: mobileApplication
-                    ? const EdgeInsets.fromLTRB(14, 10, 14, 14)
+                    ? EdgeInsets.zero
                     : const EdgeInsets.fromLTRB(18, 16, 18, 18),
                 child: FocusTraversalGroup(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          if (mobileApplication) ...[
+                      Padding(
+                        padding: mobileApplication
+                            ? const EdgeInsets.fromLTRB(16, 10, 16, 12)
+                            : EdgeInsets.zero,
+                        child: Row(
+                          children: [
+                            if (mobileApplication) ...[
+                              _BluetoothIconButton(
+                                label: l10n.bluetoothCloseDetails,
+                                icon: Icons.arrow_back_rounded,
+                                onPressed: _close,
+                              ),
+                              const SizedBox(width: 7),
+                            ],
+                            Icon(
+                              Icons.bluetooth_rounded,
+                              size: 23,
+                              color: theme.accent,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.commonBluetooth,
+                                    style: ShellText.base.copyWith(
+                                      fontSize: mobileApplication ? 31 : 20,
+                                      height: 1,
+                                      fontWeight: mobileApplication
+                                          ? FontWeight.w300
+                                          : FontWeight.w600,
+                                      letterSpacing: mobileApplication
+                                          ? -0.7
+                                          : 0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    bluetoothStatusLabel(state, l10n),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: ShellText.base.copyWith(
+                                      color: context.shellColors.textTertiary,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             _BluetoothIconButton(
-                              label: l10n.bluetoothCloseDetails,
-                              icon: Icons.arrow_back_rounded,
-                              onPressed: _close,
+                              label: state.powered
+                                  ? l10n.desktopTurnBluetoothOff
+                                  : l10n.desktopTurnBluetoothOn,
+                              icon: Icons.power_settings_new_rounded,
+                              active: state.powered,
+                              busy: state.powerChanging,
+                              enabled: powerEnabled,
+                              onPressed: controller.togglePower,
                             ),
                             const SizedBox(width: 7),
-                          ],
-                          Icon(
-                            Icons.bluetooth_rounded,
-                            size: 23,
-                            color: theme.accent,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  l10n.commonBluetooth,
-                                  style: ShellText.statusClock.copyWith(
-                                    fontSize: 20,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  bluetoothStatusLabel(state, l10n),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: ShellText.base.copyWith(
-                                    color: context.shellColors.textTertiary,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _BluetoothIconButton(
-                            label: state.powered
-                                ? l10n.desktopTurnBluetoothOff
-                                : l10n.desktopTurnBluetoothOn,
-                            icon: Icons.power_settings_new_rounded,
-                            active: state.powered,
-                            busy: state.powerChanging,
-                            enabled: powerEnabled,
-                            onPressed: controller.togglePower,
-                          ),
-                          const SizedBox(width: 7),
-                          _BluetoothIconButton(
-                            label: state.scanning
-                                ? l10n.bluetoothStopScanning
-                                : l10n.desktopScanBluetooth,
-                            icon: state.scanning
-                                ? Icons.stop_rounded
-                                : Icons.bluetooth_searching_rounded,
-                            active: state.scanning || state.discovering,
-                            busy: state.scanning,
-                            enabled: state.scanning || scanEnabled,
-                            onPressed: state.scanning
-                                ? () => unawaited(controller.stopScan())
-                                : controller.scan,
-                          ),
-                          if (!mobileApplication) ...[
-                            const SizedBox(width: 7),
                             _BluetoothIconButton(
-                              label: l10n.bluetoothCloseDetails,
-                              icon: Icons.close_rounded,
-                              onPressed: _close,
+                              label: state.scanning
+                                  ? l10n.bluetoothStopScanning
+                                  : l10n.desktopScanBluetooth,
+                              icon: state.scanning
+                                  ? Icons.stop_rounded
+                                  : Icons.bluetooth_searching_rounded,
+                              active: state.scanning || state.discovering,
+                              busy: state.scanning,
+                              enabled: state.scanning || scanEnabled,
+                              onPressed: state.scanning
+                                  ? () => unawaited(controller.stopScan())
+                                  : controller.scan,
                             ),
+                            if (!mobileApplication) ...[
+                              const SizedBox(width: 7),
+                              _BluetoothIconButton(
+                                label: l10n.bluetoothCloseDetails,
+                                icon: Icons.close_rounded,
+                                onPressed: _close,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                       if (state.error != null) ...[
                         const SizedBox(height: 10),
-                        _BluetoothErrorNotice(
-                          message: l10n.bluetoothOperationFailed,
-                          onDismiss: controller.clearError,
+                        Padding(
+                          padding: mobileApplication
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          child: _BluetoothErrorNotice(
+                            message: l10n.bluetoothOperationFailed,
+                            onDismiss: controller.clearError,
+                          ),
                         ),
                       ],
                       if (state.pairingRequest case final request?) ...[
                         const SizedBox(height: 12),
-                        _BluetoothPairingPanel(
-                          request: request,
-                          responseController: _pairingResponse,
-                          responseFocus: _pairingFocus,
-                          inputError: _pairingInputError,
-                          onAccept: () => _acceptPairing(request),
-                          onReject: _rejectPairing,
+                        Padding(
+                          padding: mobileApplication
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          child: _BluetoothPairingPanel(
+                            mobileApplication: mobileApplication,
+                            request: request,
+                            responseController: _pairingResponse,
+                            responseFocus: _pairingFocus,
+                            inputError: _pairingInputError,
+                            onAccept: () => _acceptPairing(request),
+                            onReject: _rejectPairing,
+                          ),
                         ),
                       ],
                       const SizedBox(height: 12),
                       Expanded(
                         child: _BluetoothDeviceList(
+                          mobileApplication: mobileApplication,
                           state: state,
                           onPair: (device) =>
                               unawaited(controller.pair(device)),

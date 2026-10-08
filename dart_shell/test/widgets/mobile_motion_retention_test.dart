@@ -16,14 +16,16 @@ import '../support/mobile_motion_harness.dart';
 void main() {
   testWidgets('hiding a retained keyboard releases a held key', (tester) async {
     final intents = <ShellOskKeyIntent>[];
-    Widget keyboard(bool enabled) => mobileMotionHarness(
-      Align(
-        alignment: Alignment.bottomCenter,
-        child: SizedBox(
-          height: 320,
-          child: TickerMode(
-            enabled: enabled,
-            child: ShellOskPanel(onKey: intents.add),
+    Widget keyboard(bool enabled) => ProviderScope(
+      child: mobileMotionHarness(
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            height: 320,
+            child: TickerMode(
+              enabled: enabled,
+              child: ShellOskPanel(onKey: intents.add),
+            ),
           ),
         ),
       ),

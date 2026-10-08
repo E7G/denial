@@ -379,6 +379,8 @@ enum TabletTileDensity { compact, comfortable, spacious }
 
 enum TabletNavigationMode { gesture, threeButton }
 
+enum TabletOskLayoutMode { standard, split, traditional }
+
 @immutable
 class ShellTabletSettings {
   const ShellTabletSettings({
@@ -391,6 +393,7 @@ class ShellTabletSettings {
     this.showQuickSettingsHint = true,
     this.portraitCompact = false,
     this.navigationMode = TabletNavigationMode.gesture,
+    this.oskLayoutMode = TabletOskLayoutMode.standard,
   });
 
   final bool enabled;
@@ -402,6 +405,7 @@ class ShellTabletSettings {
   final bool showQuickSettingsHint;
   final bool portraitCompact;
   final TabletNavigationMode navigationMode;
+  final TabletOskLayoutMode oskLayoutMode;
 
   ShellTabletSettings copyWith({
     bool? enabled,
@@ -413,6 +417,7 @@ class ShellTabletSettings {
     bool? showQuickSettingsHint,
     bool? portraitCompact,
     TabletNavigationMode? navigationMode,
+    TabletOskLayoutMode? oskLayoutMode,
   }) {
     return ShellTabletSettings(
       enabled: enabled ?? this.enabled,
@@ -425,6 +430,7 @@ class ShellTabletSettings {
           showQuickSettingsHint ?? this.showQuickSettingsHint,
       portraitCompact: portraitCompact ?? this.portraitCompact,
       navigationMode: navigationMode ?? this.navigationMode,
+      oskLayoutMode: oskLayoutMode ?? this.oskLayoutMode,
     );
   }
 
@@ -439,7 +445,8 @@ class ShellTabletSettings {
         other.showSystemTiles == showSystemTiles &&
         other.showQuickSettingsHint == showQuickSettingsHint &&
         other.portraitCompact == portraitCompact &&
-        other.navigationMode == navigationMode;
+        other.navigationMode == navigationMode &&
+        other.oskLayoutMode == oskLayoutMode;
   }
 
   @override
@@ -453,6 +460,7 @@ class ShellTabletSettings {
     showQuickSettingsHint,
     portraitCompact,
     navigationMode,
+    oskLayoutMode,
   );
 }
 
@@ -928,7 +936,7 @@ class ShellSettings {
 
   // Blur levels are additive in schema 9. Keep emitting the derived legacy
   // sigma so older shells can read settings written by this version.
-  static const int schemaVersion = 29;
+  static const int schemaVersion = 30;
 
   final ShellLocalizationSettings localization;
   final ShellAppearanceSettings appearance;
@@ -1131,6 +1139,9 @@ class ShellSettings {
       if (tablet.navigationMode != before.navigationMode) {
         section['navigationMode'] = tablet.navigationMode.name;
       }
+      if (tablet.oskLayoutMode != before.oskLayoutMode) {
+        section['oskLayoutMode'] = tablet.oskLayoutMode.name;
+      }
       patch['tablet'] = section;
     }
 
@@ -1282,6 +1293,7 @@ class ShellSettings {
         'showQuickSettingsHint': tablet.showQuickSettingsHint,
         'portraitCompact': tablet.portraitCompact,
         'navigationMode': tablet.navigationMode.name,
+        'oskLayoutMode': tablet.oskLayoutMode.name,
       },
       'overlays': <String, Object>{
         'launcher': _placementToJson(overlays.launcher),
@@ -1602,6 +1614,11 @@ class ShellSettings {
           TabletNavigationMode.values,
           tabletJson['navigationMode'],
           defaults.tablet.navigationMode,
+        ),
+        oskLayoutMode: _enumValue(
+          TabletOskLayoutMode.values,
+          tabletJson['oskLayoutMode'],
+          defaults.tablet.oskLayoutMode,
         ),
       ),
       overlays: ShellOverlaySettings(

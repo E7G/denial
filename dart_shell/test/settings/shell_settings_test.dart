@@ -198,6 +198,7 @@ void main() {
       showQuickSettingsHint: false,
       portraitCompact: false,
       navigationMode: TabletNavigationMode.threeButton,
+      oskLayoutMode: TabletOskLayoutMode.traditional,
     );
     final restored = ShellSettings.fromJson(
       const ShellSettings(tablet: tablet).toJson(),
@@ -213,6 +214,7 @@ void main() {
         'animationStrength': 9,
         'tileDensity': 'unknown',
         'navigationMode': 'unknown',
+        'oskLayoutMode': 'unknown',
       },
     });
 
@@ -220,6 +222,24 @@ void main() {
     expect(settings.tablet.animationStrength, 1.5);
     expect(settings.tablet.tileDensity, TabletTileDensity.comfortable);
     expect(settings.tablet.navigationMode, TabletNavigationMode.gesture);
+    expect(settings.tablet.oskLayoutMode, TabletOskLayoutMode.standard);
+  });
+
+  test('OSK layout preference produces a typed tablet patch', () {
+    const previous = ShellSettings();
+    final next = previous.copyWith(
+      tablet: previous.tablet.copyWith(
+        oskLayoutMode: TabletOskLayoutMode.traditional,
+      ),
+    );
+
+    expect(
+      ShellSettings.fromJson(next.toJson()).tablet.oskLayoutMode,
+      TabletOskLayoutMode.traditional,
+    );
+    expect(next.differenceFrom(previous), <String, Object?>{
+      'tablet': <String, Object?>{'oskLayoutMode': 'traditional'},
+    });
   });
 
   test('suspend mode persists and produces a typed patch', () {
