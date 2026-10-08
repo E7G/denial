@@ -22,10 +22,9 @@ void showEmbeddedSettingsSurface(
         keyName: _embeddedSettingsSurfaceKey,
         debugLabel: 'Embedded Settings',
         dismissPolicy: ShellDismissPolicy.outsideTapAndEscape,
-        builder: (_, handle) => EmbeddedSettingsSurface(
-          initialPage: page,
-          onClose: handle.close,
-        ),
+        presentation: ShellSurfacePresentation.fullscreen,
+        builder: (_, handle) =>
+            EmbeddedSettingsSurface(initialPage: page, onClose: handle.close),
       );
 }
 

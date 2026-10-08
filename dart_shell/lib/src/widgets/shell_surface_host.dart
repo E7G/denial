@@ -10,6 +10,8 @@ import '../theme/shell_theme.dart';
 
 enum ShellDismissPolicy { none, outsideTap, outsideTapAndEscape }
 
+enum ShellSurfacePresentation { modal, fullscreen }
+
 typedef ShellSurfaceBuilder =
     Widget Function(BuildContext context, ShellSurfaceHandle handle);
 
@@ -24,6 +26,7 @@ class ManagedShellSurface {
     required this.keyboardPolicy,
     required this.compositorPolicy,
     required this.dismissPolicy,
+    required this.presentation,
     required this.transitionDuration,
     required this.barrierColor,
     required this.closing,
@@ -38,6 +41,7 @@ class ManagedShellSurface {
   final ShellKeyboardPolicy keyboardPolicy;
   final ShellCompositorPolicy compositorPolicy;
   final ShellDismissPolicy dismissPolicy;
+  final ShellSurfacePresentation presentation;
   final Duration transitionDuration;
   final Color? barrierColor;
   final bool closing;
@@ -53,6 +57,7 @@ class ManagedShellSurface {
       keyboardPolicy: keyboardPolicy,
       compositorPolicy: compositorPolicy,
       dismissPolicy: dismissPolicy,
+      presentation: presentation,
       transitionDuration: transitionDuration,
       barrierColor: barrierColor,
       closing: closing ?? this.closing,
@@ -83,6 +88,7 @@ class ShellSurfaceController extends Notifier<List<ManagedShellSurface>> {
     ShellKeyboardPolicy keyboardPolicy = ShellKeyboardPolicy.capture,
     ShellCompositorPolicy compositorPolicy = ShellCompositorPolicy.normal,
     ShellDismissPolicy dismissPolicy = ShellDismissPolicy.outsideTapAndEscape,
+    ShellSurfacePresentation presentation = ShellSurfacePresentation.modal,
     Duration transitionDuration = Motion.cardSettle,
     Color? barrierColor,
   }) {
@@ -104,6 +110,7 @@ class ShellSurfaceController extends Notifier<List<ManagedShellSurface>> {
       keyboardPolicy: keyboardPolicy,
       compositorPolicy: compositorPolicy,
       dismissPolicy: dismissPolicy,
+      presentation: presentation,
       transitionDuration: transitionDuration,
       barrierColor: barrierColor,
       closing: false,
@@ -328,19 +335,27 @@ class _ManagedShellSurfaceLayerState
             child: Stack(
               fit: StackFit.expand,
               children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: dismissOnOutside ? handle.close : null,
-                  child: ColoredBox(
-                    color:
-                        surface.barrierColor ??
-                        context.shellColors.overviewScrim,
+                if (surface.presentation == ShellSurfacePresentation.modal)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: dismissOnOutside ? handle.close : null,
+                    child: ColoredBox(
+                      color:
+                          surface.barrierColor ??
+                          context.shellColors.overviewScrim,
+                    ),
                   ),
-                ),
-                ScaleTransition(
-                  scale: _scale,
-                  child: surface.builder(context, handle),
-                ),
+                if (surface.presentation == ShellSurfacePresentation.fullscreen)
+                  Positioned.fill(
+                    child: SizedBox.expand(
+                      child: surface.builder(context, handle),
+                    ),
+                  )
+                else
+                  ScaleTransition(
+                    scale: _scale,
+                    child: surface.builder(context, handle),
+                  ),
               ],
             ),
           ),
