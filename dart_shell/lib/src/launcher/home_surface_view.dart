@@ -28,9 +28,9 @@ class _HomeSurfaceView extends ConsumerWidget {
         viewSize.height > viewSize.width;
     final showHeader =
         tabletMode && tabletSettings.showStartHeader && !compactPortrait;
-    final contentPadding = showHeader
-        ? const EdgeInsets.fromLTRB(0, 104, 0, 8)
-        : _HomeSurfaceState._contentPadding;
+    final topInset = MediaQuery.paddingOf(context).top;
+    final headerTop = topInset + ShellMetrics.statusBarHeight + 10;
+    final contentPadding = EdgeInsets.fromLTRB(0, headerTop + 52, 0, 8);
     final allItems = contents.allItems ?? const <HomeGridItem>[];
     final drawerCatalog = owner._drawerCatalog(
       allItems,
@@ -53,19 +53,18 @@ class _HomeSurfaceView extends ConsumerWidget {
           Positioned(
             left: _HomeSurfaceState._pageHorizontalPadding,
             right: _HomeSurfaceState._pageHorizontalPadding,
-            top: ShellMetrics.statusBarHeight + 8,
+            top: headerTop,
             child: _MetroStartHeader(
               onAllApps: owner._openAppDrawer,
               onQuickSettings: owner._openQuickSettingsFromStart,
               onSemanticZoom: owner._openSemanticZoom,
               showSemanticZoom: !portrait && owner._currentPageCount > 1,
-              showQuickSettingsHint: tabletSettings.showQuickSettingsHint,
             ),
           )
         else
           Positioned(
             right: _HomeSurfaceState._pageHorizontalPadding,
-            top: ShellMetrics.statusBarHeight + 6,
+            top: headerTop,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -75,15 +74,13 @@ class _HomeSurfaceView extends ConsumerWidget {
                   label: context.l10n.tabletAppsShort,
                   onTap: owner._openAppDrawer,
                 ),
-                if (tabletSettings.showQuickSettingsHint) ...[
-                  const SizedBox(width: 8),
-                  _MetroHeaderAction(
-                    key: const ValueKey<String>('start-quick-settings-action'),
-                    icon: Icons.tune_rounded,
-                    label: context.l10n.tabletQuickSettings,
-                    onTap: owner._openQuickSettingsFromStart,
-                  ),
-                ],
+                const SizedBox(width: 8),
+                _MetroHeaderAction(
+                  key: const ValueKey<String>('start-quick-settings-action'),
+                  icon: Icons.tune_rounded,
+                  label: context.l10n.tabletQuickSettings,
+                  onTap: owner._openQuickSettingsFromStart,
+                ),
               ],
             ),
           ),
@@ -180,14 +177,12 @@ class _MetroStartHeader extends StatelessWidget {
     required this.onQuickSettings,
     required this.onSemanticZoom,
     required this.showSemanticZoom,
-    required this.showQuickSettingsHint,
   });
 
   final VoidCallback onAllApps;
   final VoidCallback onQuickSettings;
   final VoidCallback onSemanticZoom;
   final bool showSemanticZoom;
-  final bool showQuickSettingsHint;
 
   @override
   Widget build(BuildContext context) {
@@ -245,15 +240,13 @@ class _MetroStartHeader extends StatelessWidget {
                 onTap: onSemanticZoom,
               ),
             ],
-            if (showQuickSettingsHint) ...[
-              const SizedBox(width: 12),
-              _MetroHeaderAction(
-                key: const ValueKey<String>('start-quick-settings-action'),
-                icon: Icons.tune_rounded,
-                label: context.l10n.tabletQuickSettings,
-                onTap: onQuickSettings,
-              ),
-            ],
+            const SizedBox(width: 12),
+            _MetroHeaderAction(
+              key: const ValueKey<String>('start-quick-settings-action'),
+              icon: Icons.tune_rounded,
+              label: context.l10n.tabletQuickSettings,
+              onTap: onQuickSettings,
+            ),
           ],
         );
       },
@@ -1763,26 +1756,82 @@ class _MetroAlphabetJumpDialog extends StatelessWidget {
   }
 }
 
-class _MetroSlideIn extends StatelessWidget {
+class _MetroSlideIn extends StatefulWidget {
   const _MetroSlideIn({required this.visible, required this.child});
 
   final bool visible;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final duration = visible
-        ? const Duration(milliseconds: 145)
-        : const Duration(milliseconds: 95);
-    return AnimatedSlide(
-      offset: visible ? Offset.zero : const Offset(0.075, 0),
-      duration: duration,
+  State<_MetroSlideIn> createState() => _MetroSlideInState();
+}
+
+class _MetroSlideInState extends State<_MetroSlideIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 140),
+    );
+    final curved = CurvedAnimation(
+      parent: _controller,
       curve: Curves.easeOutCubic,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: duration,
-        curve: Curves.easeOutCubic,
-        child: RepaintBoundary(child: child),
+      reverseCurve: Curves.easeInCubic,
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0.14, 0),
+      end: Offset.zero,
+    ).animate(curved);
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.78, curve: Curves.easeOut),
+      reverseCurve: Curves.easeIn,
+    );
+    _scale = Tween<double>(begin: 0.985, end: 1).animate(curved);
+    if (widget.visible) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _MetroSlideIn oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visible == widget.visible) {
+      return;
+    }
+    if (widget.visible) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        key: const ValueKey<String>('metro-app-drawer-slide-transition'),
+        position: _slide,
+        child: ScaleTransition(
+          scale: _scale,
+          alignment: Alignment.centerRight,
+          child: RepaintBoundary(child: widget.child),
+        ),
       ),
     );
   }

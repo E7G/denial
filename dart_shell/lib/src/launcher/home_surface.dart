@@ -9,6 +9,7 @@ import '../local_apps/local_flutter_application.dart';
 import '../localization/denial_localizations.dart';
 import '../state/display_layout.dart';
 import '../state/output_configuration.dart';
+import '../state/shade_navigation.dart';
 import '../state/shell_controller.dart';
 import '../settings/settings_controller.dart';
 import '../settings/embedded_settings_surface.dart';
@@ -69,7 +70,6 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   static const double _pageHorizontalPadding = 28;
   static const double _appRowVisualHeight = 184;
   static const double _pageDotsReservedHeight = 12;
-  static const EdgeInsets _contentPadding = EdgeInsets.fromLTRB(0, 66, 0, 8);
   static const Duration _backgroundTapMaxDuration = Duration(milliseconds: 260);
   static const Duration _doubleTapMaxInterval = Duration(milliseconds: 360);
   static const double _tapMoveTolerance = 18;
@@ -469,6 +469,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     _clearResizeMode();
     _lastBackgroundTapTime = null;
     _lastBackgroundTapPosition = null;
+    ref.read(quickSettingsPageRequestProvider.notifier).request();
     ref.read(shellControllerProvider.notifier).openQuickSettings();
   }
 

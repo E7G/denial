@@ -47,6 +47,34 @@ void main() {
     await tester.tap(allApps);
     await tester.pump();
 
+    final firstFrameSlide = tester.widget<SlideTransition>(
+      find.byKey(const ValueKey<String>('metro-app-drawer-slide-transition')),
+    );
+    expect(
+      firstFrameSlide.position.value.dx,
+      greaterThan(0.08),
+      reason:
+          'The first drawer mount must animate instead of appearing at rest.',
+    );
+    await tester.pump(const Duration(milliseconds: 110));
+    final midFrameSlide = tester.widget<SlideTransition>(
+      find.byKey(const ValueKey<String>('metro-app-drawer-slide-transition')),
+    );
+    expect(midFrameSlide.position.value.dx, inExclusiveRange(0.0, 0.08));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SlideTransition>(
+            find.byKey(
+              const ValueKey<String>('metro-app-drawer-slide-transition'),
+            ),
+          )
+          .position
+          .value
+          .dx,
+      closeTo(0, 0.0001),
+    );
+
     final drawerInteraction = tester.widget<IgnorePointer>(
       find.byKey(const ValueKey<String>('metro-app-drawer-interaction')),
     );

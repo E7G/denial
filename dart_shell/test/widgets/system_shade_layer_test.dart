@@ -1,6 +1,8 @@
 import 'package:denial_dart_shell/src/services/mobile_network_service.dart';
+import 'package:denial_dart_shell/src/services/system_actions_service.dart';
 import 'package:denial_dart_shell/src/localization/denial_localizations.dart';
 import 'package:denial_dart_shell/src/state/network_connectivity.dart';
+import 'package:denial_dart_shell/src/state/shade_navigation.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/system_status.dart';
 import 'package:denial_dart_shell/src/theme/shell_theme.dart';
@@ -23,6 +25,82 @@ void main() {
       closeTo(1, 0.000001),
     );
   });
+
+  testWidgets(
+    'Mi Pad 2 collapsed status bar leaves Start actions tappable and screenshots work',
+    (tester) async {
+      const size = Size(768, 1024);
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var backgroundTaps = 0;
+      final actions = _RecordingSystemActions();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            systemActionsServiceProvider.overrideWith((_) => actions),
+            mobileNetworkProvider.overrideWith(
+              (_) => Stream.value(const MobileNetworkSnapshot()),
+            ),
+            clockProvider.overrideWith(
+              (_) => Stream.value(DateTime(2026, 10, 8, 11, 30)),
+            ),
+            networkConnectivityProvider.overrideWithBuild(
+              (_, _) => NetworkConnectivityState.initial(),
+            ),
+          ],
+          child: DenialLocalizationScope(
+            locale: const Locale('en'),
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: MediaQuery(
+                data: const MediaQueryData(size: size),
+                child: ShellTheme(
+                  data: const ShellThemeData(),
+                  child: Overlay.wrap(
+                    child: DefaultTextStyle(
+                      style: const TextStyle(fontSize: 14),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => backgroundTaps++,
+                            child: const SizedBox.expand(),
+                          ),
+                          const ShadeStatusBar(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final dragRect = tester.getRect(
+        find.byKey(const ValueKey<String>('status-bar-drag-surface')),
+      );
+      expect(dragRect.bottom, closeTo(48, 0.001));
+
+      // Start's header controls occupy this band on Mi Pad 2. The collapsed
+      // status bar must no longer consume taps here.
+      await tester.tapAt(const Offset(300, 82));
+      await tester.pump();
+      expect(backgroundTaps, 1);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('status-screenshot-action')),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(actions.captures, 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('closing a short or interrupted shade drag releases home input', (
     tester,
@@ -117,6 +195,18 @@ void main() {
       tester.widget<QuickSettingsShade>(find.byType(QuickSettingsShade)).page,
       ShadePage.notifications,
     );
+    container.read(quickSettingsPageRequestProvider.notifier).request();
+    await tester.pump();
+    expect(
+      tester.widget<QuickSettingsShade>(find.byType(QuickSettingsShade)).page,
+      ShadePage.quickSettings,
+    );
+    statusBar.onDragStart!(const Offset(20, 0));
+    await tester.pump();
+    expect(
+      tester.widget<QuickSettingsShade>(find.byType(QuickSettingsShade)).page,
+      ShadePage.notifications,
+    );
     statusBar.onDragStart!(const Offset(380, 0));
     await tester.pump();
     expect(
@@ -142,4 +232,13 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+}
+
+class _RecordingSystemActions extends SystemActionsService {
+  int captures = 0;
+
+  @override
+  Future<void> takeScreenshot() async {
+    captures += 1;
+  }
 }
