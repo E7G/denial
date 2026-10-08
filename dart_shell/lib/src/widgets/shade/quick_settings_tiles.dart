@@ -678,15 +678,11 @@ class _TileDetailsButtonState extends State<_TileDetailsButton> {
 class ShadeActions extends StatelessWidget {
   const ShadeActions({
     super.key,
-    required this.screenshotBusy,
-    required this.onTakeScreenshot,
     required this.onOpenEdit,
     required this.onOpenSettings,
     required this.onOpenPower,
   });
 
-  final bool screenshotBusy;
-  final VoidCallback? onTakeScreenshot;
   final VoidCallback onOpenEdit;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenPower;
@@ -697,15 +693,6 @@ class ShadeActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        _RoundButton(
-          key: const ValueKey<String>('shade-screenshot-action'),
-          label: context.l10n.quickSettingsScreenshot,
-          icon: screenshotBusy
-              ? Icons.hourglass_top_rounded
-              : Icons.screenshot_rounded,
-          onPressed: onTakeScreenshot,
-        ),
-        const SizedBox(width: 12),
         _RoundButton(
           label: context.l10n.settingsTabletMetroTitle,
           icon: Icons.edit_rounded,

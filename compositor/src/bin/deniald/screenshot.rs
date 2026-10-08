@@ -425,6 +425,19 @@ fn screenshot_directory() -> io::Result<PathBuf> {
     let home = std::env::var_os("HOME")
         .filter(|home| !home.is_empty())
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "HOME is not set"))?;
+    // Use the same XDG Pictures directory as the camera/gallery, including
+    // localized folders such as ~/图片, rather than hard-coding ~/Pictures.
+    if let Ok(output) = std::process::Command::new("xdg-user-dir")
+        .arg("PICTURES")
+        .output()
+        && output.status.success()
+    {
+        let pictures = String::from_utf8_lossy(&output.stdout);
+        let pictures = pictures.trim();
+        if !pictures.is_empty() {
+            return Ok(PathBuf::from(pictures).join("Screenshots"));
+        }
+    }
     Ok(PathBuf::from(home).join("Pictures").join("Screenshots"))
 }
 

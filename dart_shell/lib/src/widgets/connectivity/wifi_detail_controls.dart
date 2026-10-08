@@ -2,6 +2,7 @@ part of 'wifi_detail_surface.dart';
 
 class _WifiCredentialPanel extends StatelessWidget {
   const _WifiCredentialPanel({
+    required this.mobileApplication,
     required this.network,
     required this.controller,
     required this.focusNode,
@@ -10,6 +11,7 @@ class _WifiCredentialPanel extends StatelessWidget {
     required this.onSubmit,
   });
 
+  final bool mobileApplication;
   final WifiNetwork network;
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -24,7 +26,9 @@ class _WifiCredentialPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: context.shellColors.surfaceContainerHigh,
-        borderRadius: context.shellTheme.borderRadius(16),
+        borderRadius: mobileApplication
+            ? BorderRadius.circular(22)
+            : context.shellTheme.borderRadius(16),
         border: Border.all(
           color: error == null
               ? context.shellColors.hairlineSoft
@@ -32,15 +36,33 @@ class _WifiCredentialPanel extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.fromLTRB(
+          mobileApplication ? 18 : 12,
+          mobileApplication ? 16 : 12,
+          mobileApplication ? 18 : 12,
+          mobileApplication ? 14 : 12,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              l10n.wifiPasswordFor(network.ssid),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: ShellText.cardTitle,
+            Row(
+              children: [
+                Icon(Icons.lock_rounded, size: 19, color: theme.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    l10n.wifiPasswordFor(network.ssid),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: mobileApplication
+                        ? ShellText.base.copyWith(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w400,
+                          )
+                        : ShellText.cardTitle,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 9),
             Semantics(

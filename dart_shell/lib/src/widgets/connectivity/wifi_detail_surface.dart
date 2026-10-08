@@ -165,91 +165,108 @@ class _WifiDetailSurfaceState extends ConsumerState<WifiDetailSurface> {
               ),
               child: Padding(
                 padding: mobileApplication
-                    ? const EdgeInsets.fromLTRB(14, 10, 14, 14)
+                    ? EdgeInsets.zero
                     : const EdgeInsets.fromLTRB(18, 16, 18, 18),
                 child: FocusTraversalGroup(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(
-                        children: [
-                          if (mobileApplication) ...[
+                      Padding(
+                        padding: mobileApplication
+                            ? const EdgeInsets.fromLTRB(16, 10, 16, 12)
+                            : EdgeInsets.zero,
+                        child: Row(
+                          children: [
+                            if (mobileApplication) ...[
+                              _WifiIconButton(
+                                label: l10n.wifiCloseDetails,
+                                icon: Icons.arrow_back_rounded,
+                                onPressed: widget.onClose,
+                              ),
+                              const SizedBox(width: 7),
+                            ],
+                            Icon(
+                              Icons.wifi_rounded,
+                              size: 23,
+                              color: theme.accent,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.commonWifi,
+                                    style: mobileApplication
+                                        ? ShellText.base.copyWith(
+                                            fontSize: 31,
+                                            height: 1,
+                                            fontWeight: FontWeight.w300,
+                                            letterSpacing: -0.7,
+                                          )
+                                        : ShellText.statusClock.copyWith(
+                                            fontSize: 20,
+                                          ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    wifiStatusLabel(state, l10n),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: ShellText.base.copyWith(
+                                      color: context.shellColors.textTertiary,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             _WifiIconButton(
-                              label: l10n.wifiCloseDetails,
-                              icon: Icons.arrow_back_rounded,
-                              onPressed: widget.onClose,
+                              label: snapshot.wirelessEnabled
+                                  ? l10n.wifiTurnOff
+                                  : l10n.wifiTurnOn,
+                              icon: Icons.power_settings_new_rounded,
+                              active: snapshot.wirelessEnabled,
+                              busy: state.radioChanging,
+                              enabled: radioEnabled && !state.radioChanging,
+                              onPressed: controller.toggleWireless,
                             ),
                             const SizedBox(width: 7),
-                          ],
-                          Icon(
-                            Icons.wifi_rounded,
-                            size: 23,
-                            color: theme.accent,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  l10n.commonWifi,
-                                  style: ShellText.statusClock.copyWith(
-                                    fontSize: 20,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  wifiStatusLabel(state, l10n),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: ShellText.base.copyWith(
-                                    color: context.shellColors.textTertiary,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          _WifiIconButton(
-                            label: snapshot.wirelessEnabled
-                                ? l10n.wifiTurnOff
-                                : l10n.wifiTurnOn,
-                            icon: Icons.power_settings_new_rounded,
-                            active: snapshot.wirelessEnabled,
-                            busy: state.radioChanging,
-                            enabled: radioEnabled && !state.radioChanging,
-                            onPressed: controller.toggleWireless,
-                          ),
-                          const SizedBox(width: 7),
-                          _WifiIconButton(
-                            label: state.scanning
-                                ? l10n.wifiScanningNetworks
-                                : l10n.wifiScanNetworks,
-                            icon: Icons.refresh_rounded,
-                            active: state.scanning,
-                            busy: state.scanning,
-                            enabled: scanEnabled,
-                            onPressed: controller.scan,
-                          ),
-                          if (!mobileApplication) ...[
-                            const SizedBox(width: 7),
                             _WifiIconButton(
-                              label: l10n.wifiCloseDetails,
-                              icon: Icons.close_rounded,
-                              onPressed: widget.onClose,
+                              label: state.scanning
+                                  ? l10n.wifiScanningNetworks
+                                  : l10n.wifiScanNetworks,
+                              icon: Icons.refresh_rounded,
+                              active: state.scanning,
+                              busy: state.scanning,
+                              enabled: scanEnabled,
+                              onPressed: controller.scan,
                             ),
+                            if (!mobileApplication) ...[
+                              const SizedBox(width: 7),
+                              _WifiIconButton(
+                                label: l10n.wifiCloseDetails,
+                                icon: Icons.close_rounded,
+                                onPressed: widget.onClose,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                       if (snapshot.radioPermission ==
                               NetworkPermission.authenticationRequired ||
                           snapshot.controlPermission ==
                               NetworkPermission.authenticationRequired) ...[
                         const SizedBox(height: 10),
-                        _WifiNotice(
-                          icon: Icons.admin_panel_settings_rounded,
-                          message: l10n.wifiAuthorizationMayBeRequired,
+                        Padding(
+                          padding: mobileApplication
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          child: _WifiNotice(
+                            icon: Icons.admin_panel_settings_rounded,
+                            message: l10n.wifiAuthorizationMayBeRequired,
+                          ),
                         ),
                       ],
                       if (snapshot.controlPermission ==
@@ -257,32 +274,49 @@ class _WifiDetailSurfaceState extends ConsumerState<WifiDetailSurface> {
                           snapshot.modifyPermission ==
                               NetworkPermission.denied) ...[
                         const SizedBox(height: 10),
-                        _WifiNotice(
-                          icon: Icons.block_rounded,
-                          message: l10n.wifiPermissionLimited,
+                        Padding(
+                          padding: mobileApplication
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          child: _WifiNotice(
+                            icon: Icons.block_rounded,
+                            message: l10n.wifiPermissionLimited,
+                          ),
                         ),
                       ],
                       if (state.error != null) ...[
                         const SizedBox(height: 10),
-                        _WifiErrorNotice(
-                          message: l10n.wifiOperationFailed,
-                          onDismiss: controller.clearError,
+                        Padding(
+                          padding: mobileApplication
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          child: _WifiErrorNotice(
+                            message: l10n.wifiOperationFailed,
+                            onDismiss: controller.clearError,
+                          ),
                         ),
                       ],
                       if (_credentialNetwork case final network?) ...[
                         const SizedBox(height: 12),
-                        _WifiCredentialPanel(
-                          network: network,
-                          controller: _passwordController,
-                          focusNode: _passwordFocus,
-                          error: _credentialError,
-                          onCancel: _cancelCredential,
-                          onSubmit: _submitCredential,
+                        Padding(
+                          padding: mobileApplication
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          child: _WifiCredentialPanel(
+                            mobileApplication: mobileApplication,
+                            network: network,
+                            controller: _passwordController,
+                            focusNode: _passwordFocus,
+                            error: _credentialError,
+                            onCancel: _cancelCredential,
+                            onSubmit: _submitCredential,
+                          ),
                         ),
                       ],
                       const SizedBox(height: 12),
                       Expanded(
                         child: _WifiNetworkList(
+                          mobileApplication: mobileApplication,
                           state: state,
                           onActivate: _activate,
                           onForget: (network) =>

@@ -1174,8 +1174,9 @@ class _OskLayoutPane extends StatelessWidget {
       builder: (context, constraints) {
         final columns = constraints.maxWidth < 620 ? 2 : 4;
         return GridView.count(
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
+          // Keep lower choices reachable on a short floating keyboard.
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 12),
           crossAxisCount: columns,
           mainAxisSpacing: 8,
           crossAxisSpacing: 8,
