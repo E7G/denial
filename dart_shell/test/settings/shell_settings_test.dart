@@ -198,7 +198,20 @@ void main() {
       showQuickSettingsHint: false,
       portraitCompact: false,
       navigationMode: TabletNavigationMode.threeButton,
-      oskLayoutMode: TabletOskLayoutMode.traditional,
+      oskLayoutMode: TabletOskLayoutMode.floating,
+      oskFloatingPortrait: TabletOskFloatingPlacement(
+        x: 132,
+        y: 512,
+        width: 468,
+        height: 298,
+      ),
+      oskFloatingLandscape: TabletOskFloatingPlacement(
+        x: 310,
+        y: 180,
+        width: 612,
+        height: 276,
+      ),
+      oskFloatingLocked: true,
     );
     final restored = ShellSettings.fromJson(
       const ShellSettings(tablet: tablet).toJson(),
@@ -215,6 +228,13 @@ void main() {
         'tileDensity': 'unknown',
         'navigationMode': 'unknown',
         'oskLayoutMode': 'unknown',
+        'oskFloatingPortrait': <String, dynamic>{
+          'x': -99,
+          'y': 9000,
+          'width': 10,
+          'height': 9999,
+        },
+        'oskFloatingLocked': 'invalid',
       },
     });
 
@@ -223,6 +243,11 @@ void main() {
     expect(settings.tablet.tileDensity, TabletTileDensity.comfortable);
     expect(settings.tablet.navigationMode, TabletNavigationMode.gesture);
     expect(settings.tablet.oskLayoutMode, TabletOskLayoutMode.standard);
+    expect(settings.tablet.oskFloatingPortrait.x, -1);
+    expect(settings.tablet.oskFloatingPortrait.y, 5000);
+    expect(settings.tablet.oskFloatingPortrait.width, 320);
+    expect(settings.tablet.oskFloatingPortrait.height, 600);
+    expect(settings.tablet.oskFloatingLocked, isFalse);
   });
 
   test('OSK layout preference produces a typed tablet patch', () {
@@ -240,6 +265,53 @@ void main() {
     expect(next.differenceFrom(previous), <String, Object?>{
       'tablet': <String, Object?>{'oskLayoutMode': 'traditional'},
     });
+  });
+
+  test('floating OSK placement persists separately by orientation', () {
+    const previous = ShellSettings();
+    final next = previous.copyWith(
+      tablet: previous.tablet.copyWith(
+        oskLayoutMode: TabletOskLayoutMode.floating,
+        oskFloatingPortrait: const TabletOskFloatingPlacement(
+          x: 210,
+          y: 430,
+          width: 480,
+          height: 310,
+        ),
+        oskFloatingLandscape: const TabletOskFloatingPlacement(
+          x: 360,
+          y: 120,
+          width: 640,
+          height: 290,
+        ),
+        oskFloatingLocked: true,
+      ),
+    );
+
+    final restored = ShellSettings.fromJson(next.toJson());
+    expect(restored.tablet.oskLayoutMode, TabletOskLayoutMode.floating);
+    expect(
+      restored.tablet.oskFloatingPortrait,
+      next.tablet.oskFloatingPortrait,
+    );
+    expect(
+      restored.tablet.oskFloatingLandscape,
+      next.tablet.oskFloatingLandscape,
+    );
+    expect(restored.tablet.oskFloatingLocked, isTrue);
+
+    final tabletPatch =
+        next.differenceFrom(previous)['tablet']! as Map<String, Object?>;
+    expect(tabletPatch['oskLayoutMode'], 'floating');
+    expect(
+      tabletPatch['oskFloatingPortrait'],
+      next.tablet.oskFloatingPortrait.toJson(),
+    );
+    expect(
+      tabletPatch['oskFloatingLandscape'],
+      next.tablet.oskFloatingLandscape.toJson(),
+    );
+    expect(tabletPatch['oskFloatingLocked'], isTrue);
   });
 
   test('suspend mode persists and produces a typed patch', () {

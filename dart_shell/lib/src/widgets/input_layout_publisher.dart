@@ -2,7 +2,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/shell_interaction_registry.dart';
+import '../settings/settings_controller.dart';
+import '../settings/shell_settings.dart';
 import '../state/shell_controller.dart';
+import 'osk/floating_osk_geometry.dart';
 
 class InputLayoutPublisher extends ConsumerStatefulWidget {
   const InputLayoutPublisher({super.key, required this.child});
@@ -16,6 +19,8 @@ class InputLayoutPublisher extends ConsumerStatefulWidget {
 
 class _InputLayoutPublisherState extends ConsumerState<InputLayoutPublisher> {
   bool _scheduled = false;
+  Size _pendingViewSize = Size.zero;
+  Rect? _pendingFloatingKeyboardRect;
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +41,34 @@ class _InputLayoutPublisherState extends ConsumerState<InputLayoutPublisher> {
       ),
     );
     ref.watch(shellInteractionRegistryProvider);
-    _schedulePublish(MediaQuery.sizeOf(context));
+    final media = MediaQuery.of(context);
+    final tabletKeyboard = ref.watch(
+      shellSettingsProvider.select(
+        (settings) => (
+          mode: settings.tablet.oskLayoutMode,
+          portrait: settings.tablet.oskFloatingPortrait,
+          landscape: settings.tablet.oskFloatingLandscape,
+        ),
+      ),
+    );
+    final portrait = media.size.height >= media.size.width;
+    final floatingKeyboardRect =
+        tabletKeyboard.mode == TabletOskLayoutMode.floating
+        ? resolveFloatingOskRect(
+            viewSize: media.size,
+            safePadding: media.padding,
+            placement: portrait
+                ? tabletKeyboard.portrait
+                : tabletKeyboard.landscape,
+          )
+        : null;
+    _schedulePublish(media.size, floatingKeyboardRect);
     return widget.child;
   }
 
-  void _schedulePublish(Size viewSize) {
+  void _schedulePublish(Size viewSize, Rect? floatingKeyboardRect) {
+    _pendingViewSize = viewSize;
+    _pendingFloatingKeyboardRect = floatingKeyboardRect;
     if (_scheduled) {
       return;
     }
@@ -54,8 +82,9 @@ class _InputLayoutPublisherState extends ConsumerState<InputLayoutPublisher> {
       ref
           .read(shellControllerProvider.notifier)
           .publishInputLayout(
-            viewSize,
+            _pendingViewSize,
             ref.read(shellInteractionRegistryProvider),
+            floatingKeyboardRect: _pendingFloatingKeyboardRect,
           );
     });
   }

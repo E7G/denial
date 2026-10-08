@@ -379,7 +379,55 @@ enum TabletTileDensity { compact, comfortable, spacious }
 
 enum TabletNavigationMode { gesture, threeButton }
 
-enum TabletOskLayoutMode { standard, split, traditional }
+enum TabletOskLayoutMode { standard, split, traditional, floating }
+
+@immutable
+class TabletOskFloatingPlacement {
+  const TabletOskFloatingPlacement({
+    this.x = -1,
+    this.y = -1,
+    this.width = 470,
+    this.height = 300,
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  TabletOskFloatingPlacement copyWith({
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+  }) {
+    return TabletOskFloatingPlacement(
+      x: x ?? this.x,
+      y: y ?? this.y,
+      width: width ?? this.width,
+      height: height ?? this.height,
+    );
+  }
+
+  Map<String, Object> toJson() => <String, Object>{
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+  };
+
+  @override
+  bool operator ==(Object other) {
+    return other is TabletOskFloatingPlacement &&
+        other.x == x &&
+        other.y == y &&
+        other.width == width &&
+        other.height == height;
+  }
+
+  @override
+  int get hashCode => Object.hash(x, y, width, height);
+}
 
 @immutable
 class ShellTabletSettings {
@@ -394,6 +442,12 @@ class ShellTabletSettings {
     this.portraitCompact = false,
     this.navigationMode = TabletNavigationMode.gesture,
     this.oskLayoutMode = TabletOskLayoutMode.standard,
+    this.oskFloatingPortrait = const TabletOskFloatingPlacement(),
+    this.oskFloatingLandscape = const TabletOskFloatingPlacement(
+      width: 620,
+      height: 280,
+    ),
+    this.oskFloatingLocked = false,
   });
 
   final bool enabled;
@@ -406,6 +460,9 @@ class ShellTabletSettings {
   final bool portraitCompact;
   final TabletNavigationMode navigationMode;
   final TabletOskLayoutMode oskLayoutMode;
+  final TabletOskFloatingPlacement oskFloatingPortrait;
+  final TabletOskFloatingPlacement oskFloatingLandscape;
+  final bool oskFloatingLocked;
 
   ShellTabletSettings copyWith({
     bool? enabled,
@@ -418,6 +475,9 @@ class ShellTabletSettings {
     bool? portraitCompact,
     TabletNavigationMode? navigationMode,
     TabletOskLayoutMode? oskLayoutMode,
+    TabletOskFloatingPlacement? oskFloatingPortrait,
+    TabletOskFloatingPlacement? oskFloatingLandscape,
+    bool? oskFloatingLocked,
   }) {
     return ShellTabletSettings(
       enabled: enabled ?? this.enabled,
@@ -431,6 +491,9 @@ class ShellTabletSettings {
       portraitCompact: portraitCompact ?? this.portraitCompact,
       navigationMode: navigationMode ?? this.navigationMode,
       oskLayoutMode: oskLayoutMode ?? this.oskLayoutMode,
+      oskFloatingPortrait: oskFloatingPortrait ?? this.oskFloatingPortrait,
+      oskFloatingLandscape: oskFloatingLandscape ?? this.oskFloatingLandscape,
+      oskFloatingLocked: oskFloatingLocked ?? this.oskFloatingLocked,
     );
   }
 
@@ -446,7 +509,10 @@ class ShellTabletSettings {
         other.showQuickSettingsHint == showQuickSettingsHint &&
         other.portraitCompact == portraitCompact &&
         other.navigationMode == navigationMode &&
-        other.oskLayoutMode == oskLayoutMode;
+        other.oskLayoutMode == oskLayoutMode &&
+        other.oskFloatingPortrait == oskFloatingPortrait &&
+        other.oskFloatingLandscape == oskFloatingLandscape &&
+        other.oskFloatingLocked == oskFloatingLocked;
   }
 
   @override
@@ -461,6 +527,9 @@ class ShellTabletSettings {
     portraitCompact,
     navigationMode,
     oskLayoutMode,
+    oskFloatingPortrait,
+    oskFloatingLandscape,
+    oskFloatingLocked,
   );
 }
 
@@ -936,7 +1005,7 @@ class ShellSettings {
 
   // Blur levels are additive in schema 9. Keep emitting the derived legacy
   // sigma so older shells can read settings written by this version.
-  static const int schemaVersion = 30;
+  static const int schemaVersion = 31;
 
   final ShellLocalizationSettings localization;
   final ShellAppearanceSettings appearance;
@@ -1142,6 +1211,15 @@ class ShellSettings {
       if (tablet.oskLayoutMode != before.oskLayoutMode) {
         section['oskLayoutMode'] = tablet.oskLayoutMode.name;
       }
+      if (tablet.oskFloatingPortrait != before.oskFloatingPortrait) {
+        section['oskFloatingPortrait'] = tablet.oskFloatingPortrait.toJson();
+      }
+      if (tablet.oskFloatingLandscape != before.oskFloatingLandscape) {
+        section['oskFloatingLandscape'] = tablet.oskFloatingLandscape.toJson();
+      }
+      if (tablet.oskFloatingLocked != before.oskFloatingLocked) {
+        section['oskFloatingLocked'] = tablet.oskFloatingLocked;
+      }
       patch['tablet'] = section;
     }
 
@@ -1294,6 +1372,9 @@ class ShellSettings {
         'portraitCompact': tablet.portraitCompact,
         'navigationMode': tablet.navigationMode.name,
         'oskLayoutMode': tablet.oskLayoutMode.name,
+        'oskFloatingPortrait': tablet.oskFloatingPortrait.toJson(),
+        'oskFloatingLandscape': tablet.oskFloatingLandscape.toJson(),
+        'oskFloatingLocked': tablet.oskFloatingLocked,
       },
       'overlays': <String, Object>{
         'launcher': _placementToJson(overlays.launcher),
@@ -1620,6 +1701,17 @@ class ShellSettings {
           tabletJson['oskLayoutMode'],
           defaults.tablet.oskLayoutMode,
         ),
+        oskFloatingPortrait: _oskFloatingPlacement(
+          tabletJson['oskFloatingPortrait'],
+          defaults.tablet.oskFloatingPortrait,
+        ),
+        oskFloatingLandscape: _oskFloatingPlacement(
+          tabletJson['oskFloatingLandscape'],
+          defaults.tablet.oskFloatingLandscape,
+        ),
+        oskFloatingLocked: tabletJson['oskFloatingLocked'] is bool
+            ? tabletJson['oskFloatingLocked'] as bool
+            : defaults.tablet.oskFloatingLocked,
       ),
       overlays: ShellOverlaySettings(
         launcher: _placement(
@@ -1794,6 +1886,19 @@ ShellPopupPlacement _placement(
     hoverTriggerEnabled: json['hoverTriggerEnabled'] is bool
         ? json['hoverTriggerEnabled'] as bool
         : fallback.hoverTriggerEnabled,
+  );
+}
+
+TabletOskFloatingPlacement _oskFloatingPlacement(
+  Object? value,
+  TabletOskFloatingPlacement fallback,
+) {
+  final json = _map(value);
+  return TabletOskFloatingPlacement(
+    x: _number(json['x'], fallback.x, -1, 5000),
+    y: _number(json['y'], fallback.y, -1, 5000),
+    width: _number(json['width'], fallback.width, 320, 900),
+    height: _number(json['height'], fallback.height, 220, 600),
   );
 }
 

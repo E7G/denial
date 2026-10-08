@@ -465,6 +465,25 @@ class ShellSettingsController extends Notifier<ShellSettings> {
     );
   }
 
+  void setTabletOskFloatingPlacement({
+    required bool portrait,
+    required TabletOskFloatingPlacement placement,
+  }) {
+    _update(
+      state.copyWith(
+        tablet: portrait
+            ? state.tablet.copyWith(oskFloatingPortrait: placement)
+            : state.tablet.copyWith(oskFloatingLandscape: placement),
+      ),
+    );
+  }
+
+  void setTabletOskFloatingLocked(bool value) {
+    _update(
+      state.copyWith(tablet: state.tablet.copyWith(oskFloatingLocked: value)),
+    );
+  }
+
   void setOverlayPlacement(
     ShellOverlaySurface surface,
     ShellPopupPlacement placement,

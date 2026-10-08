@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart' show Icons;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +10,12 @@ import '../platform/denial_bridge.dart';
 import '../services/clipboard_history_service.dart';
 import '../services/fcitx_kimpanel_service.dart';
 import '../services/haptics_service.dart';
+import '../settings/settings_controller.dart';
+import '../settings/shell_settings.dart';
 import '../state/shell_controller.dart';
 import '../theme/motion.dart';
 import '../theme/shell_theme.dart';
+import 'osk/floating_osk_geometry.dart';
 import 'osk/shell_osk_panel.dart';
 import 'retained_translation.dart';
 import 'shell_backdrop_blur.dart';
@@ -245,6 +250,23 @@ class _EdgePanelSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final floating = ref.watch(
+      shellSettingsProvider.select(
+        (settings) =>
+            settings.tablet.oskLayoutMode == TabletOskLayoutMode.floating,
+      ),
+    );
+    return floating
+        ? const _FloatingEdgePanelSheet()
+        : const _DockedEdgePanelSheet();
+  }
+}
+
+class _DockedEdgePanelSheet extends ConsumerWidget {
+  const _DockedEdgePanelSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(shellControllerProvider.notifier);
     final size = MediaQuery.sizeOf(context);
     final panelHeight = ShellMetrics.edgePanelHeight(size);
@@ -271,8 +293,237 @@ class _EdgePanelSheet extends ConsumerWidget {
   }
 }
 
+class _FloatingEdgePanelSheet extends ConsumerStatefulWidget {
+  const _FloatingEdgePanelSheet();
+
+  @override
+  ConsumerState<_FloatingEdgePanelSheet> createState() =>
+      _FloatingEdgePanelSheetState();
+}
+
+class _FloatingEdgePanelSheetState
+    extends ConsumerState<_FloatingEdgePanelSheet> {
+  Rect? _draftRect;
+  TabletOskFloatingPlacement? _sourcePlacement;
+  bool? _portrait;
+  bool _interacting = false;
+
+  TabletOskFloatingPlacement _savedPlacement(
+    ShellTabletSettings settings,
+    bool portrait,
+  ) {
+    return portrait
+        ? settings.oskFloatingPortrait
+        : settings.oskFloatingLandscape;
+  }
+
+  Rect _resolvedRect(
+    BuildContext context,
+    ShellTabletSettings settings,
+    bool portrait,
+  ) {
+    final viewSize = MediaQuery.sizeOf(context);
+    final safePadding = MediaQuery.paddingOf(context);
+    final saved = _savedPlacement(settings, portrait);
+
+    if (!_interacting &&
+        (_draftRect == null ||
+            _portrait != portrait ||
+            _sourcePlacement != saved)) {
+      _portrait = portrait;
+      _sourcePlacement = saved;
+      _draftRect = resolveFloatingOskRect(
+        viewSize: viewSize,
+        safePadding: safePadding,
+        placement: saved,
+      );
+    }
+
+    final current =
+        _draftRect ??
+        resolveFloatingOskRect(
+          viewSize: viewSize,
+          safePadding: safePadding,
+          placement: saved,
+        );
+    final bounded = resolveFloatingOskRect(
+      viewSize: viewSize,
+      safePadding: safePadding,
+      placement: placementFromFloatingOskRect(current),
+    );
+    if (bounded != current && !_interacting) {
+      _draftRect = bounded;
+    }
+    return bounded;
+  }
+
+  void _move(DragUpdateDetails details) {
+    final rect = _draftRect;
+    if (rect == null) {
+      return;
+    }
+    setState(() {
+      _interacting = true;
+      final moved = rect.shift(details.delta);
+      _draftRect = resolveFloatingOskRect(
+        viewSize: MediaQuery.sizeOf(context),
+        safePadding: MediaQuery.paddingOf(context),
+        placement: placementFromFloatingOskRect(moved),
+      );
+    });
+  }
+
+  void _resize(DragUpdateDetails details) {
+    final rect = _draftRect;
+    if (rect == null) {
+      return;
+    }
+    setState(() {
+      _interacting = true;
+      final resized = Rect.fromLTWH(
+        rect.left,
+        rect.top,
+        rect.width + details.delta.dx,
+        rect.height + details.delta.dy,
+      );
+      _draftRect = resolveFloatingOskRect(
+        viewSize: MediaQuery.sizeOf(context),
+        safePadding: MediaQuery.paddingOf(context),
+        placement: placementFromFloatingOskRect(resized),
+      );
+    });
+  }
+
+  void _finishInteraction([DragEndDetails? _]) {
+    _interacting = false;
+    _persist();
+  }
+
+  void _persist() {
+    final rect = _draftRect;
+    final portrait = _portrait;
+    if (rect == null || portrait == null || rect.isEmpty) {
+      return;
+    }
+    final placement = placementFromFloatingOskRect(rect);
+    _sourcePlacement = placement;
+    ref
+        .read(shellSettingsProvider.notifier)
+        .setTabletOskFloatingPlacement(
+          portrait: portrait,
+          placement: placement,
+        );
+  }
+
+  void _toggleLock(bool locked) {
+    ref
+        .read(shellSettingsProvider.notifier)
+        .setTabletOskFloatingLocked(!locked);
+  }
+
+  void _dockBottom() {
+    final rect = _draftRect;
+    if (rect == null) {
+      return;
+    }
+    final viewSize = MediaQuery.sizeOf(context);
+    final safe = MediaQuery.paddingOf(context);
+    final centered = TabletOskFloatingPlacement(
+      x: (viewSize.width - rect.width) / 2,
+      y: viewSize.height - safe.bottom - floatingOskBottomMargin - rect.height,
+      width: rect.width,
+      height: rect.height,
+    );
+    setState(() {
+      _interacting = false;
+      _draftRect = resolveFloatingOskRect(
+        viewSize: viewSize,
+        safePadding: safe,
+        placement: centered,
+      );
+    });
+    _persist();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabletSettings = ref.watch(
+      shellSettingsProvider.select((settings) => settings.tablet),
+    );
+    final portrait =
+        MediaQuery.sizeOf(context).height >= MediaQuery.sizeOf(context).width;
+    final rect = _resolvedRect(context, tabletSettings, portrait);
+    final locked = tabletSettings.oskFloatingLocked;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fromRect(
+          rect: rect,
+          child: RepaintBoundary(
+            key: const ValueKey('floating-osk-surface'),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _EdgePanelContent(
+                  floating: true,
+                  floatingLocked: locked,
+                  onFloatingMoveUpdate: locked ? null : _move,
+                  onFloatingMoveEnd: locked ? null : _finishInteraction,
+                  onToggleFloatingLock: () => _toggleLock(locked),
+                  onDockFloating: _dockBottom,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  width: 42,
+                  height: 42,
+                  child: IgnorePointer(
+                    ignoring: locked,
+                    child: GestureDetector(
+                      key: const ValueKey('osk-floating-resize-handle'),
+                      behavior: HitTestBehavior.opaque,
+                      onPanUpdate: _resize,
+                      onPanEnd: _finishInteraction,
+                      child: Align(
+                        alignment: Alignment.bottomRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.open_in_full_rounded,
+                            size: 16,
+                            color: context.shellColors.textTertiary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _EdgePanelContent extends ConsumerWidget {
-  const _EdgePanelContent();
+  const _EdgePanelContent({
+    this.floating = false,
+    this.floatingLocked = false,
+    this.onFloatingMoveUpdate,
+    this.onFloatingMoveEnd,
+    this.onToggleFloatingLock,
+    this.onDockFloating,
+  });
+
+  final bool floating;
+  final bool floatingLocked;
+  final GestureDragUpdateCallback? onFloatingMoveUpdate;
+  final GestureDragEndCallback? onFloatingMoveEnd;
+  final VoidCallback? onToggleFloatingLock;
+  final VoidCallback? onDockFloating;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -282,16 +533,25 @@ class _EdgePanelContent extends ConsumerWidget {
     final clipboard = ref.read(clipboardHistoryServiceProvider);
     final haptics = ref.read(hapticsServiceProvider);
     final theme = ShellTheme.of(context);
+    final radius = floating
+        ? BorderRadius.circular(14)
+        : const BorderRadius.vertical(top: Radius.circular(12));
     return ShellBackdropBlur(
       separateChild: true,
       blur: theme.effectivePanelOpacity < 1.0,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      borderRadius: radius,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: theme.panelColor(context.shellColors.panelBackground),
-          border: Border(
-            top: BorderSide(color: context.shellColors.hairline, width: 1),
-          ),
+          borderRadius: radius,
+          border: floating
+              ? Border.all(color: context.shellColors.hairline, width: 1)
+              : Border(
+                  top: BorderSide(
+                    color: context.shellColors.hairline,
+                    width: 1,
+                  ),
+                ),
         ),
         child: RepaintBoundary(
           // Keep OSK presses inside the focused EditableText tap group. A
@@ -316,6 +576,12 @@ class _EdgePanelContent extends ConsumerWidget {
               onCandidateNextPage: () {
                 unawaited(candidateService.nextPage());
               },
+              floating: floating,
+              floatingLocked: floatingLocked,
+              onFloatingMoveUpdate: onFloatingMoveUpdate,
+              onFloatingMoveEnd: onFloatingMoveEnd,
+              onToggleFloatingLock: onToggleFloatingLock,
+              onDockFloating: onDockFloating,
               onKey: (intent) => _sendOskIntent(bridge, intent),
             ),
           ),

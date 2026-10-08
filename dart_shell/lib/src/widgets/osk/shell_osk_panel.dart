@@ -74,6 +74,12 @@ class ShellOskPanel extends ConsumerStatefulWidget {
     this.onCandidateSelected,
     this.onCandidatePreviousPage,
     this.onCandidateNextPage,
+    this.floating = false,
+    this.floatingLocked = false,
+    this.onFloatingMoveUpdate,
+    this.onFloatingMoveEnd,
+    this.onToggleFloatingLock,
+    this.onDockFloating,
   });
 
   final ValueChanged<ShellOskKeyIntent>? onKey;
@@ -85,6 +91,12 @@ class ShellOskPanel extends ConsumerStatefulWidget {
   final ValueChanged<int>? onCandidateSelected;
   final VoidCallback? onCandidatePreviousPage;
   final VoidCallback? onCandidateNextPage;
+  final bool floating;
+  final bool floatingLocked;
+  final GestureDragUpdateCallback? onFloatingMoveUpdate;
+  final GestureDragEndCallback? onFloatingMoveEnd;
+  final VoidCallback? onToggleFloatingLock;
+  final VoidCallback? onDockFloating;
 
   @override
   ConsumerState<ShellOskPanel> createState() => _ShellOskPanelState();
@@ -173,6 +185,12 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
                   onToggleLanguage: () =>
                       _handleControl(_OskControl.inputMethod),
                   onDismiss: widget.onDismiss,
+                  floating: widget.floating,
+                  floatingLocked: widget.floatingLocked,
+                  onFloatingMoveUpdate: widget.onFloatingMoveUpdate,
+                  onFloatingMoveEnd: widget.onFloatingMoveEnd,
+                  onToggleFloatingLock: widget.onToggleFloatingLock,
+                  onDockFloating: widget.onDockFloating,
                 ),
               ),
               SizedBox(height: compact ? 4 : 6),
@@ -521,6 +539,12 @@ class _WindowsOskToolbar extends StatelessWidget {
     required this.onLayouts,
     required this.onToggleLanguage,
     required this.onDismiss,
+    required this.floating,
+    required this.floatingLocked,
+    required this.onFloatingMoveUpdate,
+    required this.onFloatingMoveEnd,
+    required this.onToggleFloatingLock,
+    required this.onDockFloating,
   });
 
   final _OskPane pane;
@@ -536,18 +560,34 @@ class _WindowsOskToolbar extends StatelessWidget {
   final VoidCallback onLayouts;
   final VoidCallback onToggleLanguage;
   final VoidCallback? onDismiss;
+  final bool floating;
+  final bool floatingLocked;
+  final GestureDragUpdateCallback? onFloatingMoveUpdate;
+  final GestureDragEndCallback? onFloatingMoveEnd;
+  final VoidCallback? onToggleFloatingLock;
+  final VoidCallback? onDockFloating;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(
-          width: 34,
-          child: Center(
-            child: Icon(
-              Icons.drag_handle_rounded,
-              size: 19,
-              color: context.shellColors.textTertiary,
+        GestureDetector(
+          key: const ValueKey('osk-floating-move-handle'),
+          behavior: HitTestBehavior.opaque,
+          onPanUpdate: floating && !floatingLocked
+              ? onFloatingMoveUpdate
+              : null,
+          onPanEnd: floating && !floatingLocked ? onFloatingMoveEnd : null,
+          child: SizedBox(
+            width: 34,
+            child: Center(
+              child: Icon(
+                floatingLocked
+                    ? Icons.lock_outline_rounded
+                    : Icons.drag_handle_rounded,
+                size: 19,
+                color: context.shellColors.textTertiary,
+              ),
             ),
           ),
         ),
@@ -577,9 +617,11 @@ class _WindowsOskToolbar extends StatelessWidget {
         const SizedBox(width: 4),
         _OskToolbarButton(
           key: const ValueKey('osk-layout-pane'),
-          icon: layoutMode == _OskLayoutMode.split
-              ? Icons.view_week_outlined
-              : Icons.keyboard_rounded,
+          icon: switch (layoutMode) {
+            _OskLayoutMode.split => Icons.view_week_outlined,
+            _OskLayoutMode.floating => Icons.open_in_new_rounded,
+            _ => Icons.keyboard_rounded,
+          },
           selected: pane == _OskPane.layouts,
           onTap: onLayouts,
           semanticLabel: '键盘布局',
@@ -628,6 +670,23 @@ class _WindowsOskToolbar extends StatelessWidget {
             ),
           ),
         ),
+        if (floating) ...[
+          const SizedBox(width: 4),
+          _OskToolbarButton(
+            key: const ValueKey('osk-floating-lock'),
+            icon: floatingLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+            selected: floatingLocked,
+            onTap: onToggleFloatingLock,
+            semanticLabel: floatingLocked ? '解锁浮动键盘' : '锁定浮动键盘',
+          ),
+          const SizedBox(width: 4),
+          _OskToolbarButton(
+            key: const ValueKey('osk-floating-dock-bottom'),
+            icon: Icons.vertical_align_bottom_rounded,
+            onTap: onDockFloating,
+            semanticLabel: '浮动键盘靠底',
+          ),
+        ],
         const SizedBox(width: 6),
         _OskToolbarButton(
           key: const ValueKey('osk-hide-keyboard'),
@@ -1111,44 +1170,56 @@ class _OskLayoutPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _OskLayoutChoice(
-            icon: Icons.keyboard_alt_outlined,
-            title: '默认',
-            subtitle: '大键帽，适合触摸',
-            selected: selected == _OskLayoutMode.standard,
-            onTap: () => onSelected(_OskLayoutMode.standard),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _OskLayoutChoice(
-            icon: Icons.view_week_outlined,
-            title: '拆分',
-            subtitle: '左右分开，双手握持',
-            selected: selected == _OskLayoutMode.split,
-            onTap: () => onSelected(_OskLayoutMode.split),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _OskLayoutChoice(
-            icon: Icons.keyboard_rounded,
-            title: '传统',
-            subtitle: 'Esc / Tab / Ctrl / 方向键',
-            selected: selected == _OskLayoutMode.traditional,
-            onTap: () => onSelected(_OskLayoutMode.traditional),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 620 ? 2 : 4;
+        return GridView.count(
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          crossAxisCount: columns,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: columns == 2 ? 2.15 : 1.25,
+          children: [
+            _OskLayoutChoice(
+              icon: Icons.keyboard_alt_outlined,
+              title: '默认',
+              subtitle: '大键帽，适合触摸',
+              selected: selected == _OskLayoutMode.standard,
+              onTap: () => onSelected(_OskLayoutMode.standard),
+            ),
+            _OskLayoutChoice(
+              icon: Icons.view_week_outlined,
+              title: '拆分',
+              subtitle: '左右分开，双手握持',
+              selected: selected == _OskLayoutMode.split,
+              onTap: () => onSelected(_OskLayoutMode.split),
+            ),
+            _OskLayoutChoice(
+              icon: Icons.keyboard_rounded,
+              title: '传统',
+              subtitle: 'Esc / Tab / Ctrl / 方向键',
+              selected: selected == _OskLayoutMode.traditional,
+              onTap: () => onSelected(_OskLayoutMode.traditional),
+            ),
+            _OskLayoutChoice(
+              key: const ValueKey('osk-floating-layout'),
+              icon: Icons.open_in_new_rounded,
+              title: '浮动',
+              subtitle: '可拖动、缩放，不顶应用',
+              selected: selected == _OskLayoutMode.floating,
+              onTap: () => onSelected(_OskLayoutMode.floating),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _OskLayoutChoice extends StatelessWidget {
   const _OskLayoutChoice({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -1589,19 +1660,21 @@ enum _OskLayer { letters, numbers, symbols }
 
 enum _OskPane { keyboard, emoji, clipboard, layouts }
 
-enum _OskLayoutMode { standard, split, traditional }
+enum _OskLayoutMode { standard, split, traditional, floating }
 
 _OskLayoutMode _oskLayoutFromSetting(TabletOskLayoutMode mode) =>
     switch (mode) {
       TabletOskLayoutMode.standard => _OskLayoutMode.standard,
       TabletOskLayoutMode.split => _OskLayoutMode.split,
       TabletOskLayoutMode.traditional => _OskLayoutMode.traditional,
+      TabletOskLayoutMode.floating => _OskLayoutMode.floating,
     };
 
 TabletOskLayoutMode _oskLayoutSetting(_OskLayoutMode mode) => switch (mode) {
   _OskLayoutMode.standard => TabletOskLayoutMode.standard,
   _OskLayoutMode.split => TabletOskLayoutMode.split,
   _OskLayoutMode.traditional => TabletOskLayoutMode.traditional,
+  _OskLayoutMode.floating => TabletOskLayoutMode.floating,
 };
 
 enum _OskControl {

@@ -1,5 +1,7 @@
 import 'package:denial_dart_shell/src/features/mobile/mobile_primary_window_stage.dart';
 import 'package:denial_dart_shell/src/input/input_layout.dart';
+import 'package:denial_dart_shell/src/settings/settings_controller.dart';
+import 'package:denial_dart_shell/src/settings/shell_settings.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/shell_state.dart';
 import 'package:denial_dart_shell/src/widgets/edge_panel_layer.dart';
@@ -169,6 +171,93 @@ void main() {
   );
 
   testWidgets(
+    'floating keyboard moves and resizes without moving application content',
+    (tester) async {
+      const size = Size(768, 1024);
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final shell = _MotionShell();
+      final settings = _FloatingSettingsMemory();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            shellControllerProvider.overrideWith(() => shell),
+            shellSettingsProvider.overrideWith(
+              () => _FloatingSettingsController(settings),
+            ),
+          ],
+          child: mobileMotionHarness(
+            const Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(
+                  key: ValueKey('floating-app-content'),
+                  color: Color(0xff123456),
+                ),
+                EdgePanelLayer(),
+              ],
+            ),
+            size: size,
+          ),
+        ),
+      );
+
+      shell.position(1);
+      await tester.pumpAndSettle();
+
+      final surface = find.byKey(const ValueKey('floating-osk-surface'));
+      expect(surface, findsOneWidget);
+      final before = tester.getRect(surface);
+      expect(before.width, closeTo(470, 0.1));
+      expect(before.height, closeTo(300, 0.1));
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('floating-app-content'))),
+        Offset.zero,
+      );
+
+      final moveHandle = find.byKey(const ValueKey('osk-floating-move-handle'));
+      final move = await tester.startGesture(tester.getCenter(moveHandle));
+      await move.moveBy(const Offset(-60, -80));
+      await move.up();
+      await tester.pump();
+
+      final moved = tester.getRect(surface);
+      expect(moved.left, lessThan(before.left));
+      expect(moved.top, lessThan(before.top));
+      expect(
+        settings.value.tablet.oskFloatingPortrait.x,
+        closeTo(moved.left, 0.1),
+      );
+      expect(
+        settings.value.tablet.oskFloatingPortrait.y,
+        closeTo(moved.top, 0.1),
+      );
+
+      final resizeHandle = find.byKey(
+        const ValueKey('osk-floating-resize-handle'),
+      );
+      final resize = await tester.startGesture(tester.getCenter(resizeHandle));
+      await resize.moveBy(const Offset(-40, -30));
+      await resize.up();
+      await tester.pump();
+
+      final resized = tester.getRect(surface);
+      expect(resized.width, lessThan(moved.width));
+      expect(resized.height, lessThan(moved.height));
+      expect(
+        settings.value.tablet.oskFloatingPortrait.width,
+        closeTo(resized.width, 0.1),
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('floating-app-content'))),
+        Offset.zero,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'keyboard slides and viewport pans retain content and build only at phase changes',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(400, 800));
@@ -240,6 +329,42 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+class _FloatingSettingsMemory {
+  ShellSettings value = const ShellSettings(
+    tablet: ShellTabletSettings(oskLayoutMode: TabletOskLayoutMode.floating),
+  );
+}
+
+class _FloatingSettingsController extends ShellSettingsController {
+  _FloatingSettingsController(this.memory);
+
+  final _FloatingSettingsMemory memory;
+
+  @override
+  ShellSettings build() => memory.value;
+
+  @override
+  void setTabletOskFloatingPlacement({
+    required bool portrait,
+    required TabletOskFloatingPlacement placement,
+  }) {
+    memory.value = state.copyWith(
+      tablet: portrait
+          ? state.tablet.copyWith(oskFloatingPortrait: placement)
+          : state.tablet.copyWith(oskFloatingLandscape: placement),
+    );
+    state = memory.value;
+  }
+
+  @override
+  void setTabletOskFloatingLocked(bool value) {
+    memory.value = state.copyWith(
+      tablet: state.tablet.copyWith(oskFloatingLocked: value),
+    );
+    state = memory.value;
+  }
 }
 
 class _MotionShell extends ShellController {

@@ -1072,12 +1072,14 @@ class ShellController extends Notifier<ShellState>
 
   void publishInputLayout(
     Size viewSize,
-    ShellInteractionSnapshot interactions,
-  ) {
+    ShellInteractionSnapshot interactions, {
+    Rect? floatingKeyboardRect,
+  }) {
     _inputLayoutCoordinator.publish(
       state: state,
       viewSize: viewSize,
       interactions: interactions,
+      floatingKeyboardRect: floatingKeyboardRect,
     );
   }
 }

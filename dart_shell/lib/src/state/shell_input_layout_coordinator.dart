@@ -57,6 +57,7 @@ class ShellInputLayoutCoordinator {
     required ShellState state,
     required Size viewSize,
     required ShellInteractionSnapshot interactions,
+    Rect? floatingKeyboardRect,
   }) {
     if (viewSize.width <= 0 || viewSize.height <= 0) {
       return;
@@ -71,11 +72,17 @@ class ShellInputLayoutCoordinator {
       viewSize,
       edgePanelProgress,
     );
-    final softwareKeyboardRegions = ShellMetrics.softwareKeyboardRegions(
-      viewSize,
-      progress: edgePanelProgress,
-      scrollStripVisible: false,
-    );
+    final floatingKeyboardActive =
+        edgePanelActive &&
+        floatingKeyboardRect != null &&
+        !floatingKeyboardRect.isEmpty;
+    final softwareKeyboardRegions = floatingKeyboardActive
+        ? <Rect>[floatingKeyboardRect]
+        : ShellMetrics.softwareKeyboardRegions(
+            viewSize,
+            progress: edgePanelProgress,
+            scrollStripVisible: false,
+          );
     if (state.lockLayerVisible) {
       final lockBackgroundWindow = state.primaryWindow;
       _publishInputLayout(
@@ -102,7 +109,7 @@ class ShellInputLayoutCoordinator {
     // must therefore stay in the same unshifted coordinate space as the
     // visual window, regardless of any stale legacy viewport-pan state.
     const contentOffset = 0.0;
-    final inputBottom = edgePanelActive
+    final inputBottom = edgePanelActive && !floatingKeyboardActive
         ? edgePanelRect.top.clamp(0.0, viewSize.height).toDouble()
         : viewSize.height;
     final inputWindow = state.inputWindow;
@@ -116,7 +123,10 @@ class ShellInputLayoutCoordinator {
         canvas
       else if (edgePanelActive) ...[
         ShellMetrics.statusRect(viewSize),
-        if (edgePanelRect.height > 0.0) edgePanelRect,
+        if (floatingKeyboardActive)
+          floatingKeyboardRect
+        else if (edgePanelRect.height > 0.0)
+          edgePanelRect,
       ] else ...[
         ShellMetrics.statusRect(viewSize),
         ShellMetrics.gestureRect(viewSize),

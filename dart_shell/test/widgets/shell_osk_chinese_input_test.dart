@@ -92,6 +92,57 @@ void main() {
   );
 
   testWidgets(
+    'Windows OSK exposes floating mode and floating window controls',
+    (tester) async {
+      final settings = _MemorySettings();
+      var moveUpdates = 0;
+      var moveEnds = 0;
+      var lockToggles = 0;
+      var docks = 0;
+
+      await tester.pumpWidget(
+        _host(
+          ShellOskPanel(
+            floating: true,
+            onFloatingMoveUpdate: (_) => moveUpdates += 1,
+            onFloatingMoveEnd: (_) => moveEnds += 1,
+            onToggleFloatingLock: () => lockToggles += 1,
+            onDockFloating: () => docks += 1,
+          ),
+          settings: settings,
+        ),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('osk-layout-pane')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('osk-floating-layout')), findsOneWidget);
+      await tester.tap(find.text('浮动'));
+      await tester.pump();
+
+      expect(settings.value.tablet.oskLayoutMode, TabletOskLayoutMode.floating);
+      expect(find.byKey(const ValueKey('osk-floating-lock')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('osk-floating-dock-bottom')),
+        findsOneWidget,
+      );
+
+      final handle = find.byKey(const ValueKey('osk-floating-move-handle'));
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await gesture.moveBy(const Offset(24, -12));
+      await gesture.up();
+      await tester.pump();
+      expect(moveUpdates, greaterThan(0));
+      expect(moveEnds, 1);
+
+      await tester.tap(find.byKey(const ValueKey('osk-floating-lock')));
+      await tester.tap(find.byKey(const ValueKey('osk-floating-dock-bottom')));
+      await tester.pump();
+      expect(lockToggles, 1);
+      expect(docks, 1);
+    },
+  );
+
+  testWidgets(
     'Windows OSK paints structured Fcitx candidates as native toolbar controls',
     (tester) async {
       final selected = <int>[];
