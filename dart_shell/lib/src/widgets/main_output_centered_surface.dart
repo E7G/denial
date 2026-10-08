@@ -17,13 +17,11 @@ class MainOutputCenteredSurface extends ConsumerWidget {
   const MainOutputCenteredSurface({
     required this.builder,
     this.padding = const EdgeInsets.all(24),
-    this.fullBleed = false,
     super.key,
   });
 
   final MainOutputSurfaceBuilder builder;
   final EdgeInsetsGeometry padding;
-  final bool fullBleed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,7 +42,7 @@ class MainOutputCenteredSurface extends ConsumerWidget {
         Positioned.fromRect(
           rect: outputRect,
           child: Padding(
-            padding: fullBleed ? EdgeInsets.zero : padding,
+            padding: padding,
             child: LayoutBuilder(
               builder: (context, constraints) => Center(
                 child: GestureDetector(
@@ -52,10 +50,8 @@ class MainOutputCenteredSurface extends ConsumerWidget {
                   onTap: () {},
                   child: ShellBackdropBlur(
                     separateChild: true,
-                    blur: !fullBleed && theme.effectivePanelOpacity < 1.0,
-                    borderRadius: fullBleed
-                        ? BorderRadius.zero
-                        : BorderRadius.circular(theme.panelRadius),
+                    blur: theme.effectivePanelOpacity < 1.0,
+                    borderRadius: BorderRadius.circular(theme.panelRadius),
                     child: builder(context, constraints),
                   ),
                 ),

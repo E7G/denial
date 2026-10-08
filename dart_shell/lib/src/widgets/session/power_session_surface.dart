@@ -12,7 +12,6 @@ import '../../input/shell_interaction_registry.dart';
 import '../../localization/denial_localizations.dart';
 import '../../services/logind_service.dart';
 import '../../state/session_power.dart';
-import '../../state/shell_profile.dart';
 import '../../theme/motion.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
@@ -21,7 +20,6 @@ import '../shell_surface_host.dart';
 
 void showPowerSessionSurface(WidgetRef ref) {
   unawaited(ref.read(sessionPowerProvider.notifier).refresh());
-  final mobile = ref.read(shellProfileProvider) == ShellProfile.mobile;
   ref
       .read(shellSurfaceControllerProvider.notifier)
       .show(
@@ -30,9 +28,6 @@ void showPowerSessionSurface(WidgetRef ref) {
         pointerPolicy: ShellPointerPolicy.fullScene,
         keyboardPolicy: ShellKeyboardPolicy.capture,
         dismissPolicy: ShellDismissPolicy.outsideTapAndEscape,
-        presentation: mobile
-            ? ShellSurfacePresentation.fullscreen
-            : ShellSurfacePresentation.modal,
         builder: (_, handle) => PowerSessionSurface(onClose: handle.close),
       );
 }
@@ -49,18 +44,11 @@ class PowerSessionSurface extends ConsumerWidget {
     final confirmationAction = state.confirmationAction;
     final theme = ShellTheme.of(context);
     final l10n = context.l10n;
-    final mobileApplication =
-        ref.watch(shellProfileProvider) == ShellProfile.mobile;
     return MainOutputCenteredSurface(
       padding: const EdgeInsets.all(20),
-      fullBleed: mobileApplication,
       builder: (context, constraints) {
-        final width = mobileApplication
-            ? constraints.maxWidth
-            : math.min(560.0, constraints.maxWidth);
-        final height = mobileApplication
-            ? constraints.maxHeight
-            : math.min(680.0, constraints.maxHeight);
+        final width = math.min(560.0, constraints.maxWidth);
+        final height = math.min(680.0, constraints.maxHeight);
         return SizedBox(
           width: width,
           height: height,
@@ -68,35 +56,21 @@ class PowerSessionSurface extends ConsumerWidget {
             label: l10n.powerSessionSemantics,
             container: true,
             explicitChildNodes: true,
-            role: mobileApplication
-                ? .main
-                : (confirmationAction == null ? .dialog : .alertDialog),
+            role: confirmationAction == null ? .dialog : .alertDialog,
             child: DecoratedBox(
-              key: ValueKey<String>(
-                mobileApplication
-                    ? 'power-application-surface'
-                    : 'power-dialog-surface',
-              ),
               decoration: BoxDecoration(
                 color: theme.panelColor(context.shellColors.panelBackground),
-                borderRadius: mobileApplication
-                    ? BorderRadius.zero
-                    : BorderRadius.circular(theme.panelRadius),
-                border: mobileApplication
-                    ? null
-                    : Border.all(color: context.shellColors.hairline),
+                borderRadius: BorderRadius.circular(theme.panelRadius),
+                border: Border.all(color: context.shellColors.hairline),
               ),
               child: Padding(
-                padding: mobileApplication
-                    ? const EdgeInsets.fromLTRB(14, 10, 14, 14)
-                    : const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
                 child: FocusTraversalGroup(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       _PowerHeader(
                         busy: state.busy,
-                        applicationStyle: mobileApplication,
                         onRefresh: () => unawaited(controller.refresh()),
                         onClose: onClose,
                       ),
@@ -178,13 +152,11 @@ class PowerSessionSurface extends ConsumerWidget {
 class _PowerHeader extends StatelessWidget {
   const _PowerHeader({
     required this.busy,
-    required this.applicationStyle,
     required this.onRefresh,
     required this.onClose,
   });
 
   final bool busy;
-  final bool applicationStyle;
   final VoidCallback onRefresh;
   final VoidCallback onClose;
 
@@ -194,14 +166,6 @@ class _PowerHeader extends StatelessWidget {
     final l10n = context.l10n;
     return Row(
       children: <Widget>[
-        if (applicationStyle) ...<Widget>[
-          _PowerIconButton(
-            label: l10n.powerSessionClose,
-            icon: Icons.arrow_back_rounded,
-            onPressed: onClose,
-          ),
-          const SizedBox(width: 8),
-        ],
         DecoratedBox(
           decoration: BoxDecoration(
             color: accent.container,
@@ -243,14 +207,12 @@ class _PowerHeader extends StatelessWidget {
           enabled: !busy,
           onPressed: onRefresh,
         ),
-        if (!applicationStyle) ...<Widget>[
-          const SizedBox(width: 7),
-          _PowerIconButton(
-            label: l10n.powerSessionClose,
-            icon: Icons.close_rounded,
-            onPressed: onClose,
-          ),
-        ],
+        const SizedBox(width: 7),
+        _PowerIconButton(
+          label: l10n.powerSessionClose,
+          icon: Icons.close_rounded,
+          onPressed: onClose,
+        ),
       ],
     );
   }
