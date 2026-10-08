@@ -123,7 +123,7 @@ fn migrates_existing_shell_document_without_losing_sections() {
 }
 
 #[test]
-fn schema_29_shell_update_preserves_tablet_settings() {
+fn current_schema_shell_update_preserves_tablet_settings() {
     let temporary = TemporaryDirectory::new("settings-tablet-schema");
     let mut manager = SettingsManager::load_path(temporary.settings_path()).unwrap();
     let update = manager
@@ -139,14 +139,36 @@ fn schema_29_shell_update_preserves_tablet_settings() {
                 }
             })),
         )
-        .expect("schema 29 tablet settings should be accepted");
+        .expect("current-schema tablet settings should be accepted");
     manager.commit(update).unwrap();
 
     let document: Value = serde_json::from_str(&manager.document_json().unwrap()).unwrap();
-    assert_eq!(document["version"], 29);
+    assert_eq!(document["version"], SETTINGS_SCHEMA_VERSION);
     assert_eq!(document["tablet"]["enabled"], true);
     assert_eq!(document["tablet"]["tileDensity"], "comfortable");
     assert_eq!(document["tablet"]["navigationMode"], "threeButton");
+}
+
+#[test]
+fn schema_30_document_migrates_without_losing_tablet_osk_layout() {
+    let temporary = TemporaryDirectory::new("settings-schema-30");
+    let path = temporary.settings_path();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        br#"{"version":30,"tablet":{"enabled":true,"oskLayoutMode":"traditional"}}"#,
+    )
+    .unwrap();
+
+    let manager = SettingsManager::load_path(path.clone()).unwrap();
+    let document: Value = serde_json::from_str(&manager.document_json().unwrap()).unwrap();
+    assert_eq!(document["version"], SETTINGS_SCHEMA_VERSION);
+    assert_eq!(document["tablet"]["enabled"], true);
+    assert_eq!(document["tablet"]["oskLayoutMode"], "traditional");
+
+    let persisted: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(persisted["version"], SETTINGS_SCHEMA_VERSION);
+    assert_eq!(persisted["tablet"]["oskLayoutMode"], "traditional");
 }
 
 #[test]

@@ -38,7 +38,6 @@ class QuickSettingsTiles extends StatelessWidget {
     required this.bluetoothEnabled,
     required this.bluetoothBusy,
     required this.rotationLock,
-    required this.screenshotRunning,
     required this.dnd,
     required this.dndReady,
     required this.profile,
@@ -64,7 +63,6 @@ class QuickSettingsTiles extends StatelessWidget {
   final bool bluetoothEnabled;
   final bool bluetoothBusy;
   final bool rotationLock;
-  final bool screenshotRunning;
   final bool dnd;
   final bool dndReady;
   final String profile;
@@ -266,8 +264,6 @@ class QuickSettingsTiles extends StatelessWidget {
                     icon: Icons.screenshot_rounded,
                     title: l10n.quickSettingsScreenshot,
                     active: false,
-                    enabled: !screenshotRunning,
-                    busy: screenshotRunning,
                     onTap: onScreenshot,
                   ),
                   collapseTranslation: thirdRowExit,

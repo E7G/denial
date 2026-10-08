@@ -545,11 +545,7 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final quickSettings = ref.watch(
       quickSettingsProvider.select(
-        (state) => (
-          rotationLock: state.rotationLock,
-          profile: state.profile,
-          screenshotRunning: state.screenshotRunning,
-        ),
+        (state) => (rotationLock: state.rotationLock, profile: state.profile),
       ),
     );
     final quickSettingsController = ref.read(quickSettingsProvider.notifier);
@@ -595,7 +591,6 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
       bluetoothEnabled: bluetoothToggleEnabled,
       bluetoothBusy: bluetooth.powerChanging,
       rotationLock: quickSettings.rotationLock,
-      screenshotRunning: quickSettings.screenshotRunning,
       dnd: notificationPolicy.doNotDisturb,
       dndReady: notificationPolicy.loaded,
       profile: quickSettings.profile,

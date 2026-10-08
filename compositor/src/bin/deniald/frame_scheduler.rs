@@ -145,7 +145,7 @@ impl FrameSchedulerAudit {
 
 impl FrameScheduler {
     pub(super) fn new(scanouts: &[Scanout], now: Instant) -> Self {
-        Self {
+        let mut scheduler = Self {
             outputs: OutputTimelines::new(scanouts, now),
             configured_outputs: scanouts.iter().map(|scanout| scanout.output.id).collect(),
             dirty_outputs: BTreeMap::new(),
@@ -158,7 +158,17 @@ impl FrameScheduler {
             flutter_tick: None,
             last_flutter_target: None,
             audit: super::render_audit_enabled().then(FrameSchedulerAudit::new),
-        }
+        };
+        // A freshly started or replacement Flutter generation must publish one
+        // KMS-authorized projection even if no client buffer changes and the
+        // framework's startup raster happens before its first AwaitVSync.
+        //
+        // Without this bootstrap damage a session/VT/topology restart can leave
+        // the physical CRTC scanning the retained pre-restart buffer while
+        // Flutter repeatedly attempts unclocked backing-store allocations,
+        // which the output broker correctly rejects as MissingAuthorization.
+        scheduler.mark_all_dirty();
+        scheduler
     }
 
     pub(super) fn reconfigure(&mut self, scanouts: &[Scanout], now: Instant) {
