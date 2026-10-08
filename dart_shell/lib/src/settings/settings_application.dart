@@ -47,8 +47,11 @@ final settingsDesktopApplicationsProvider = FutureProvider<List<DesktopApp>>(
 );
 const denialSettingsApplicationId = 'dev.denial.settings';
 
-bool isDenialSettingsApplicationId(String appId) =>
-    appId.trim().toLowerCase() == denialSettingsApplicationId;
+bool isDenialSettingsApplicationId(String appId) {
+  final normalized = appId.trim().toLowerCase();
+  return normalized == denialSettingsApplicationId ||
+      normalized == '$denialSettingsApplicationId.desktop';
+}
 
 @immutable
 class SettingsPageOpenRequest {

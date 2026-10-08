@@ -248,7 +248,7 @@ class _SettingsDrawerGrid extends HomeGridController {
     allItems: <HomeGridItem>[
       HomeGridItem.app(
         const DesktopApp(
-          id: 'dev.denial.Settings',
+          id: 'dev.denial.Settings.desktop',
           name: 'Settings',
           exec: '/usr/bin/denial-settings',
           desktopPath: '/usr/share/applications/dev.denial.Settings.desktop',
