@@ -82,6 +82,14 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   int? _resizeModeIndex;
   bool _appDrawerOpen = false;
   bool _appDrawerFocusSearch = false;
+  bool _appDrawerPrepared = false;
+  List<HomeGridItem>? _drawerCatalogSource;
+  bool? _drawerCatalogShowSystemTiles;
+  Locale? _drawerCatalogLocale;
+  List<HomeGridItem> _drawerApplicationItems = const <HomeGridItem>[];
+  List<HomeGridItem> _drawerSystemItems = const <HomeGridItem>[];
+  List<HomeGridItem?>? _drawerPinnedSource;
+  Set<String> _drawerPinnedIds = const <String>{};
   bool _semanticZoomOpen = false;
   bool _charmsOpen = false;
   bool _tabletOutputScaleBootstrapRunning = false;
@@ -122,6 +130,47 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
           .setLauncherActive(widget.active && widget.interactive);
       unawaited(_bootstrapTabletOutputScale());
     });
+  }
+
+  ({List<HomeGridItem> applications, List<HomeGridItem> systemItems})
+  _drawerCatalog(List<HomeGridItem> allItems, {required bool showSystemTiles}) {
+    final locale = Localizations.maybeLocaleOf(context);
+    if (!identical(_drawerCatalogSource, allItems) ||
+        _drawerCatalogShowSystemTiles != showSystemTiles ||
+        _drawerCatalogLocale != locale) {
+      _drawerCatalogSource = allItems;
+      _drawerCatalogShowSystemTiles = showSystemTiles;
+      _drawerCatalogLocale = locale;
+      _drawerApplicationItems =
+          allItems.where((item) => item.isApplication).toList(growable: false)
+            ..sort((a, b) {
+              final aTitle =
+                  (a.localApp?.titleFor(context) ?? a.app?.name ?? a.id)
+                      .toLowerCase();
+              final bTitle =
+                  (b.localApp?.titleFor(context) ?? b.app?.name ?? b.id)
+                      .toLowerCase();
+              return aTitle.compareTo(bTitle);
+            });
+      _drawerSystemItems = showSystemTiles
+          ? allItems.where((item) => item.isSystemTile).toList(growable: false)
+          : const <HomeGridItem>[];
+    }
+    return (
+      applications: _drawerApplicationItems,
+      systemItems: _drawerSystemItems,
+    );
+  }
+
+  Set<String> _drawerPinnedItems(List<HomeGridItem?> slots) {
+    if (!identical(_drawerPinnedSource, slots)) {
+      _drawerPinnedSource = slots;
+      _drawerPinnedIds = <String>{
+        for (final item in slots)
+          if (item != null) item.id,
+      };
+    }
+    return _drawerPinnedIds;
   }
 
   Future<void> _bootstrapTabletOutputScale() async {
@@ -298,6 +347,9 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
         (event.position - tapStart).distance > _tapMoveTolerance) {
       _tapMoved = true;
     }
+    if (_maybeOpenAppDrawerDuringSwipe(event)) {
+      return;
+    }
     _syncDragSessionToPointer(
       event.position,
       pageCount: _currentPageCount,
@@ -339,6 +391,37 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     }
   }
 
+  bool _maybeOpenAppDrawerDuringSwipe(PointerMoveEvent event) {
+    if (_appDrawerOpen ||
+        _semanticZoomOpen ||
+        _charmsOpen ||
+        _openFolder != null ||
+        _tapStartedOnInteractiveItem ||
+        ref.read(homeDragSessionProvider) != null) {
+      return false;
+    }
+    final start = _tapStartGlobalPosition;
+    if (start == null) {
+      return false;
+    }
+    final size = MediaQuery.sizeOf(context);
+    if (size.height <= size.width) {
+      return false;
+    }
+    final delta = event.position - start;
+    if (delta.dx > -48 || delta.dx.abs() < delta.dy.abs() * 1.35) {
+      return false;
+    }
+
+    // Start the reveal while the finger is still moving. Previously the
+    // drawer was first constructed after pointer-up, which made a normal
+    // swipe feel like it stalled before responding.
+    _tapMoved = true;
+    _resetTapTracking();
+    _openAppDrawer();
+    return true;
+  }
+
   bool _handleSemanticPinch() {
     if (_pinchConsumed ||
         _pointerPositions.length != 2 ||
@@ -370,13 +453,23 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
 
   void _openAppDrawer({bool focusSearch = false}) {
     _clearResizeMode();
+    _lastBackgroundTapTime = null;
+    _lastBackgroundTapPosition = null;
     ref.read(homeOverlayNavigationProvider.notifier).setModalOpen(true);
     setState(() {
+      _appDrawerPrepared = true;
       _charmsOpen = false;
       _semanticZoomOpen = false;
       _appDrawerOpen = true;
       _appDrawerFocusSearch = focusSearch;
     });
+  }
+
+  void _openQuickSettingsFromStart() {
+    _clearResizeMode();
+    _lastBackgroundTapTime = null;
+    _lastBackgroundTapPosition = null;
+    ref.read(shellControllerProvider.notifier).openQuickSettings();
   }
 
   void _closeAppDrawer() {

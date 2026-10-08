@@ -32,16 +32,15 @@ class _HomeSurfaceView extends ConsumerWidget {
         ? const EdgeInsets.fromLTRB(0, 104, 0, 8)
         : _HomeSurfaceState._contentPadding;
     final allItems = contents.allItems ?? const <HomeGridItem>[];
-    final appItems = allItems
-        .where((item) => item.isApplication)
-        .toList(growable: false);
-    final systemItems = tabletSettings.showSystemTiles
-        ? allItems.where((item) => item.isSystemTile).toList(growable: false)
-        : const <HomeGridItem>[];
-    final pinnedIds = <String>{
-      for (final item in contents.slots ?? const <HomeGridItem?>[])
-        if (item != null) item.id,
-    };
+    final drawerCatalog = owner._drawerCatalog(
+      allItems,
+      showSystemTiles: tabletSettings.showSystemTiles,
+    );
+    final appItems = drawerCatalog.applications;
+    final systemItems = drawerCatalog.systemItems;
+    final pinnedIds = owner._drawerPinnedItems(
+      contents.slots ?? const <HomeGridItem?>[],
+    );
 
     final content = Stack(
       fit: StackFit.expand,
@@ -57,6 +56,7 @@ class _HomeSurfaceView extends ConsumerWidget {
             top: ShellMetrics.statusBarHeight + 8,
             child: _MetroStartHeader(
               onAllApps: owner._openAppDrawer,
+              onQuickSettings: owner._openQuickSettingsFromStart,
               onSemanticZoom: owner._openSemanticZoom,
               showSemanticZoom: !portrait && owner._currentPageCount > 1,
               showQuickSettingsHint: tabletSettings.showQuickSettingsHint,
@@ -66,16 +66,32 @@ class _HomeSurfaceView extends ConsumerWidget {
           Positioned(
             right: _HomeSurfaceState._pageHorizontalPadding,
             top: ShellMetrics.statusBarHeight + 6,
-            child: _MetroHeaderAction(
-              icon: Icons.apps_rounded,
-              label: context.l10n.tabletAppsShort,
-              onTap: owner._openAppDrawer,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MetroHeaderAction(
+                  key: const ValueKey<String>('start-all-apps-action'),
+                  icon: Icons.apps_rounded,
+                  label: context.l10n.tabletAppsShort,
+                  onTap: owner._openAppDrawer,
+                ),
+                if (tabletSettings.showQuickSettingsHint) ...[
+                  const SizedBox(width: 8),
+                  _MetroHeaderAction(
+                    key: const ValueKey<String>('start-quick-settings-action'),
+                    icon: Icons.tune_rounded,
+                    label: context.l10n.tabletQuickSettings,
+                    onTap: owner._openQuickSettingsFromStart,
+                  ),
+                ],
+              ],
             ),
           ),
         _HomeDragOverlay(owner: owner),
-        if (owner._appDrawerOpen)
+        if (owner._appDrawerPrepared || owner._appDrawerOpen)
           Positioned.fill(
             child: _MetroAppDrawer(
+              visible: owner._appDrawerOpen,
               focusSearch: owner._appDrawerFocusSearch,
               items: appItems,
               systemItems: systemItems,
@@ -104,7 +120,11 @@ class _HomeSurfaceView extends ConsumerWidget {
               activePage:
                   ref.read(homeGridControllerProvider).asData?.value.page ?? 0,
               groupNames:
-                  ref.read(homeGridControllerProvider).asData?.value.groupNames ??
+                  ref
+                      .read(homeGridControllerProvider)
+                      .asData
+                      ?.value
+                      .groupNames ??
                   const <int, String>{},
               onClose: owner._closeSemanticZoom,
               onSelectPage: owner._jumpToStartGroup,
@@ -157,98 +177,93 @@ class _HomeSurfaceView extends ConsumerWidget {
 class _MetroStartHeader extends StatelessWidget {
   const _MetroStartHeader({
     required this.onAllApps,
+    required this.onQuickSettings,
     required this.onSemanticZoom,
     required this.showSemanticZoom,
     required this.showQuickSettingsHint,
   });
 
   final VoidCallback onAllApps;
+  final VoidCallback onQuickSettings;
   final VoidCallback onSemanticZoom;
   final bool showSemanticZoom;
   final bool showQuickSettingsHint;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          context.l10n.tabletStartTitle,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 34,
-            height: 1,
-            fontWeight: FontWeight.w300,
-            letterSpacing: -0.7,
-            shadows: [
-              Shadow(
-                color: Color(0x66000000),
-                blurRadius: 8,
-                offset: Offset(0, 2),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compactHeader = constraints.maxWidth < 760;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              context.l10n.tabletStartTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 34,
+                height: 1,
+                fontWeight: FontWeight.w300,
+                letterSpacing: -0.7,
+                shadows: [
+                  Shadow(
+                    color: Color(0x66000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 14),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 3),
-          child: Text(
-            'DENIAL TABLET',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.72),
-              fontSize: 11,
-              height: 1,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.7,
             ),
-          ),
-        ),
-        const Spacer(),
-        _MetroHeaderAction(
-          icon: Icons.apps_rounded,
-          label: context.l10n.tabletAllApps,
-          onTap: onAllApps,
-        ),
-        if (showSemanticZoom) ...[
-          const SizedBox(width: 12),
-          _MetroHeaderAction(
-            icon: Icons.zoom_out_map_rounded,
-            label: 'Groups',
-            onTap: onSemanticZoom,
-          ),
-        ],
-        if (showQuickSettingsHint) ...[
-          const SizedBox(width: 18),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.swipe_down_alt_rounded,
-                  size: 17,
-                  color: Colors.white.withValues(alpha: 0.72),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  context.l10n.tabletQuickSettings,
+            if (!compactHeader) ...[
+              const SizedBox(width: 14),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  'DENIAL TABLET',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.72),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.7,
                   ),
                 ),
-              ],
+              ),
+            ],
+            const Spacer(),
+            _MetroHeaderAction(
+              key: const ValueKey<String>('start-all-apps-action'),
+              icon: Icons.apps_rounded,
+              label: context.l10n.tabletAllApps,
+              onTap: onAllApps,
             ),
-          ),
-        ],
-      ],
+            if (showSemanticZoom) ...[
+              const SizedBox(width: 12),
+              _MetroHeaderAction(
+                icon: Icons.zoom_out_map_rounded,
+                label: 'Groups',
+                onTap: onSemanticZoom,
+              ),
+            ],
+            if (showQuickSettingsHint) ...[
+              const SizedBox(width: 12),
+              _MetroHeaderAction(
+                key: const ValueKey<String>('start-quick-settings-action'),
+                icon: Icons.tune_rounded,
+                label: context.l10n.tabletQuickSettings,
+                onTap: onQuickSettings,
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
 
 class _MetroHeaderAction extends StatefulWidget {
   const _MetroHeaderAction({
+    super.key,
     required this.icon,
     required this.label,
     required this.onTap,
@@ -278,23 +293,26 @@ class _MetroHeaderActionState extends State<_MetroHeaderAction> {
         onTap: widget.onTap,
         child: AnimatedOpacity(
           opacity: _pressed ? 0.62 : 1,
-          duration: const Duration(milliseconds: 80),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(widget.icon, size: 20, color: Colors.white),
-                const SizedBox(width: 7),
-                Text(
-                  widget.label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+          duration: const Duration(milliseconds: 70),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(widget.icon, size: 20, color: Colors.white),
+                  const SizedBox(width: 7),
+                  Text(
+                    widget.label,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -305,6 +323,7 @@ class _MetroHeaderActionState extends State<_MetroHeaderAction> {
 
 class _MetroAppDrawer extends StatefulWidget {
   const _MetroAppDrawer({
+    required this.visible,
     required this.focusSearch,
     required this.items,
     required this.systemItems,
@@ -315,6 +334,7 @@ class _MetroAppDrawer extends StatefulWidget {
     required this.onCreateFolder,
   });
 
+  final bool visible;
   final bool focusSearch;
   final List<HomeGridItem> items;
   final List<HomeGridItem> systemItems;
@@ -332,7 +352,13 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _folderNameController = TextEditingController();
   final ScrollController _appListController = ScrollController();
+  final FocusNode _searchFocus = FocusNode(debugLabel: 'metro-app-search');
   final Map<String, GlobalKey> _letterKeys = <String, GlobalKey>{};
+  List<HomeGridItem>? _indexedItems;
+  Locale? _indexedLocale;
+  List<HomeGridItem> _sortedItems = const <HomeGridItem>[];
+  Map<String, List<HomeGridItem>> _indexedGroups =
+      const <String, List<HomeGridItem>>{};
   final Set<String> _folderSelection = <String>{};
   final Map<String, bool> _optimisticPinned = <String, bool>{};
   String _query = '';
@@ -344,6 +370,51 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
     _optimisticPinned.removeWhere(
       (id, expected) => widget.pinnedIds.contains(id) == expected,
     );
+    if (!identical(oldWidget.items, widget.items)) {
+      _indexedItems = null;
+    }
+    if (widget.visible &&
+        widget.focusSearch &&
+        (!oldWidget.visible || !oldWidget.focusSearch)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.visible) {
+          _searchFocus.requestFocus();
+        }
+      });
+    } else if (!widget.visible && oldWidget.visible) {
+      _searchFocus.unfocus();
+    }
+  }
+
+  void _ensureIndex(BuildContext context) {
+    final locale = Localizations.maybeLocaleOf(context);
+    if (identical(_indexedItems, widget.items) && _indexedLocale == locale) {
+      return;
+    }
+    final sorted = widget.items;
+    final grouped = <String, List<HomeGridItem>>{};
+    for (final item in sorted) {
+      grouped
+          .putIfAbsent(_letterFor(context, item), () => <HomeGridItem>[])
+          .add(item);
+    }
+    _indexedItems = widget.items;
+    _indexedLocale = locale;
+    _sortedItems = sorted;
+    _indexedGroups = grouped;
+  }
+
+  Map<String, List<HomeGridItem>> _groupItems(
+    BuildContext context,
+    Iterable<HomeGridItem> items,
+  ) {
+    final grouped = <String, List<HomeGridItem>>{};
+    for (final item in items) {
+      grouped
+          .putIfAbsent(_letterFor(context, item), () => <HomeGridItem>[])
+          .add(item);
+    }
+    return grouped;
   }
 
   bool _isPinned(String id) =>
@@ -372,6 +443,7 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
     _searchController.dispose();
     _folderNameController.dispose();
     _appListController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -396,18 +468,33 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
     final selected = await showDialog<String>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.62),
-      builder: (dialogContext) => _MetroAlphabetJumpDialog(
-        availableLetters: availableLetters,
-      ),
+      builder: (dialogContext) =>
+          _MetroAlphabetJumpDialog(availableLetters: availableLetters),
     );
     if (!mounted || selected == null) {
       return;
     }
-    final keyContext = _letterKeys[selected]?.currentContext;
+    var keyContext = _letterKeys[selected]?.currentContext;
+    if (keyContext == null && _appListController.hasClients) {
+      final letters = _metroSortedLetters(availableLetters);
+      final index = letters.indexOf(selected);
+      if (index >= 0 && letters.length > 1) {
+        final target =
+            _appListController.position.maxScrollExtent *
+            (index / (letters.length - 1));
+        await _appListController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+        await WidgetsBinding.instance.endOfFrame;
+        keyContext = _letterKeys[selected]?.currentContext;
+      }
+    }
     if (keyContext != null) {
       await Scrollable.ensureVisible(
         keyContext,
-        duration: const Duration(milliseconds: 360),
+        duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
         alignment: 0.08,
       );
@@ -453,246 +540,250 @@ class _MetroAppDrawerState extends State<_MetroAppDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    _ensureIndex(context);
     final normalized = _folderMode ? '' : _query.trim().toLowerCase();
-    final items =
-        widget.items
-            .where((item) {
-              if (normalized.isEmpty) {
-                return true;
-              }
-              final title = _titleFor(context, item).toLowerCase();
-              final desktopText = item.app?.searchableText ?? '';
-              return title.contains(normalized) ||
-                  desktopText.contains(normalized);
-            })
-            .toList(growable: false)
-          ..sort(
-            (a, b) => _titleFor(
-              context,
-              a,
-            ).toLowerCase().compareTo(_titleFor(context, b).toLowerCase()),
-          );
-    final groupedItems = <String, List<HomeGridItem>>{};
-    for (final item in items) {
-      groupedItems
-          .putIfAbsent(_letterFor(context, item), () => <HomeGridItem>[])
-          .add(item);
-    }
+    final items = normalized.isEmpty
+        ? _sortedItems
+        : _sortedItems
+              .where((item) {
+                final title = _titleFor(context, item).toLowerCase();
+                final desktopText = item.app?.searchableText ?? '';
+                return title.contains(normalized) ||
+                    desktopText.contains(normalized);
+              })
+              .toList(growable: false);
+    final groupedItems = normalized.isEmpty
+        ? _indexedGroups
+        : _groupItems(context, items);
     final availableLetters = groupedItems.keys.toSet();
     for (final letter in availableLetters) {
       _letterKeys.putIfAbsent(letter, GlobalKey.new);
     }
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onHorizontalDragEnd: _folderMode
-          ? null
-          : (details) {
-              if ((details.primaryVelocity ?? 0) > 720) {
-                widget.onClose();
-              }
-            },
-      onVerticalDragEnd: _folderMode
-          ? null
-          : (details) {
-              if ((details.primaryVelocity ?? 0) > 760) {
-                widget.onClose();
-              }
-            },
-      child: _MetroSlideIn(
-        child: ColoredBox(
-          color: const Color(0xF2181D23),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            30,
-            ShellMetrics.statusBarHeight + 14,
-            30,
-            22,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Semantics(
-                    button: true,
-                    label: _folderMode
-                        ? context.l10n.actionCancel
-                        : context.l10n.tabletStartTitle,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _folderMode ? _cancelFolderMode : widget.onClose,
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 28,
+    return IgnorePointer(
+      key: const ValueKey<String>('metro-app-drawer-interaction'),
+      ignoring: !widget.visible,
+      child: ExcludeSemantics(
+        excluding: !widget.visible,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: _folderMode
+              ? null
+              : (details) {
+                  if ((details.primaryVelocity ?? 0) > 720) {
+                    widget.onClose();
+                  }
+                },
+          onVerticalDragEnd: _folderMode
+              ? null
+              : (details) {
+                  if ((details.primaryVelocity ?? 0) > 760) {
+                    widget.onClose();
+                  }
+                },
+          child: _MetroSlideIn(
+            visible: widget.visible,
+            child: ColoredBox(
+              color: const Color(0xF2181D23),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  30,
+                  ShellMetrics.statusBarHeight + 14,
+                  30,
+                  22,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Semantics(
+                          button: true,
+                          label: _folderMode
+                              ? context.l10n.actionCancel
+                              : context.l10n.tabletStartTitle,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _folderMode
+                                ? _cancelFolderMode
+                                : widget.onClose,
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(
+                                Icons.arrow_back_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _folderMode
+                              ? context.l10n.tabletNewFolder
+                              : context.l10n.tabletAllApps,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            height: 1,
+                            fontWeight: FontWeight.w300,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        if (_folderMode) ...[
+                          Expanded(
+                            child: SizedBox(
+                              height: 42,
+                              child: TextField(
+                                controller: _folderNameController,
+                                maxLength: 40,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                cursorColor: Colors.white,
+                                decoration: _metroTextFieldDecoration(
+                                  context.l10n.tabletFolderName,
+                                  Icons.folder_outlined,
+                                ).copyWith(counterText: ''),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            context.l10n.tabletSelectedCount(
+                              _folderSelection.length,
+                            ),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.65),
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          _MetroHeaderAction(
+                            icon: Icons.check_rounded,
+                            label: context.l10n.tabletCreate,
+                            onTap: _folderSelection.length >= 2
+                                ? _createFolder
+                                : () {},
+                          ),
+                        ] else ...[
+                          _MetroHeaderAction(
+                            icon: Icons.sort_by_alpha_rounded,
+                            label: 'A–Z',
+                            onTap: () =>
+                                _showAlphabetJump(context, availableLetters),
+                          ),
+                          const SizedBox(width: 8),
+                          _MetroHeaderAction(
+                            icon: Icons.create_new_folder_outlined,
+                            label: context.l10n.tabletFolder,
+                            onTap: _beginFolderMode,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 42,
+                              child: TextField(
+                                controller: _searchController,
+                                focusNode: _searchFocus,
+                                autofocus: false,
+                                onChanged: (value) =>
+                                    setState(() => _query = value),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                cursorColor: Colors.white,
+                                decoration: _metroTextFieldDecoration(
+                                  context.l10n.desktopSearchApplications,
+                                  Icons.search_rounded,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    if (!_folderMode &&
+                        normalized.isEmpty &&
+                        widget.systemItems.isNotEmpty) ...[
+                      Text(
+                        context.l10n.tabletSystemTiles,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.1,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _folderMode
-                        ? context.l10n.tabletNewFolder
-                        : context.l10n.tabletAllApps,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      height: 1,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_folderMode) ...[
-                    SizedBox(
-                      width: 220,
-                      height: 42,
-                      child: TextField(
-                        controller: _folderNameController,
-                        maxLength: 40,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 116,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: widget.systemItems.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 10),
+                          itemBuilder: (context, index) {
+                            final item = widget.systemItems[index];
+                            return SizedBox.square(
+                              dimension: 108,
+                              child: _MetroDrawerTile(
+                                item: item,
+                                pinned: _isPinned(item.id),
+                                onTogglePin: () => _togglePin(item),
+                              ),
+                            );
+                          },
                         ),
-                        cursorColor: Colors.white,
-                        decoration: _metroTextFieldDecoration(
-                          context.l10n.tabletFolderName,
-                          Icons.folder_outlined,
-                        ).copyWith(counterText: ''),
                       ),
+                      const SizedBox(height: 18),
+                    ],
+                    Expanded(
+                      child: items.isEmpty
+                          ? Center(
+                              child: Text(
+                                normalized.isEmpty
+                                    ? context.l10n.tabletNoApplications
+                                    : context.l10n.tabletNoMatchingApplications,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.65),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            )
+                          : _MetroAlphabeticalApps(
+                              controller: _appListController,
+                              groups: groupedItems,
+                              letterKeys: _letterKeys,
+                              titleFor: (item) => _titleFor(context, item),
+                              pinnedIds: _effectivePinnedIds,
+                              selectionMode: _folderMode,
+                              selectedIds: _folderSelection,
+                              onSelect: _toggleFolderSelection,
+                              onTogglePin: _togglePin,
+                              onLaunch: _folderMode ? null : widget.onLaunch,
+                            ),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      context.l10n.tabletSelectedCount(_folderSelection.length),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.65),
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _MetroHeaderAction(
-                      icon: Icons.check_rounded,
-                      label: context.l10n.tabletCreate,
-                      onTap: _folderSelection.length >= 2
-                          ? _createFolder
-                          : () {},
-                    ),
-                  ] else ...[
-                    _MetroHeaderAction(
-                      icon: Icons.sort_by_alpha_rounded,
-                      label: 'A–Z',
-                      onTap: () => _showAlphabetJump(
-                        context,
-                        availableLetters,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _MetroHeaderAction(
-                      icon: Icons.create_new_folder_outlined,
-                      label: context.l10n.tabletFolder,
-                      onTap: _beginFolderMode,
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 300,
-                      height: 42,
-                      child: TextField(
-                        controller: _searchController,
-                        autofocus: widget.focusSearch,
-                        onChanged: (value) => setState(() => _query = value),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                        cursorColor: Colors.white,
-                        decoration: _metroTextFieldDecoration(
-                          context.l10n.desktopSearchApplications,
-                          Icons.search_rounded,
+                    Center(
+                      child: Text(
+                        _folderMode
+                            ? context.l10n.tabletCreateFolderHint
+                            : context.l10n.tabletDrawerHint,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.45),
+                          fontSize: 11,
                         ),
                       ),
                     ),
                   ],
-                ],
-              ),
-              const SizedBox(height: 20),
-              if (!_folderMode &&
-                  normalized.isEmpty &&
-                  widget.systemItems.isNotEmpty) ...[
-                Text(
-                  context.l10n.tabletSystemTiles,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.72),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 116,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: widget.systemItems.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 10),
-                    itemBuilder: (context, index) {
-                      final item = widget.systemItems[index];
-                      return SizedBox.square(
-                        dimension: 108,
-                        child: _MetroDrawerTile(
-                          item: item,
-                          pinned: _isPinned(item.id),
-                          onTogglePin: () => _togglePin(item),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 18),
-              ],
-              Expanded(
-                child: items.isEmpty
-                    ? Center(
-                        child: Text(
-                          normalized.isEmpty
-                              ? context.l10n.tabletNoApplications
-                              : context.l10n.tabletNoMatchingApplications,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.65),
-                            fontSize: 16,
-                          ),
-                        ),
-                      )
-                    : _MetroAlphabeticalApps(
-                        controller: _appListController,
-                        groups: groupedItems,
-                        letterKeys: _letterKeys,
-                        titleFor: (item) => _titleFor(context, item),
-                        pinnedIds: _effectivePinnedIds,
-                        selectionMode: _folderMode,
-                        selectedIds: _folderSelection,
-                        onSelect: _toggleFolderSelection,
-                        onTogglePin: _togglePin,
-                        onLaunch: _folderMode ? null : widget.onLaunch,
-                      ),
-              ),
-              Center(
-                child: Text(
-                  _folderMode
-                      ? context.l10n.tabletCreateFolderHint
-                      : context.l10n.tabletDrawerHint,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.45),
-                    fontSize: 11,
-                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -780,10 +871,17 @@ class _MetroDrawerTile extends StatelessWidget {
                         duration: const Duration(milliseconds: 90),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, animation) => ScaleTransition(
-                          scale: Tween<double>(begin: 0.72, end: 1).animate(animation),
-                          child: FadeTransition(opacity: animation, child: child),
-                        ),
+                        transitionBuilder: (child, animation) =>
+                            ScaleTransition(
+                              scale: Tween<double>(
+                                begin: 0.72,
+                                end: 1,
+                              ).animate(animation),
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              ),
+                            ),
                         child: Icon(
                           selectionMode
                               ? (selected
@@ -792,7 +890,9 @@ class _MetroDrawerTile extends StatelessWidget {
                               : (pinned
                                     ? Icons.push_pin_rounded
                                     : Icons.push_pin_outlined),
-                          key: ValueKey<bool>(selectionMode ? selected : pinned),
+                          key: ValueKey<bool>(
+                            selectionMode ? selected : pinned,
+                          ),
                           size: 18,
                           color: Colors.white,
                         ),
@@ -974,7 +1074,6 @@ class _MetroFolderOverlayState extends State<_MetroFolderOverlay> {
   }
 }
 
-
 class _MetroSemanticZoomOverlay extends StatelessWidget {
   const _MetroSemanticZoomOverlay({
     required this.slots,
@@ -1056,146 +1155,153 @@ class _MetroSemanticZoomOverlay extends StatelessWidget {
       child: _MetroZoomIn(
         child: ColoredBox(
           color: const Color(0xF20B0F14),
-        child: SafeArea(
-          minimum: const EdgeInsets.fromLTRB(34, 28, 34, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Start groups',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: -0.7,
-                    ),
-                  ),
-                  const Spacer(),
-                  _MetroHeaderAction(
-                    icon: Icons.close_rounded,
-                    label: 'Close',
-                    onTap: onClose,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 980),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 270,
-                        mainAxisSpacing: 22,
-                        crossAxisSpacing: 22,
-                        childAspectRatio: 1.46,
+          child: SafeArea(
+            minimum: const EdgeInsets.fromLTRB(34, 28, 34, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Start groups',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w300,
+                        letterSpacing: -0.7,
                       ),
-                      itemCount: groups,
-                      itemBuilder: (context, page) {
-                        final safePageSize = math.max(1, pageSize);
-                        final start = page * safePageSize;
-                        final end = math.min(start + safePageSize, slots.length);
-                        final items = <HomeGridItem>[
-                          for (var i = start; i < end; i += 1)
-                            if (slots[i] case final item?) item,
-                        ];
-                        final active = page == activePage;
-                        return GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => onSelectPage(page),
-                          onLongPress: () => _renameGroup(context, page),
-                          child: AnimatedScale(
-                            scale: active ? 1.0 : 0.96,
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF151B22),
-                                border: Border.all(
-                                  color: active
-                                      ? Colors.white
-                                      : Colors.white.withValues(alpha: 0.12),
-                                  width: active ? 2 : 1,
+                    ),
+                    const Spacer(),
+                    _MetroHeaderAction(
+                      icon: Icons.close_rounded,
+                      label: 'Close',
+                      onTap: onClose,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 980),
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 270,
+                              mainAxisSpacing: 22,
+                              crossAxisSpacing: 22,
+                              childAspectRatio: 1.46,
+                            ),
+                        itemCount: groups,
+                        itemBuilder: (context, page) {
+                          final safePageSize = math.max(1, pageSize);
+                          final start = page * safePageSize;
+                          final end = math.min(
+                            start + safePageSize,
+                            slots.length,
+                          );
+                          final items = <HomeGridItem>[
+                            for (var i = start; i < end; i += 1)
+                              if (slots[i] case final item?) item,
+                          ];
+                          final active = page == activePage;
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => onSelectPage(page),
+                            onLongPress: () => _renameGroup(context, page),
+                            child: AnimatedScale(
+                              scale: active ? 1.0 : 0.96,
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF151B22),
+                                  border: Border.all(
+                                    color: active
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.12),
+                                    width: active ? 2 : 1,
+                                  ),
                                 ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: GridView.count(
-                                        physics: const NeverScrollableScrollPhysics(),
-                                        crossAxisCount: 4,
-                                        mainAxisSpacing: 5,
-                                        crossAxisSpacing: 5,
-                                        padding: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: GridView.count(
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          crossAxisCount: 4,
+                                          mainAxisSpacing: 5,
+                                          crossAxisSpacing: 5,
+                                          padding: EdgeInsets.zero,
+                                          children: [
+                                            for (final item in items.take(12))
+                                              DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  color: metroTileColor(
+                                                    item.id,
+                                                    item.tileColorValue,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Row(
                                         children: [
-                                          for (final item in items.take(12))
-                                            DecoratedBox(
-                                              decoration: BoxDecoration(
-                                                color: metroTileColor(
-                                                  item.id,
-                                                  item.tileColorValue,
+                                          Expanded(
+                                            child: Text(
+                                              _groupLabel(context, page),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: Colors.white.withValues(
+                                                  alpha: active ? 1 : 0.86,
+                                                ),
+                                                fontSize: 16,
+                                                fontWeight: active
+                                                    ? FontWeight.w700
+                                                    : FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                          GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: () =>
+                                                _renameGroup(context, page),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(4),
+                                              child: Icon(
+                                                Icons.edit_rounded,
+                                                size: 16,
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.66,
                                                 ),
                                               ),
                                             ),
+                                          ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            _groupLabel(context, page),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(
-                                                alpha: active ? 1 : 0.86,
-                                              ),
-                                              fontSize: 16,
-                                              fontWeight: active
-                                                  ? FontWeight.w700
-                                                  : FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                        GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () => _renameGroup(context, page),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(4),
-                                            child: Icon(
-                                              Icons.edit_rounded,
-                                              size: 16,
-                                              color: Colors.white.withValues(
-                                                alpha: 0.66,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -1329,7 +1435,6 @@ class _MetroCharmButtonState extends State<_MetroCharmButton> {
   }
 }
 
-
 class _MetroAlphabeticalApps extends StatelessWidget {
   const _MetroAlphabeticalApps({
     required this.controller,
@@ -1355,88 +1460,88 @@ class _MetroAlphabeticalApps extends StatelessWidget {
   final ValueChanged<HomeGridItem> onTogglePin;
   final void Function(HomeGridItem item, Rect sourceRect)? onLaunch;
 
-  List<String> get _letters {
-    final result = groups.keys.toList(growable: false)
-      ..sort((a, b) {
-        if (a == '#') return -1;
-        if (b == '#') return 1;
-        return a.compareTo(b);
-      });
-    return result;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final portrait = MediaQuery.sizeOf(context).height >
-        MediaQuery.sizeOf(context).width;
-    return ListView(
-      controller: controller,
-      padding: const EdgeInsets.only(bottom: 28),
-      children: [
-        for (final letter in _letters) ...[
-          Padding(
-            key: letterKeys[letter],
-            padding: EdgeInsets.fromLTRB(
-              portrait ? 4 : 2,
-              10,
-              0,
-              portrait ? 6 : 10,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: portrait ? 42 : 50,
-                  height: portrait ? 42 : 50,
-                  alignment: Alignment.center,
-                  color: const Color(0xFF0078D7),
-                  child: Text(
-                    letter,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: portrait ? 20 : 23,
-                      fontWeight: FontWeight.w400,
-                    ),
+    final portrait =
+        MediaQuery.sizeOf(context).height > MediaQuery.sizeOf(context).width;
+    final letters = _metroSortedLetters(groups.keys);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = math.max(
+          1,
+          ((constraints.maxWidth + 10) / 136).floor(),
+        );
+        return CustomScrollView(
+          controller: controller,
+          cacheExtent: portrait ? 420 : 320,
+          slivers: [
+            for (final letter in letters) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  key: letterKeys[letter],
+                  padding: EdgeInsets.fromLTRB(
+                    portrait ? 4 : 2,
+                    10,
+                    0,
+                    portrait ? 6 : 10,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: portrait ? 42 : 50,
+                        height: portrait ? 42 : 50,
+                        alignment: Alignment.center,
+                        color: const Color(0xFF0078D7),
+                        child: Text(
+                          letter,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: portrait ? 20 : 23,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                      if (!portrait) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          letter == '#' ? 'Other' : letter,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (!portrait) ...[
-                  const SizedBox(width: 12),
-                  Text(
-                    letter == '#' ? 'Other' : letter,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (portrait)
-            for (final item in groups[letter]!)
-              _MetroPhoneAppRow(
-                item: item,
-                title: titleFor(item),
-                pinned: pinnedIds.contains(item.id),
-                selectionMode: selectionMode,
-                selected: selectedIds.contains(item.id),
-                onSelect: () => onSelect(item),
-                onTogglePin: () => onTogglePin(item),
-                onLaunch: onLaunch == null
-                    ? null
-                    : (sourceRect) => onLaunch!(item, sourceRect),
-              )
-          else
-            Padding(
-              padding: const EdgeInsets.only(bottom: 18),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  for (final item in groups[letter]!)
-                    SizedBox.square(
-                      dimension: 126,
-                      child: _MetroDrawerTile(
+              ),
+              if (portrait)
+                SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final item = groups[letter]![index];
+                    return _MetroPhoneAppRow(
+                      item: item,
+                      title: titleFor(item),
+                      pinned: pinnedIds.contains(item.id),
+                      selectionMode: selectionMode,
+                      selected: selectedIds.contains(item.id),
+                      onSelect: () => onSelect(item),
+                      onTogglePin: () => onTogglePin(item),
+                      onLaunch: onLaunch == null
+                          ? null
+                          : (sourceRect) => onLaunch!(item, sourceRect),
+                    );
+                  }, childCount: groups[letter]!.length),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  sliver: SliverGrid(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final item = groups[letter]![index];
+                      return _MetroDrawerTile(
                         item: item,
                         pinned: pinnedIds.contains(item.id),
                         selectionMode: selectionMode,
@@ -1446,15 +1551,33 @@ class _MetroAlphabeticalApps extends StatelessWidget {
                         onLaunch: onLaunch == null
                             ? null
                             : (sourceRect) => onLaunch!(item, sourceRect),
-                      ),
+                      );
+                    }, childCount: groups[letter]!.length),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisExtent: 126,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
                     ),
-                ],
-              ),
-            ),
-        ],
-      ],
+                  ),
+                ),
+            ],
+            const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          ],
+        );
+      },
     );
   }
+}
+
+List<String> _metroSortedLetters(Iterable<String> source) {
+  final result = source.toList(growable: false)
+    ..sort((a, b) {
+      if (a == '#') return -1;
+      if (b == '#') return 1;
+      return a.compareTo(b);
+    });
+  return result;
 }
 
 class _MetroPhoneAppRow extends StatelessWidget {
@@ -1504,9 +1627,7 @@ class _MetroPhoneAppRow extends StatelessWidget {
         height: 64,
         margin: const EdgeInsets.only(bottom: 3),
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        color: selected
-            ? const Color(0x330078D7)
-            : Colors.transparent,
+        color: selected ? const Color(0x330078D7) : Colors.transparent,
         child: Row(
           children: [
             SizedBox.square(
@@ -1538,9 +1659,7 @@ class _MetroPhoneAppRow extends StatelessWidget {
             ),
             if (selectionMode)
               Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.circle_outlined,
+                selected ? Icons.check_circle_rounded : Icons.circle_outlined,
                 color: Colors.white,
                 size: 24,
               )
@@ -1549,9 +1668,7 @@ class _MetroPhoneAppRow extends StatelessWidget {
                 tooltip: pinned ? 'Unpin from Start' : 'Pin to Start',
                 onPressed: onTogglePin,
                 icon: Icon(
-                  pinned
-                      ? Icons.push_pin_rounded
-                      : Icons.push_pin_outlined,
+                  pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
                   color: Colors.white.withValues(alpha: 0.78),
                   size: 20,
                 ),
@@ -1629,9 +1746,7 @@ class _MetroAlphabetJumpDialog extends StatelessWidget {
                         letter,
                         style: TextStyle(
                           color: Colors.white.withValues(
-                            alpha: availableLetters.contains(letter)
-                                ? 1
-                                : 0.24,
+                            alpha: availableLetters.contains(letter) ? 1 : 0.24,
                           ),
                           fontSize: 20,
                           fontWeight: FontWeight.w500,
@@ -1648,23 +1763,27 @@ class _MetroAlphabetJumpDialog extends StatelessWidget {
   }
 }
 
-
 class _MetroSlideIn extends StatelessWidget {
-  const _MetroSlideIn({required this.child});
+  const _MetroSlideIn({required this.visible, required this.child});
 
+  final bool visible;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 1, end: 0),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutQuart,
-      builder: (context, value, child) => Transform.translate(
-        offset: Offset(46 * value, 0),
-        child: child,
+    final duration = visible
+        ? const Duration(milliseconds: 145)
+        : const Duration(milliseconds: 95);
+    return AnimatedSlide(
+      offset: visible ? Offset.zero : const Offset(0.075, 0),
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+        child: RepaintBoundary(child: child),
       ),
-      child: RepaintBoundary(child: child),
     );
   }
 }
@@ -1680,10 +1799,8 @@ class _MetroZoomIn extends StatelessWidget {
       tween: Tween<double>(begin: 0, end: 1),
       duration: const Duration(milliseconds: 210),
       curve: Curves.easeOutQuart,
-      builder: (context, value, child) => Transform.scale(
-        scale: 0.94 + 0.06 * value,
-        child: child,
-      ),
+      builder: (context, value, child) =>
+          Transform.scale(scale: 0.94 + 0.06 * value, child: child),
       child: RepaintBoundary(child: child),
     );
   }
