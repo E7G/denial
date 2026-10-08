@@ -2,6 +2,15 @@
 
 use super::*;
 
+#[cfg(feature = "flutter")]
+#[derive(Debug, Default)]
+pub(super) struct MiPad2NavigationKeyState {
+    pub(super) meta_down: bool,
+    pub(super) menu_chord: bool,
+    pub(super) back_shell_capture: bool,
+    pub(super) back_triggered: bool,
+}
+
 #[derive(Default)]
 pub(super) struct RuntimeState {
     #[cfg(feature = "flutter")]
@@ -12,6 +21,8 @@ pub(super) struct RuntimeState {
     pub(super) error: Option<String>,
     pub(super) lifecycle: LifecycleState,
     pub(super) native_escape_shortcut: NativeEscapeShortcut,
+    #[cfg(feature = "flutter")]
+    pub(super) mipad2_navigation_keys: MiPad2NavigationKeyState,
     pub(super) topology_dirty: bool,
     pub(super) output_power_requests: BTreeMap<OutputId, bool>,
     #[cfg(feature = "flutter")]

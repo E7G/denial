@@ -41,6 +41,8 @@ use tracing::{info, warn};
 #[cfg(feature = "flutter")]
 use super::super::PendingWindowEvent;
 use super::super::lifecycle::ShutdownReason;
+#[cfg(feature = "flutter")]
+use super::super::runtime_state::MiPad2NavigationKeyState;
 use super::super::native_shortcut::{
     ShortcutAction, ShortcutDisposition, ShortcutGesture, ShortcutTarget,
 };
@@ -1402,6 +1404,166 @@ fn finish_horizontal_layout_scroll(
     changed
 }
 
+#[cfg(feature = "flutter")]
+const MIPAD2_NAVKEY_DEVICE_MARKER: &str = "2808:509C Keyboard";
+#[cfg(feature = "flutter")]
+const MIPAD2_NAV_KEY_A: u32 = 30;
+#[cfg(feature = "flutter")]
+const MIPAD2_NAV_KEY_LEFT_ALT: u32 = 56;
+#[cfg(feature = "flutter")]
+const MIPAD2_NAV_KEY_LEFT: u32 = 105;
+#[cfg(feature = "flutter")]
+const MIPAD2_NAV_KEY_LEFT_META: u32 = 125;
+
+#[cfg(feature = "flutter")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MiPad2NavigationDecision {
+    Forward,
+    Consume,
+    Home,
+    Overview,
+    Back,
+}
+
+#[cfg(feature = "flutter")]
+fn is_mipad2_navigation_device_name(name: &str) -> bool {
+    name.contains(MIPAD2_NAVKEY_DEVICE_MARKER)
+}
+
+#[cfg(feature = "flutter")]
+fn mipad2_shell_owns_keyboard(state: &RuntimeState) -> bool {
+    state
+        .wayland
+        .as_ref()
+        .and_then(|frontend| frontend.seat.get_keyboard())
+        .is_some_and(|keyboard| {
+            matches!(
+                keyboard.current_focus(),
+                Some(super::focus::KeyboardFocusTarget::Flutter)
+            )
+        })
+}
+
+#[cfg(feature = "flutter")]
+fn observe_mipad2_navigation_transition(
+    navigation: &mut MiPad2NavigationKeyState,
+    evdev_keycode: u32,
+    pressed: bool,
+    shell_owns_keyboard: bool,
+) -> MiPad2NavigationDecision {
+    match evdev_keycode {
+        MIPAD2_NAV_KEY_LEFT_META => {
+            if pressed {
+                navigation.meta_down = true;
+                navigation.menu_chord = false;
+                MiPad2NavigationDecision::Consume
+            } else {
+                let home = navigation.meta_down && !navigation.menu_chord;
+                navigation.meta_down = false;
+                navigation.menu_chord = false;
+                if home {
+                    MiPad2NavigationDecision::Home
+                } else {
+                    MiPad2NavigationDecision::Consume
+                }
+            }
+        }
+        MIPAD2_NAV_KEY_A => {
+            if pressed {
+                if navigation.menu_chord {
+                    MiPad2NavigationDecision::Consume
+                } else {
+                    navigation.menu_chord = true;
+                    MiPad2NavigationDecision::Overview
+                }
+            } else {
+                if !navigation.meta_down {
+                    navigation.menu_chord = false;
+                }
+                MiPad2NavigationDecision::Consume
+            }
+        }
+        MIPAD2_NAV_KEY_LEFT_ALT => {
+            if pressed {
+                navigation.back_shell_capture = shell_owns_keyboard;
+                navigation.back_triggered = false;
+                if navigation.back_shell_capture {
+                    MiPad2NavigationDecision::Consume
+                } else {
+                    MiPad2NavigationDecision::Forward
+                }
+            } else {
+                let captured = navigation.back_shell_capture;
+                navigation.back_shell_capture = false;
+                navigation.back_triggered = false;
+                if captured {
+                    MiPad2NavigationDecision::Consume
+                } else {
+                    MiPad2NavigationDecision::Forward
+                }
+            }
+        }
+        MIPAD2_NAV_KEY_LEFT => {
+            if !navigation.back_shell_capture {
+                return MiPad2NavigationDecision::Forward;
+            }
+            if pressed && !navigation.back_triggered {
+                navigation.back_triggered = true;
+                MiPad2NavigationDecision::Back
+            } else {
+                MiPad2NavigationDecision::Consume
+            }
+        }
+        _ => MiPad2NavigationDecision::Consume,
+    }
+}
+
+#[cfg(feature = "flutter")]
+fn process_mipad2_navigation_key(
+    state: &mut RuntimeState,
+    device: &LibinputDevice,
+    keycode: Keycode,
+    key_state: KeyState,
+) -> Option<bool> {
+    if !is_mipad2_navigation_device_name(&device.name()) {
+        return None;
+    }
+
+    state.note_user_activity();
+    if state.secure_session_locked() {
+        state.mipad2_navigation_keys = Default::default();
+        return Some(false);
+    }
+
+    let Some(evdev_keycode) = keycode.raw().checked_sub(8) else {
+        return Some(false);
+    };
+    let shell_owns_keyboard = mipad2_shell_owns_keyboard(state);
+    let decision = observe_mipad2_navigation_transition(
+        &mut state.mipad2_navigation_keys,
+        evdev_keycode,
+        key_state == KeyState::Pressed,
+        shell_owns_keyboard,
+    );
+
+    match decision {
+        MiPad2NavigationDecision::Forward => None,
+        MiPad2NavigationDecision::Consume => Some(false),
+        MiPad2NavigationDecision::Home => {
+            state.queue_shell_action(super::super::wire::ShellAction::Applications, None);
+            Some(false)
+        }
+        MiPad2NavigationDecision::Overview => {
+            state.queue_shell_action(super::super::wire::ShellAction::Overview, None);
+            Some(false)
+        }
+        MiPad2NavigationDecision::Back => {
+            state.queue_shell_action(super::super::wire::ShellAction::FocusLeft, None);
+            Some(false)
+        }
+    }
+}
+
 fn process_input_event(
     state: &mut RuntimeState,
     mut event: InputEvent<LibinputInputBackend>,
@@ -1511,6 +1673,15 @@ fn process_input_event(
                 key_event.state() == KeyState::Pressed,
             );
             return false;
+        }
+        let device = key_event.device();
+        if let Some(flush_clients) = process_mipad2_navigation_key(
+            state,
+            &device,
+            key_event.key_code(),
+            key_event.state(),
+        ) {
+            return flush_clients;
         }
         return process_keyboard_transition(
             state,
@@ -1647,7 +1818,10 @@ fn reset_input_devices(state: &mut RuntimeState, reset: InputDeviceReset) {
     if reset.keyboard {
         state.native_escape_shortcut.reset();
         #[cfg(feature = "flutter")]
-        cancel_flutter_repeat(state);
+        {
+            state.mipad2_navigation_keys = Default::default();
+            cancel_flutter_repeat(state);
+        }
     }
     #[cfg(feature = "flutter")]
     if reset.pointer {
@@ -2616,6 +2790,147 @@ fn process_flutter_keyboard_transition(
 #[cfg(all(test, feature = "flutter"))]
 mod client_input_mapping_tests {
     use super::*;
+
+    #[test]
+    fn mipad2_navigation_device_name_is_specific_to_the_capacitive_key_interface() {
+        assert!(is_mipad2_navigation_device_name(
+            "hid-over-i2c 2808:509C Keyboard"
+        ));
+        assert!(!is_mipad2_navigation_device_name(
+            "hid-over-i2c 2808:509C"
+        ));
+    }
+
+    #[test]
+    fn mipad2_home_and_menu_chords_are_distinguished_without_leaking_meta() {
+        let mut navigation = MiPad2NavigationKeyState::default();
+
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_META,
+                true,
+                false,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_META,
+                false,
+                false,
+            ),
+            MiPad2NavigationDecision::Home
+        );
+
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_META,
+                true,
+                false,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_A,
+                true,
+                false,
+            ),
+            MiPad2NavigationDecision::Overview
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_A,
+                false,
+                false,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_META,
+                false,
+                false,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+    }
+
+    #[test]
+    fn mipad2_back_is_shell_owned_only_when_flutter_has_keyboard_focus() {
+        let mut navigation = MiPad2NavigationKeyState::default();
+
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_ALT,
+                true,
+                false,
+            ),
+            MiPad2NavigationDecision::Forward
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT,
+                true,
+                false,
+            ),
+            MiPad2NavigationDecision::Forward
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_ALT,
+                false,
+                false,
+            ),
+            MiPad2NavigationDecision::Forward
+        );
+
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_ALT,
+                true,
+                true,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT,
+                true,
+                true,
+            ),
+            MiPad2NavigationDecision::Back
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT,
+                false,
+                true,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+        assert_eq!(
+            observe_mipad2_navigation_transition(
+                &mut navigation,
+                MIPAD2_NAV_KEY_LEFT_ALT,
+                false,
+                true,
+            ),
+            MiPad2NavigationDecision::Consume
+        );
+    }
 
     #[test]
     fn kgx_uses_android_style_single_finger_scroll_fallback() {
