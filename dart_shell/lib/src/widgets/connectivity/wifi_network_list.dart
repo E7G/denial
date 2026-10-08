@@ -2,13 +2,11 @@ part of 'wifi_detail_surface.dart';
 
 class _WifiNetworkList extends StatelessWidget {
   const _WifiNetworkList({
-    required this.mobileApplication,
     required this.state,
     required this.onActivate,
     required this.onForget,
   });
 
-  final bool mobileApplication;
   final NetworkConnectivityState state;
   final ValueChanged<WifiNetwork> onActivate;
   final ValueChanged<WifiNetwork> onForget;
@@ -67,13 +65,10 @@ class _WifiNetworkList extends StatelessWidget {
     return ListView.separated(
       key: const PageStorageKey<String>('wifi-network-list'),
       itemCount: snapshot.networks.length,
-      separatorBuilder: (_, _) => mobileApplication
-          ? const SizedBox.shrink()
-          : const SizedBox(height: 7),
+      separatorBuilder: (_, _) => const SizedBox(height: 7),
       itemBuilder: (context, index) {
         final network = snapshot.networks[index];
         return _WifiNetworkRow(
-          mobileApplication: mobileApplication,
           network: network,
           busy: state.busyNetworks.contains(network.identity),
           activationEnabled:
@@ -95,7 +90,6 @@ class _WifiNetworkList extends StatelessWidget {
 
 class _WifiNetworkRow extends StatefulWidget {
   const _WifiNetworkRow({
-    required this.mobileApplication,
     required this.network,
     required this.busy,
     required this.activationEnabled,
@@ -103,7 +97,6 @@ class _WifiNetworkRow extends StatefulWidget {
     required this.onForget,
   });
 
-  final bool mobileApplication;
   final WifiNetwork network;
   final bool busy;
   final bool activationEnabled;
@@ -167,37 +160,18 @@ class _WifiNetworkRowState extends State<_WifiNetworkRow> {
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
                 : Motion.tile,
-            constraints: BoxConstraints(
-              minHeight: widget.mobileApplication ? 76 : 62,
-            ),
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.mobileApplication ? 16 : 12,
-              vertical: widget.mobileApplication ? 12 : 9,
-            ),
+            constraints: const BoxConstraints(minHeight: 62),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
               color: network.connected
                   ? context.shellTheme.accentPalette.container
                   : _hovered || _focused
                   ? context.shellColors.surfaceContainerHighest
-                  : widget.mobileApplication
-                  ? const Color(0x00000000)
                   : context.shellColors.surfaceContainer,
-              borderRadius: widget.mobileApplication
-                  ? BorderRadius.zero
-                  : context.shellTheme.borderRadius(16),
-              border: widget.mobileApplication
-                  ? Border(
-                      bottom: BorderSide(
-                        color: _focused
-                            ? accent
-                            : context.shellColors.hairlineSoft,
-                      ),
-                    )
-                  : Border.all(
-                      color: _focused
-                          ? accent
-                          : context.shellColors.hairlineSoft,
-                    ),
+              borderRadius: context.shellTheme.borderRadius(16),
+              border: Border.all(
+                color: _focused ? accent : context.shellColors.hairlineSoft,
+              ),
             ),
             child: Row(
               children: [

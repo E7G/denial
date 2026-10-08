@@ -38,6 +38,7 @@ class QuickSettingsTiles extends StatelessWidget {
     required this.bluetoothEnabled,
     required this.bluetoothBusy,
     required this.rotationLock,
+    required this.screenshotRunning,
     required this.dnd,
     required this.dndReady,
     required this.profile,
@@ -46,6 +47,7 @@ class QuickSettingsTiles extends StatelessWidget {
     required this.onToggleBluetooth,
     required this.onOpenBluetooth,
     required this.onToggleRotation,
+    required this.onScreenshot,
     required this.onToggleDnd,
     required this.onCycleProfile,
   });
@@ -62,6 +64,7 @@ class QuickSettingsTiles extends StatelessWidget {
   final bool bluetoothEnabled;
   final bool bluetoothBusy;
   final bool rotationLock;
+  final bool screenshotRunning;
   final bool dnd;
   final bool dndReady;
   final String profile;
@@ -70,6 +73,7 @@ class QuickSettingsTiles extends StatelessWidget {
   final VoidCallback onToggleBluetooth;
   final VoidCallback onOpenBluetooth;
   final VoidCallback onToggleRotation;
+  final VoidCallback onScreenshot;
   final VoidCallback onToggleDnd;
   final VoidCallback onCycleProfile;
 
@@ -232,7 +236,7 @@ class QuickSettingsTiles extends StatelessWidget {
               Positioned(
                 left: pitch * 2,
                 top: row * 2,
-                width: wide,
+                width: column,
                 height: row,
                 child: reveal(
                   6,
@@ -244,11 +248,27 @@ class QuickSettingsTiles extends StatelessWidget {
                     inactiveIcon: Icons.screen_lock_rotation_rounded,
                     optimisticToggle: true,
                     title: l10n.quickSettingsRotation,
-                    subtitle: rotationLock
-                        ? l10n.quickSettingsLocked
-                        : l10n.quickSettingsAutomatic,
                     active: !rotationLock,
                     onTap: onToggleRotation,
+                  ),
+                  collapseTranslation: thirdRowExit,
+                ),
+              ),
+              Positioned(
+                left: pitch * 3,
+                top: row * 2,
+                width: column,
+                height: row,
+                child: reveal(
+                  7,
+                  QuickTile(
+                    key: const ValueKey('quick-settings-screenshot-tile'),
+                    icon: Icons.screenshot_rounded,
+                    title: l10n.quickSettingsScreenshot,
+                    active: false,
+                    enabled: !screenshotRunning,
+                    busy: screenshotRunning,
+                    onTap: onScreenshot,
                   ),
                   collapseTranslation: thirdRowExit,
                 ),

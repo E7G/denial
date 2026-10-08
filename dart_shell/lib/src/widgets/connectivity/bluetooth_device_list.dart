@@ -2,7 +2,6 @@ part of 'bluetooth_detail_surface.dart';
 
 class _BluetoothDeviceList extends StatelessWidget {
   const _BluetoothDeviceList({
-    required this.mobileApplication,
     required this.state,
     required this.onPair,
     required this.onToggleTrust,
@@ -10,7 +9,6 @@ class _BluetoothDeviceList extends StatelessWidget {
     required this.onRemove,
   });
 
-  final bool mobileApplication;
   final BluetoothState state;
   final ValueChanged<BluetoothDeviceInfo> onPair;
   final ValueChanged<BluetoothDeviceInfo> onToggleTrust;
@@ -66,13 +64,10 @@ class _BluetoothDeviceList extends StatelessWidget {
     return ListView.separated(
       key: const PageStorageKey<String>('bluetooth-device-list'),
       itemCount: state.devices.length,
-      separatorBuilder: (_, _) => mobileApplication
-          ? const SizedBox.shrink()
-          : const SizedBox(height: 7),
+      separatorBuilder: (_, _) => const SizedBox(height: 7),
       itemBuilder: (context, index) {
         final device = state.devices[index];
         return _BluetoothDeviceRow(
-          mobileApplication: mobileApplication,
           device: device,
           busy: state.busyDevices.contains(device.objectPath),
           onPair: () => onPair(device),
@@ -87,7 +82,6 @@ class _BluetoothDeviceList extends StatelessWidget {
 
 class _BluetoothDeviceRow extends StatefulWidget {
   const _BluetoothDeviceRow({
-    required this.mobileApplication,
     required this.device,
     required this.busy,
     required this.onPair,
@@ -96,7 +90,6 @@ class _BluetoothDeviceRow extends StatefulWidget {
     required this.onRemove,
   });
 
-  final bool mobileApplication;
   final BluetoothDeviceInfo device;
   final bool busy;
   final VoidCallback onPair;
@@ -166,37 +159,18 @@ class _BluetoothDeviceRowState extends State<_BluetoothDeviceRow> {
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
                 : Motion.tile,
-            constraints: BoxConstraints(
-              minHeight: widget.mobileApplication ? 76 : 68,
-            ),
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.mobileApplication ? 16 : 12,
-              vertical: widget.mobileApplication ? 12 : 9,
-            ),
+            constraints: const BoxConstraints(minHeight: 68),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
               color: device.connected
                   ? context.shellTheme.accentPalette.container
                   : _hovered || _focused
                   ? context.shellColors.surfaceContainerHighest
-                  : widget.mobileApplication
-                  ? const Color(0x00000000)
                   : context.shellColors.surfaceContainer,
-              borderRadius: widget.mobileApplication
-                  ? BorderRadius.zero
-                  : context.shellTheme.borderRadius(16),
-              border: widget.mobileApplication
-                  ? Border(
-                      bottom: BorderSide(
-                        color: _focused
-                            ? accent
-                            : context.shellColors.hairlineSoft,
-                      ),
-                    )
-                  : Border.all(
-                      color: _focused
-                          ? accent
-                          : context.shellColors.hairlineSoft,
-                    ),
+              borderRadius: context.shellTheme.borderRadius(16),
+              border: Border.all(
+                color: _focused ? accent : context.shellColors.hairlineSoft,
+              ),
             ),
             child: Row(
               children: [

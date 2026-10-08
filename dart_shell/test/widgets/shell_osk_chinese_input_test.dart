@@ -92,6 +92,53 @@ void main() {
   );
 
   testWidgets(
+    'Windows OSK follows external layout setting changes while mounted',
+    (tester) async {
+      final settings = _MemorySettings();
+
+      await tester.pumpWidget(
+        _host(
+          Stack(
+            children: [
+              const Positioned.fill(child: ShellOskPanel()),
+              Positioned(
+                left: 0,
+                top: 0,
+                child: Consumer(
+                  builder: (context, ref, _) => GestureDetector(
+                    key: const ValueKey('external-traditional-switch'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => ref
+                        .read(shellSettingsProvider.notifier)
+                        .setTabletOskLayoutMode(
+                          TabletOskLayoutMode.traditional,
+                        ),
+                    child: const SizedBox(width: 32, height: 32),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          settings: settings,
+        ),
+      );
+
+      expect(find.text('Esc'), findsNothing);
+      await tester.tap(
+        find.byKey(const ValueKey('external-traditional-switch')),
+      );
+      await tester.pump();
+
+      expect(
+        settings.value.tablet.oskLayoutMode,
+        TabletOskLayoutMode.traditional,
+      );
+      expect(find.text('Esc'), findsOneWidget);
+      expect(find.text('Tab'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'Windows OSK exposes floating mode and floating window controls',
     (tester) async {
       final settings = _MemorySettings();

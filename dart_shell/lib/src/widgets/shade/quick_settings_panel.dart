@@ -479,15 +479,8 @@ class _ControlCenterPage extends StatelessWidget {
               child: SingleChildScrollView(
                 primary: false,
                 padding: const EdgeInsets.fromLTRB(28, 0, 28, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    RepaintBoundary(
-                      child: _QuickSettingsTilesSection(progress: progress),
-                    ),
-                    const SizedBox(height: 18),
-                    const _LargeScreenshotButton(),
-                  ],
+                child: RepaintBoundary(
+                  child: _QuickSettingsTilesSection(progress: progress),
                 ),
               ),
             ),
@@ -552,7 +545,11 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final quickSettings = ref.watch(
       quickSettingsProvider.select(
-        (state) => (rotationLock: state.rotationLock, profile: state.profile),
+        (state) => (
+          rotationLock: state.rotationLock,
+          profile: state.profile,
+          screenshotRunning: state.screenshotRunning,
+        ),
       ),
     );
     final quickSettingsController = ref.read(quickSettingsProvider.notifier);
@@ -598,35 +595,36 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
       bluetoothEnabled: bluetoothToggleEnabled,
       bluetoothBusy: bluetooth.powerChanging,
       rotationLock: quickSettings.rotationLock,
+      screenshotRunning: quickSettings.screenshotRunning,
       dnd: notificationPolicy.doNotDisturb,
       dndReady: notificationPolicy.loaded,
       profile: quickSettings.profile,
       onToggleWifi: networkController.toggleWireless,
       onOpenWifi: () {
-        ref.read(shellControllerProvider.notifier).closeQuickSettings();
         ref
             .read(shellSurfaceControllerProvider.notifier)
             .show(
               keyName: 'wifi-details',
               debugLabel: 'Wi-Fi details',
-              presentation: ShellSurfacePresentation.fullscreen,
               builder: (_, handle) => WifiDetailSurface(onClose: handle.close),
             );
       },
       onToggleBluetooth: bluetoothController.togglePower,
       onOpenBluetooth: () {
-        ref.read(shellControllerProvider.notifier).closeQuickSettings();
         ref
             .read(shellSurfaceControllerProvider.notifier)
             .show(
               keyName: 'bluetooth-details',
               debugLabel: 'Bluetooth details',
-              presentation: ShellSurfacePresentation.fullscreen,
               builder: (_, handle) =>
                   BluetoothDetailSurface(onClose: handle.close),
             );
       },
       onToggleRotation: quickSettingsController.toggleRotation,
+      onScreenshot: () {
+        ref.read(shellControllerProvider.notifier).closeQuickSettings();
+        unawaited(quickSettingsController.takeScreenshot());
+      },
       onToggleDnd: notificationController.toggleDoNotDisturb,
       onCycleProfile: quickSettingsController.cycleProfile,
     );
@@ -714,38 +712,6 @@ class _ShadeQuickEntrance extends ConsumerWidget {
             onOpenPower: () => showPowerSessionSurface(ref),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LargeScreenshotButton extends ConsumerWidget {
-  const _LargeScreenshotButton();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final screenshotRunning = ref.watch(
-      quickSettingsProvider.select((state) => state.screenshotRunning),
-    );
-    return SizedBox(
-      width: double.infinity,
-      height: 58,
-      child: FilledButton.icon(
-        key: const ValueKey('shade-large-screenshot-button'),
-        onPressed: screenshotRunning
-            ? null
-            : () {
-                ref.read(shellControllerProvider.notifier).closeQuickSettings();
-                unawaited(
-                  ref.read(quickSettingsProvider.notifier).takeScreenshot(),
-                );
-              },
-        icon: Icon(
-          screenshotRunning
-              ? Icons.hourglass_top_rounded
-              : Icons.screenshot_rounded,
-        ),
-        label: Text(context.l10n.quickSettingsScreenshot),
       ),
     );
   }

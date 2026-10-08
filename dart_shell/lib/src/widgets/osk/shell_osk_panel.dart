@@ -105,21 +105,12 @@ class ShellOskPanel extends ConsumerStatefulWidget {
 class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
   _OskLayer _layer = _OskLayer.letters;
   _OskPane _pane = _OskPane.keyboard;
-  late _OskLayoutMode _layoutMode;
   bool _shiftEnabled = false;
   bool _capsLocked = false;
   bool _ctrlArmed = false;
   bool _chineseInputEnabled = false;
   DateTime? _lastShiftTapAt;
   Future<ClipboardHistorySnapshot>? _clipboardSnapshot;
-
-  @override
-  void initState() {
-    super.initState();
-    _layoutMode = _oskLayoutFromSetting(
-      ref.read(shellSettingsProvider).tablet.oskLayoutMode,
-    );
-  }
 
   @override
   void didChangeDependencies() {
@@ -138,14 +129,12 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<TabletOskLayoutMode>(
-      shellSettingsProvider.select((settings) => settings.tablet.oskLayoutMode),
-      (previous, next) {
-        final restored = _oskLayoutFromSetting(next);
-        if (restored != _layoutMode && mounted) {
-          setState(() => _layoutMode = restored);
-        }
-      },
+    final layoutMode = _oskLayoutFromSetting(
+      ref.watch(
+        shellSettingsProvider.select(
+          (settings) => settings.tablet.oskLayoutMode,
+        ),
+      ),
     );
     final bottomPadding = math.max(MediaQuery.paddingOf(context).bottom, 8.0);
 
@@ -172,7 +161,7 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
                 height: toolbarHeight,
                 child: _WindowsOskToolbar(
                   pane: _pane,
-                  layoutMode: _layoutMode,
+                  layoutMode: layoutMode,
                   chineseInputEnabled: _chineseInputEnabled,
                   candidateListenable: widget.candidateListenable,
                   onCandidateSelected: _selectCandidate,
@@ -197,6 +186,7 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
               Expanded(
                 child: switch (_pane) {
                   _OskPane.keyboard => _buildKeyboardRows(
+                    layoutMode: layoutMode,
                     compact: compact,
                     keyGap: keyGap,
                     rowGap: rowGap,
@@ -208,7 +198,7 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
                     onRefresh: _refreshClipboard,
                   ),
                   _OskPane.layouts => _OskLayoutPane(
-                    selected: _layoutMode,
+                    selected: layoutMode,
                     onSelected: _selectLayout,
                   ),
                 },
@@ -221,11 +211,12 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
   }
 
   Widget _buildKeyboardRows({
+    required _OskLayoutMode layoutMode,
     required bool compact,
     required double keyGap,
     required double rowGap,
   }) {
-    final rows = _rowsForCurrentLayer();
+    final rows = _rowsForCurrentLayer(layoutMode);
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxRowHeight = rows.length <= 4
@@ -237,7 +228,7 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
         final rowHeight = (availableHeight / rows.length)
             .clamp(minRowHeight, maxRowHeight)
             .toDouble();
-        final splitGap = _layoutMode == _OskLayoutMode.split
+        final splitGap = layoutMode == _OskLayoutMode.split
             ? (constraints.maxWidth * 0.105).clamp(58.0, 96.0).toDouble()
             : 0.0;
 
@@ -266,8 +257,8 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
     );
   }
 
-  List<_OskRowData> _rowsForCurrentLayer() {
-    if (_layoutMode == _OskLayoutMode.traditional &&
+  List<_OskRowData> _rowsForCurrentLayer(_OskLayoutMode layoutMode) {
+    if (layoutMode == _OskLayoutMode.traditional &&
         _layer == _OskLayer.letters) {
       return _traditionalRows;
     }
@@ -344,17 +335,18 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
 
   void _selectLayout(_OskLayoutMode mode) {
     widget.onKeyTap?.call();
-    ref
-        .read(shellSettingsProvider.notifier)
-        .setTabletOskLayoutMode(_oskLayoutSetting(mode));
     setState(() {
-      _layoutMode = mode;
       _pane = _OskPane.keyboard;
       _layer = _OskLayer.letters;
       _shiftEnabled = false;
       _capsLocked = false;
       _ctrlArmed = false;
     });
+    final setting = _oskLayoutSetting(mode);
+    final current = ref.read(shellSettingsProvider).tablet.oskLayoutMode;
+    if (current != setting) {
+      ref.read(shellSettingsProvider.notifier).setTabletOskLayoutMode(setting);
+    }
   }
 
   void _handleKey(_OskKeySpec spec) {
