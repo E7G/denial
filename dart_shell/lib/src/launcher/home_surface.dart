@@ -10,6 +10,7 @@ import '../localization/denial_localizations.dart';
 import '../state/display_layout.dart';
 import '../state/output_configuration.dart';
 import '../state/shell_controller.dart';
+import '../settings/settings_application.dart';
 import '../settings/settings_controller.dart';
 import '../settings/embedded_settings_surface.dart';
 import '../settings/shell_settings.dart';
@@ -732,6 +733,14 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
 
     final app = item.app;
     if (app == null) {
+      return;
+    }
+    // On the mobile/tablet shell, Denial Settings is part of the shell scene,
+    // not a normal Wayland client window. Launch every Settings entry point
+    // through the embedded fullscreen surface so app-drawer launches cannot
+    // reintroduce work-area margins or window chrome.
+    if (isDenialSettingsApplicationId(app.id)) {
+      showEmbeddedSettingsSurface(ref);
       return;
     }
     ref

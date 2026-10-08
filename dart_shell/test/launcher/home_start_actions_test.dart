@@ -131,6 +131,45 @@ void main() {
     expect(surfaces.single.presentation, ShellSurfacePresentation.fullscreen);
   });
 
+  testWidgets('All apps Settings opens the same fullscreen embedded surface', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(size);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer(
+      overrides: [
+        homeGridControllerProvider.overrideWith(_SettingsDrawerGrid.new),
+        shellControllerProvider.overrideWith(_StartActionShell.new),
+        shellSettingsProvider.overrideWith(_StartActionSettings.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: mobileMotionHarness(const HomeSurface(), size: size),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('start-all-apps-action')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings').last);
+    await tester.pump();
+
+    final surfaces = container.read(shellSurfaceControllerProvider);
+    expect(surfaces, hasLength(1));
+    expect(surfaces.single.keyName, 'embedded-settings');
+    expect(surfaces.single.presentation, ShellSurfacePresentation.fullscreen);
+  });
+
   testWidgets('portrait drawer reveal begins before swipe release', (
     tester,
   ) async {
@@ -197,6 +236,27 @@ class _StartActionGrid extends HomeGridController {
       allItems: allItems,
     );
   }
+
+  @override
+  void setLauncherActive(bool active) {}
+}
+
+class _SettingsDrawerGrid extends HomeGridController {
+  @override
+  Future<HomeGridState> build() async => HomeGridState(
+    slots: const <HomeGridItem>[],
+    allItems: <HomeGridItem>[
+      HomeGridItem.app(
+        const DesktopApp(
+          id: 'dev.denial.Settings',
+          name: 'Settings',
+          exec: '/usr/bin/denial-settings',
+          desktopPath: '/usr/share/applications/dev.denial.Settings.desktop',
+          categories: <String>['Settings'],
+        ),
+      ),
+    ],
+  );
 
   @override
   void setLauncherActive(bool active) {}
