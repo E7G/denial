@@ -2,47 +2,60 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../l10n/generated/app_localizations.dart';
+import '../local_apps/local_flutter_application.dart';
+import '../localization/denial_localizations.dart';
 import '../state/shell_controller.dart';
 import '../theme/shell_theme.dart';
-import '../widgets/shell_surface_host.dart';
 import 'settings_application.dart';
 import 'widgets/settings_navigation.dart';
 
-const _embeddedSettingsSurfaceKey = 'embedded-settings';
+const denialSettingsLocalApplicationId = 'dev.denial.settings.local';
 
-void showEmbeddedSettingsSurface(
+final denialSettingsLocalApplication = LocalFlutterApplication(
+  id: denialSettingsLocalApplicationId,
+  title: 'Settings',
+  defaultSize: const Size(768, 1024),
+  minimumSize: const Size(320, 480),
+  singleInstance: true,
+  showInLauncher: false,
+  icon: Icons.settings_rounded,
+  categories: const <String>['Settings', 'System'],
+  localizedTitle: (context) => context.l10n.settingsNavigationSection,
+  builder: (context, window) => const SettingsApplicationSurface(),
+);
+
+/// Opens Settings as a real Denial local application.
+///
+/// Every shell entry point routes through this function. Settings therefore
+/// participates in the normal application stack, overview, switching and
+/// single-instance lifecycle instead of living in ShellSurfaceHost as an
+/// overlay.
+void showSettingsApplication(
+  BuildContext context,
   WidgetRef ref, {
   SettingsPageId page = SettingsPageId.appearance,
 }) {
   ref.read(shellControllerProvider.notifier).closeQuickSettings();
   ref.read(settingsPageOpenRequestProvider.notifier).request(page);
+
+  // Mobile local Flutter applications own the complete current Flutter view.
+  // Their content receives the status-bar/safe-area inset through
+  // WindowContentRect, so no extra work-area margin belongs in native window
+  // geometry. Using MediaQuery also avoids coupling application launch to the
+  // asynchronous display-layout service.
+  final bounds = Offset.zero & MediaQuery.sizeOf(context);
   ref
-      .read(shellSurfaceControllerProvider.notifier)
-      .show(
-        keyName: _embeddedSettingsSurfaceKey,
-        debugLabel: 'Embedded Settings',
-        dismissPolicy: ShellDismissPolicy.outsideTapAndEscape,
-        presentation: ShellSurfacePresentation.fullscreen,
-        builder: (_, handle) =>
-            EmbeddedSettingsSurface(initialPage: page, onClose: handle.close),
+      .read(localFlutterApplicationLauncherProvider)
+      .launch(
+        denialSettingsLocalApplicationId,
+        availableBounds: bounds,
+        geometry: bounds,
+        title: 'Settings',
       );
 }
 
-/// Settings hosted directly inside Denial's primary Flutter scene.
-///
-/// Mobile/tablet uses this instead of launching the standalone Wayland
-/// Settings client. Keeping Settings in the primary scene avoids an additional
-/// client surface/backing-store allocation and shares the already-synchronized
-/// settings providers with the shell.
-class EmbeddedSettingsSurface extends ConsumerWidget {
-  const EmbeddedSettingsSurface({
-    required this.initialPage,
-    required this.onClose,
-    super.key,
-  });
-
-  final SettingsPageId initialPage;
-  final VoidCallback onClose;
+class SettingsApplicationSurface extends ConsumerWidget {
+  const SettingsApplicationSurface({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,41 +74,7 @@ class EmbeddedSettingsSurface extends ConsumerWidget {
       themeMode: shellTheme.brightness == Brightness.light
           ? ThemeMode.light
           : ThemeMode.dark,
-      home: Stack(
-        fit: StackFit.expand,
-        children: [
-          DenialSettingsApplication(initialPage: initialPage),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: SafeArea(
-              minimum: const EdgeInsets.all(4),
-              child: _EmbeddedSettingsCloseButton(onPressed: onClose),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmbeddedSettingsCloseButton extends StatelessWidget {
-  const _EmbeddedSettingsCloseButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-      elevation: 2,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: const Icon(Icons.close_rounded),
-        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-      ),
+      home: const DenialSettingsApplication(),
     );
   }
 }

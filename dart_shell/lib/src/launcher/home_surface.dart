@@ -469,7 +469,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     _clearResizeMode();
     _lastBackgroundTapTime = null;
     _lastBackgroundTapPosition = null;
-    showEmbeddedSettingsSurface(ref);
+    showSettingsApplication(context, ref);
   }
 
   void _closeAppDrawer() {
@@ -554,7 +554,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
 
   void _openSettingsFromCharms() {
     _closeCharms();
-    showEmbeddedSettingsSurface(ref);
+    showSettingsApplication(context, ref);
   }
 
   bool _handleMetroSwipe(PointerUpEvent event) {
@@ -740,7 +740,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     // through the embedded fullscreen surface so app-drawer launches cannot
     // reintroduce work-area margins or window chrome.
     if (isDenialSettingsApplicationId(app.id)) {
-      showEmbeddedSettingsSurface(ref);
+      showSettingsApplication(context, ref);
       return;
     }
     ref

@@ -68,7 +68,8 @@ class HomeGridLayout {
     Iterable<LocalFlutterApplication> localApps,
   ) => <HomeGridItem>[
     for (final app in apps) HomeGridItem.app(app),
-    for (final app in localApps) HomeGridItem.localApp(app),
+    for (final app in localApps)
+      if (app.showInLauncher) HomeGridItem.localApp(app),
   ];
 
   static List<HomeGridItem?> initialSlotsForApps(

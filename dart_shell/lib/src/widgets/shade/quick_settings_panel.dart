@@ -673,10 +673,11 @@ class _ShadeQuickEntrance extends ConsumerWidget {
   const _ShadeQuickEntrance();
 
   void _openSettings(
+    BuildContext context,
     WidgetRef ref, {
     SettingsPageId page = SettingsPageId.appearance,
   }) {
-    showEmbeddedSettingsSurface(ref, page: page);
+    showSettingsApplication(context, ref, page: page);
   }
 
   @override
@@ -702,8 +703,8 @@ class _ShadeQuickEntrance extends ConsumerWidget {
           ),
           ShadeActions(
             onOpenEdit: () =>
-                _openSettings(ref, page: SettingsPageId.tabletMetro),
-            onOpenSettings: () => _openSettings(ref),
+                _openSettings(context, ref, page: SettingsPageId.tabletMetro),
+            onOpenSettings: () => _openSettings(context, ref),
             onOpenPower: () => showPowerSessionSurface(ref),
           ),
         ],

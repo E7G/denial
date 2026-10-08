@@ -2,8 +2,11 @@ import 'package:denial_dart_shell/src/launcher/controllers/home_grid_controller.
 import 'package:denial_dart_shell/src/launcher/home_surface.dart';
 import 'package:denial_dart_shell/src/launcher/models/desktop_app.dart';
 import 'package:denial_dart_shell/src/launcher/models/home_grid_item.dart';
+import 'package:denial_dart_shell/src/settings/embedded_settings_surface.dart';
+import 'package:denial_dart_shell/src/settings/settings_application.dart';
 import 'package:denial_dart_shell/src/settings/settings_controller.dart';
 import 'package:denial_dart_shell/src/settings/shell_settings.dart';
+import 'package:denial_dart_shell/src/settings/widgets/settings_navigation.dart';
 import 'package:denial_dart_shell/src/widgets/shell_surface_host.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/shell_state.dart';
@@ -84,7 +87,7 @@ void main() {
     expect(find.text('App 119'), findsNothing);
   });
 
-  testWidgets('Start Settings action opens fullscreen Denial Settings', (
+  testWidgets('Start Settings action routes to the Settings local app', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(size);
@@ -125,13 +128,14 @@ void main() {
       container.read(shellControllerProvider).quickSettingsVisible,
       isFalse,
     );
-    final surfaces = container.read(shellSurfaceControllerProvider);
-    expect(surfaces, hasLength(1));
-    expect(surfaces.single.keyName, 'embedded-settings');
-    expect(surfaces.single.presentation, ShellSurfacePresentation.fullscreen);
+    expect(container.read(shellSurfaceControllerProvider), isEmpty);
+    final request = container.read(settingsPageOpenRequestProvider);
+    expect(request, isNotNull);
+    expect(request!.page, SettingsPageId.appearance);
+    expect(denialSettingsLocalApplication.showInLauncher, isFalse);
   });
 
-  testWidgets('All apps Settings opens the same fullscreen embedded surface', (
+  testWidgets('All apps Settings routes to the same Settings local app', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(size);
@@ -164,10 +168,10 @@ void main() {
     await tester.tap(find.text('Settings').last);
     await tester.pump();
 
-    final surfaces = container.read(shellSurfaceControllerProvider);
-    expect(surfaces, hasLength(1));
-    expect(surfaces.single.keyName, 'embedded-settings');
-    expect(surfaces.single.presentation, ShellSurfacePresentation.fullscreen);
+    expect(container.read(shellSurfaceControllerProvider), isEmpty);
+    final request = container.read(settingsPageOpenRequestProvider);
+    expect(request, isNotNull);
+    expect(request!.page, SettingsPageId.appearance);
   });
 
   testWidgets('portrait drawer reveal begins before swipe release', (

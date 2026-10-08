@@ -31,6 +31,7 @@ class LocalFlutterApplication {
     this.minimumSize = const Size(320, 240),
     this.singleInstance = true,
     this.translucent = false,
+    this.showInLauncher = true,
     this.icon,
     this.categories = const <String>[],
     this.localizedTitle,
@@ -43,6 +44,7 @@ class LocalFlutterApplication {
   final Size minimumSize;
   final bool singleInstance;
   final bool translucent;
+  final bool showInLauncher;
   final IconData? icon;
   final List<String> categories;
   final LocalFlutterApplicationTitleBuilder? localizedTitle;

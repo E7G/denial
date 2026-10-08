@@ -361,7 +361,8 @@ List<_DesktopLauncherEntry> _installedLocalApps(
   Iterable<LocalFlutterApplication> localApps,
 ) {
   return <_DesktopLauncherEntry>[
-    for (final app in localApps) _DesktopLauncherEntry.local(app, context),
+    for (final app in localApps)
+      if (app.showInLauncher) _DesktopLauncherEntry.local(app, context),
   ];
 }
 
