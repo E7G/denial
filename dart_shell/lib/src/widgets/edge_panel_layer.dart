@@ -6,6 +6,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/input_layout.dart';
+import '../state/authentication.dart';
+import 'lock/secure_lock_osk.dart';
 import '../platform/denial_bridge.dart';
 import '../services/clipboard_history_service.dart';
 import '../services/fcitx_kimpanel_service.dart';
@@ -532,13 +534,19 @@ class _EdgePanelContent extends ConsumerWidget {
     final candidateService = ref.read(fcitxKimpanelServiceProvider);
     final clipboard = ref.read(clipboardHistoryServiceProvider);
     final haptics = ref.read(hapticsServiceProvider);
+    // The lock UI's EditableText is Flutter-owned, not a Wayland window.
+    // Native keyboard dispatch would send its password to background apps,
+    // and PAM would remain waiting. Intercept ALL OSK events while locked.
+    final locked = ref.watch(
+      authenticationProvider.select((auth) => auth.locked),
+    );
     final theme = ShellTheme.of(context);
     final radius = floating
         ? BorderRadius.circular(14)
         : const BorderRadius.vertical(top: Radius.circular(12));
     return ShellBackdropBlur(
       separateChild: true,
-      blur: theme.effectivePanelOpacity < 1.0,
+      blur: !locked && theme.effectivePanelOpacity < 1.0,
       borderRadius: radius,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -559,30 +567,47 @@ class _EdgePanelContent extends ConsumerWidget {
           // editor before its command is delivered.
           child: TextFieldTapRegion(
             child: ShellOskPanel(
+              key: ValueKey<String>(locked ? 'secure-lock-osk' : 'normal-osk'),
               onKeyTap: haptics.pulse,
               onDismiss: controller.dismissEdgePanelFromUser,
-              loadClipboard: clipboard.snapshot,
-              pasteClipboard: (entry) async {
-                await clipboard.activate(entry.id);
-                bridge.sendKeyboardKey('v', ctrl: true);
-              },
-              candidateListenable: candidateService.candidateListenable,
-              onCandidateSelected: (index) {
-                unawaited(candidateService.selectCandidate(index));
-              },
-              onCandidatePreviousPage: () {
-                unawaited(candidateService.previousPage());
-              },
-              onCandidateNextPage: () {
-                unawaited(candidateService.nextPage());
-              },
+              loadClipboard: locked ? null : clipboard.snapshot,
+              pasteClipboard: locked
+                  ? null
+                  : (entry) async {
+                      await clipboard.activate(entry.id);
+                      bridge.sendKeyboardKey('v', ctrl: true);
+                    },
+              candidateListenable: locked
+                  ? null
+                  : candidateService.candidateListenable,
+              onCandidateSelected: locked
+                  ? null
+                  : (index) {
+                      unawaited(candidateService.selectCandidate(index));
+                    },
+              onCandidatePreviousPage: locked
+                  ? null
+                  : () {
+                      unawaited(candidateService.previousPage());
+                    },
+              onCandidateNextPage: locked
+                  ? null
+                  : () {
+                      unawaited(candidateService.nextPage());
+                    },
               floating: floating,
               floatingLocked: floatingLocked,
               onFloatingMoveUpdate: onFloatingMoveUpdate,
               onFloatingMoveEnd: onFloatingMoveEnd,
               onToggleFloatingLock: onToggleFloatingLock,
               onDockFloating: onDockFloating,
-              onKey: (intent) => _sendOskIntent(bridge, intent),
+              onKey: (intent) {
+                if (locked) {
+                  ref.read(secureLockOskRouterProvider).dispatch(intent);
+                } else {
+                  _sendOskIntent(bridge, intent);
+                }
+              },
             ),
           ),
         ),

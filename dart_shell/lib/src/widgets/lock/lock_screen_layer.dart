@@ -24,7 +24,9 @@ import '../../theme/motion.dart';
 import '../../theme/shell_theme.dart';
 import '../../theme/tokens.dart';
 import '../edge_panel_layer.dart';
+import '../osk/shell_osk_panel.dart';
 import 'lock_keyboard_avoidance.dart';
+import 'secure_lock_osk.dart';
 import '../shell_wallpaper.dart';
 import '../shade/status_glyphs.dart';
 

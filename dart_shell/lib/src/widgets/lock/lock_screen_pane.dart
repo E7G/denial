@@ -62,6 +62,7 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
     debugLabel: 'lock-authentication-response',
   );
   bool _authenticationVisible = false;
+  late final SecureLockOskRouter _secureOskRouter;
   int? _focusedPromptSequence;
 
   @override
@@ -69,6 +70,25 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
     super.initState();
     _motion = createTicker(_syncMotion);
     _responseFocus.addListener(_syncSecureKeyboardFocus);
+    _secureOskRouter = ref.read(secureLockOskRouterProvider);
+    if (widget.authenticationEnabled) {
+      _secureOskRouter.attach(this, _onSecureOskKey);
+    }
+  }
+
+  void _onSecureOskKey(ShellOskKeyIntent intent) {
+    if (!mounted || !widget.authenticationEnabled || widget.desktop) return;
+    final authentication = ref.read(authenticationProvider);
+    if (!authentication.locked ||
+        !authentication.busy ||
+        !(authentication.prompt?.requiresResponse ?? false)) {
+      return;
+    }
+    editSecureLockResponse(
+      _responseController,
+      intent,
+      onSubmit: _submitResponse,
+    );
   }
 
   void _syncSecureKeyboardFocus() {
@@ -90,6 +110,7 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
 
   @override
   void dispose() {
+    _secureOskRouter.detach(this);
     _responseController.clear();
     _responseController.dispose();
     _responseFocus
@@ -101,6 +122,15 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
 
   @override
   Widget build(BuildContext context) {
+    // Clearing the lock automatically dismisses the secure keyboard. Never
+    // leave the prior password editor or a captured key route in the session.
+    ref.listen(authenticationProvider, (previous, next) {
+      if (previous?.locked == true && !next.locked) {
+        _responseFocus.unfocus();
+        _responseController.clear();
+        ref.read(shellControllerProvider.notifier).closeEdgePanel();
+      }
+    });
     final authentication = ref.watch(authenticationProvider);
     final lockSettings = ref.watch(
       shellSettingsProvider.select((settings) => settings.lockScreen),
@@ -279,6 +309,14 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
     }
     if (!_authenticationVisible) {
       setState(() => _authenticationVisible = true);
+    }
+    // Present the mobile OSK immediately when the user asks to unlock. PAM
+    // may publish its secure Flutter password prompt asynchronously, and
+    // native Wayland input-panel events do not cover shell-owned fields.
+    // Wait for the prompt below to focus its editor; no password is entered
+    // or authentication bypassed by opening the keyboard.
+    if (ref.read(shellProfileProvider) == ShellProfile.mobile) {
+      ref.read(shellControllerProvider.notifier).openEdgePanel();
     }
     final authentication = ref.read(authenticationProvider);
     if (authentication.locked &&
