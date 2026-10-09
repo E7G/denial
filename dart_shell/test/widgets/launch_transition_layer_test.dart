@@ -109,13 +109,29 @@ void main() {
       );
 
       expect(visualRect(), rectMoreOrLessEquals(source));
+      final iconFinder = find.byType(AppIconImage);
+      final iconRender = tester.renderObject<RenderBox>(iconFinder);
+      Rect iconVisualRect() => MatrixUtils.transformRect(
+        iconRender.getTransformTo(null),
+        Offset.zero & iconRender.size,
+      );
+      expect((iconVisualRect().center - source.center).distance, lessThan(0.1));
+      expect(iconVisualRect().width, lessThan(source.shortestSide));
       await tester.pump(const Duration(milliseconds: 80));
       expect(visualRect().width, greaterThan(source.width));
+      expect(
+        (iconVisualRect().center - source.center).distance,
+        greaterThan(10),
+      );
       expect(visualRect().width, lessThan(400));
       await tester.pumpAndSettle();
       expect(
         visualRect(),
         rectMoreOrLessEquals(const Offset(0, 0) & Size(400, 800)),
+      );
+      expect(
+        (iconVisualRect().center - const Offset(200, 400)).distance,
+        lessThan(0.1),
       );
     },
   );

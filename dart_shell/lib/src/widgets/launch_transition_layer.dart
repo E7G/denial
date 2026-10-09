@@ -9,6 +9,7 @@ import '../theme/motion.dart';
 import '../theme/shell_theme.dart';
 import 'app_icon.dart';
 import 'retained_scale.dart';
+import 'retained_splash_icon_motion.dart';
 import 'retained_window_motion.dart';
 import 'window_surface.dart';
 
@@ -186,13 +187,21 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
           beginRadius: math.min(radius, startRect.shortestSide / 2),
           curve: Motion.winPhoneEnterCurve,
           transformChild: false,
-          child: FadeTransition(
-            opacity: _iconOpacity,
-            child: Center(
-              child: RetainedScale(
-                scale: _iconScale,
-                child: RepaintBoundary(
-                  child: SizedBox.square(dimension: iconSize, child: appIcon),
+          child: RetainedSplashIconMotion(
+            progress: _zoomController,
+            begin: startRect,
+            beginIsGlobal: startIsGlobal,
+            end: viewRect,
+            iconSize: iconSize,
+            curve: Motion.winPhoneEnterCurve,
+            child: FadeTransition(
+              opacity: _iconOpacity,
+              child: Center(
+                child: RetainedScale(
+                  scale: _iconScale,
+                  child: RepaintBoundary(
+                    child: SizedBox.square(dimension: iconSize, child: appIcon),
+                  ),
                 ),
               ),
             ),
