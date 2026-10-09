@@ -11,6 +11,7 @@ import '../../widgets/bottom_gesture_handle.dart';
 import '../../widgets/three_button_navigation.dart';
 import '../../widgets/edge_panel_layer.dart';
 import '../../widgets/shade/system_shade_layer.dart';
+import '../../widgets/screenshot_feedback_layer.dart';
 import 'mobile_launcher_layer.dart';
 import 'mobile_window_layers.dart';
 
@@ -107,6 +108,7 @@ class _MobileApplicationSceneState
                   _overviewProgress.value = progress,
             ),
             const MobileInputMethodPopupLayer(),
+            const ScreenshotFeedbackLayer(),
           ],
         ),
       ),
