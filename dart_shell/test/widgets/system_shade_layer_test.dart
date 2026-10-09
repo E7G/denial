@@ -9,6 +9,7 @@ import 'package:denial_dart_shell/src/widgets/shade/system_shade_layer.dart';
 import 'package:denial_dart_shell/src/widgets/shade/quick_settings_panel.dart';
 import 'package:denial_dart_shell/src/widgets/shade/shade_reference_geometry.dart';
 import 'package:denial_dart_shell/src/widgets/shade/status_bar.dart';
+import 'package:denial_dart_shell/src/widgets/shade/shade_progress.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,6 +143,10 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(SystemShadeLayer)),
     );
+    actions.onCapture = () {
+      final painted = container.read(shadeProgressProvider);
+      actions.capturedAtZero = painted.value == 0 && !painted.isAnimating;
+    };
     container.read(shellControllerProvider.notifier).openQuickSettings();
     await tester.pumpAndSettle();
 
@@ -150,7 +155,7 @@ void main() {
       findsNothing,
     );
     final screenshot = find.byKey(
-      const ValueKey<String>('shade-screenshot-action'),
+      const ValueKey<String>('quick-settings-screenshot-tile'),
     );
     expect(screenshot, findsOneWidget);
 
@@ -160,8 +165,12 @@ void main() {
       container.read(shellControllerProvider).quickSettingsVisible,
       isFalse,
     );
-    await tester.pump(const Duration(milliseconds: 300));
+    // The action waits for the spring to finish and two complete UI frames.
+    await tester.pumpAndSettle(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
     expect(actions.captures, 1);
+    expect(actions.capturedAtZero, isTrue);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -294,9 +303,12 @@ void main() {
 
 class _RecordingSystemActions extends SystemActionsService {
   int captures = 0;
+  bool capturedAtZero = false;
+  VoidCallback? onCapture;
 
   @override
   Future<bool> takeScreenshot() async {
+    onCapture?.call();
     captures += 1;
     return true;
   }

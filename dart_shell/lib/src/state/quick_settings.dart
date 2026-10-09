@@ -11,6 +11,7 @@ import '../services/system_actions_service.dart';
 import 'notifier_lifecycle.dart';
 import 'shell_controller.dart';
 import 'system_level_hud.dart';
+import '../widgets/shade/shade_progress.dart';
 
 /// Immutable state for the quick-settings shade controls.
 @immutable
@@ -120,7 +121,6 @@ class QuickSettingsController extends Notifier<QuickSettingsState>
   static const Duration _brightnessCommitInterval = Duration(milliseconds: 90);
   static const Duration _volumeCommitInterval = Duration(milliseconds: 90);
   static const Duration _volumeAcknowledgementTimeout = Duration(seconds: 2);
-  static const Duration _screenshotSettleDelay = Duration(milliseconds: 260);
 
   late BrightnessService _brightness;
   late AudioService _audio;
@@ -462,16 +462,23 @@ class QuickSettingsController extends Notifier<QuickSettingsState>
   void openKeyboard() =>
       ref.read(shellControllerProvider.notifier).openEdgePanel();
 
-  /// Captures a screenshot. The caller is expected to dismiss the shade first;
-  /// the settle delay gives that animation time to clear the frame.
+  /// Captures only after the notification shade has fully retracted *and*
+  /// painted its hidden state. The caller closes the shade before calling us.
+  /// Refuse capture on a stalled close rather than include the shade in PNG.
   Future<bool> takeScreenshot() async {
     if (state.screenshotRunning) {
       return false;
     }
     final generation = _buildGeneration;
+    final shade = ref.read(shadeProgressProvider);
     state = state.copyWith(screenshotRunning: true);
     try {
-      await Future<void>.delayed(_screenshotSettleDelay);
+      if (!await waitForShadeFullyClosed(shade)) {
+        return false;
+      }
+      if (!isBuildGenerationActive(generation)) {
+        return false;
+      }
       return await _actions.takeScreenshot();
     } finally {
       if (isBuildGenerationActive(generation)) {

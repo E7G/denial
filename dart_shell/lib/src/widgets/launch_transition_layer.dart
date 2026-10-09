@@ -12,6 +12,16 @@ import 'retained_scale.dart';
 import 'retained_window_motion.dart';
 import 'window_surface.dart';
 
+@visibleForTesting
+double splashIconSizeForViewport(Size viewport) {
+  final shortSide = math.min(viewport.width, viewport.height);
+  final longSide = math.max(viewport.width, viewport.height);
+  return math
+      .min(shortSide * 0.21, longSide * 0.16)
+      .clamp(104.0, 176.0)
+      .toDouble();
+}
+
 typedef LaunchTransitionCompleted = void Function(int requestId, int objectId);
 
 /// Reopens a running app by growing its live preview from the Home icon.
@@ -140,10 +150,11 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
     final startRect = sourceRect ?? _startRectFor(context, constraints);
     final startIsGlobal = sourceRect != null;
     final radius = context.shellTheme.panelRadius;
-    final iconSize = math
-        .min(startRect.width * 0.28, startRect.height * 0.34)
-        .clamp(56.0, 112.0)
-        .toDouble();
+    // The startup splash icon is sized for the actual screen, not the small
+    // launcher tile it grows from. On Mi Pad 2 (768 logical pixels across)
+    // this is about 161 px instead of the former 56 px. The moving clip still
+    // begins at the tapped tile so the WinRT expansion is preserved.
+    final iconSize = splashIconSizeForViewport(constraints.biggest);
 
     return Stack(
       fit: StackFit.expand,

@@ -13,6 +13,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('splash icon scales to the display rather than its tapped tile', () {
+    expect(splashIconSizeForViewport(const Size(400, 800)), 104);
+    expect(
+      splashIconSizeForViewport(const Size(768, 1024)),
+      closeTo(161.28, 0.01),
+    );
+    expect(splashIconSizeForViewport(const Size(1536, 2048)), 176);
+  });
   testWidgets(
     'cold launch retains full-size app layout and icon through zoom and reveal',
     (tester) async {
@@ -45,6 +53,7 @@ void main() {
       final iconFinder = find.byType(AppIconImage);
       final iconElement = iconFinder.evaluate().single;
       final iconSize = tester.getSize(iconFinder);
+      expect(iconSize, const Size(104, 104));
       for (var frame = 0; frame < 5; frame++) {
         await tester.pump(const Duration(milliseconds: 8));
         expect(tester.getSize(iconFinder), iconSize);
