@@ -46,8 +46,10 @@ void editSecureLockResponse(
     onSubmit();
     return;
   }
+  // ShellOskPanel emits down/tap/up for one backspace gesture. Apply only
+  // the tap to avoid deleting two characters on a single touch.
   if (intent.action == ShellOskKeyAction.backspace &&
-      intent.phase == ShellOskKeyPhase.released) {
+      intent.phase != ShellOskKeyPhase.tap) {
     return;
   }
 

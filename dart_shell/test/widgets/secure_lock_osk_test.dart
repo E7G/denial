@@ -20,6 +20,7 @@ void main() {
       expect(field.text, 'hello 🔒');
 
       send(const ShellOskKeyIntent.backspace(phase: ShellOskKeyPhase.pressed));
+      send(const ShellOskKeyIntent.backspace());
       send(const ShellOskKeyIntent.backspace(phase: ShellOskKeyPhase.released));
       expect(field.text, 'hello ');
 
