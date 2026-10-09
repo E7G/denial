@@ -49,31 +49,21 @@ class MobileLauncherLayer extends ConsumerWidget {
       valueListenable: overviewPresentationActive,
       builder: (context, overviewActive, _) => TickerMode(
         enabled: !overviewActive,
-        child: AnimatedOpacity(
-          opacity: flags.launching ? 0.58 : 1.0,
+        // WinRT retreat without fullscreen opacity + scaling passes.
+        // The old 0.58 alpha and 0.975 scale caused two expensive full-scene
+        // compositing layers behind the simultaneously expanding splash.
+        // A short horizontal translation preserves the directional motion.
+        child: AnimatedSlide(
+          offset: flags.launching ? const Offset(-0.024, 0) : Offset.zero,
           duration: Motion.launchHomeRetreat,
           curve: flags.launching
               ? Motion.winPhoneExitCurve
               : Motion.winPhoneEnterCurve,
-          child: AnimatedSlide(
-            offset: flags.launching ? const Offset(-0.018, 0) : Offset.zero,
-            duration: Motion.launchHomeRetreat,
-            curve: flags.launching
-                ? Motion.winPhoneExitCurve
-                : Motion.winPhoneEnterCurve,
-            child: AnimatedScale(
-              scale: flags.launching ? 0.975 : 1.0,
-              duration: Motion.launchHomeRetreat,
-              curve: flags.launching
-                  ? Motion.winPhoneExitCurve
-                  : Motion.winPhoneEnterCurve,
-              child: HomeSurface(
-                active: flags.active,
-                interactive: flags.interactive && !overviewActive,
-                contentOpacity: opacity,
-                useShellLaunchTransition: true,
-              ),
-            ),
+          child: HomeSurface(
+            active: flags.active,
+            interactive: flags.interactive && !overviewActive,
+            contentOpacity: opacity,
+            useShellLaunchTransition: true,
           ),
         ),
       ),

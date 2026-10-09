@@ -3,16 +3,25 @@ import 'dart:io';
 import 'package:denial_dart_shell/src/localization/denial_localizations.dart';
 import 'package:denial_dart_shell/src/models/app_launch_request.dart';
 import 'package:denial_dart_shell/src/models/denial_window.dart';
+import 'package:denial_dart_shell/src/theme/motion.dart';
 import 'package:denial_dart_shell/src/theme/shell_theme.dart';
 import 'package:denial_dart_shell/src/theme/glass_configuration.dart';
 import 'package:denial_dart_shell/src/widgets/app_icon.dart';
 import 'package:denial_dart_shell/src/widgets/launch_transition_layer.dart';
+import 'package:denial_dart_shell/src/widgets/retained_splash_icon_motion.dart';
+import 'package:denial_dart_shell/src/widgets/retained_window_motion.dart';
 import 'package:denial_dart_shell/src/widgets/window_surface.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('large tile-to-screen motion avoids a first-frame position jump', () {
+    final first60HzFrame = Motion.launchSmoothCurve.transform(1 / 18);
+    expect(first60HzFrame, lessThan(0.15));
+    expect(first60HzFrame, greaterThan(0));
+    expect(Motion.launchSmoothCurve.transform(1), 1);
+  });
   test('splash icon scales to the display rather than its tapped tile', () {
     expect(splashIconSizeForViewport(const Size(400, 800)), 104);
     expect(
@@ -50,6 +59,10 @@ void main() {
       );
       await tester.pumpWidget(launch(null));
       await tester.pump();
+      // One large animated backdrop, not a second fullscreen clip for the
+      // moving icon. Keep the icon on a separate retained paint-only layer.
+      expect(find.byType(RetainedWindowMotion), findsOneWidget);
+      expect(find.byType(RetainedSplashIconMotion), findsOneWidget);
       final iconFinder = find.byType(AppIconImage);
       final iconElement = iconFinder.evaluate().single;
       final iconSize = tester.getSize(iconFinder);

@@ -72,6 +72,11 @@ class Motion {
   // Fast, front-loaded navigation curve inspired by WinPhone/WinRT page motion.
   // Most travel happens early so the shell feels responsive even on slower apps.
   static const Curve winPhoneEnterCurve = Cubic(0.08, 0.72, 0.16, 1.0);
+  // App launch crosses hundreds of logical pixels. A curve optimized for short
+  // panels jumps too far on its first 60Hz frame and appears to stutter even
+  // when every frame renders. Give the tile-to-screen expansion a gentler
+  // first few frames without slowing the rest of the desktop.
+  static const Curve launchSmoothCurve = Cubic(0.27, 0.55, 0.36, 1.0);
   static const Curve winPhoneExitCurve = Cubic(0.42, 0.0, 0.82, 0.36);
   static const Curve wallpaperTilesFadeCurve = Curves.easeInOut;
 

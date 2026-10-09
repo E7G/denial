@@ -8,7 +8,6 @@ import '../models/denial_window.dart';
 import '../theme/motion.dart';
 import '../theme/shell_theme.dart';
 import 'app_icon.dart';
-import 'retained_scale.dart';
 import 'retained_splash_icon_motion.dart';
 import 'retained_window_motion.dart';
 import 'window_surface.dart';
@@ -51,7 +50,6 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
   late final AnimationController _revealController;
   late final Animation<double> _reveal;
   late final Animation<double> _iconOpacity;
-  late final Animation<double> _iconScale;
   int? _activeRequestId;
   int? _completedRequestId;
 
@@ -66,7 +64,6 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
     )..addStatusListener(_handleAnimationStatus);
     _reveal = _revealController.drive(CurveTween(curve: Motion.standard));
     _iconOpacity = ReverseAnimation(_reveal);
-    _iconScale = _reveal.drive(Tween<double>(begin: 1.0, end: 0.92));
     _startRequest(widget.request, widget.window);
   }
 
@@ -120,7 +117,7 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
                     context.shellTheme.panelRadius,
                     start.shortestSide / 2,
                   ),
-                  curve: Motion.winPhoneEnterCurve,
+                  curve: Motion.launchSmoothCurve,
                   child: WindowSurface(window: window!),
                 );
               }
@@ -166,7 +163,7 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
           beginIsGlobal: startIsGlobal,
           end: viewRect,
           beginRadius: math.min(radius, startRect.shortestSide / 2),
-          curve: Motion.winPhoneEnterCurve,
+          curve: Motion.launchSmoothCurve,
           child: ColoredBox(
             color: context.shellColors.launchSurface,
             child: window == null
@@ -177,32 +174,22 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
                   ),
           ),
         ),
-        // The placeholder stays centered and keeps its logical size while
-        // the surface behind it grows. Both children retain their layout.
-        RetainedWindowMotion(
+        // The moving icon always fits entirely inside the growing tile.
+        // Do not clip it a second time through another fullscreen
+        // RetainedWindowMotion: that duplicates a GPU clip/composition layer
+        // at 1536x2048 on Mi Pad 2 and can miss the 16.7ms frame budget.
+        RetainedSplashIconMotion(
           progress: _zoomController,
           begin: startRect,
           beginIsGlobal: startIsGlobal,
           end: viewRect,
-          beginRadius: math.min(radius, startRect.shortestSide / 2),
-          curve: Motion.winPhoneEnterCurve,
-          transformChild: false,
-          child: RetainedSplashIconMotion(
-            progress: _zoomController,
-            begin: startRect,
-            beginIsGlobal: startIsGlobal,
-            end: viewRect,
-            iconSize: iconSize,
-            curve: Motion.winPhoneEnterCurve,
-            child: FadeTransition(
-              opacity: _iconOpacity,
-              child: Center(
-                child: RetainedScale(
-                  scale: _iconScale,
-                  child: RepaintBoundary(
-                    child: SizedBox.square(dimension: iconSize, child: appIcon),
-                  ),
-                ),
+          iconSize: iconSize,
+          curve: Motion.launchSmoothCurve,
+          child: FadeTransition(
+            opacity: _iconOpacity,
+            child: Center(
+              child: RepaintBoundary(
+                child: SizedBox.square(dimension: iconSize, child: appIcon),
               ),
             ),
           ),

@@ -122,8 +122,9 @@ class _RenderSplashIconMotion extends RenderProxyBox {
   }
 
   void _invalidate() {
+    // The animated icon is explicitly ExcludeSemantics in the launch layer;
+    // updating the semantics tree on each animation tick only adds UI work.
     markNeedsPaint();
-    markNeedsSemanticsUpdate();
   }
 
   Matrix4 _iconTransform() {
