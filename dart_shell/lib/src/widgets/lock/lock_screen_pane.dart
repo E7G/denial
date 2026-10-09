@@ -68,13 +68,33 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
   void initState() {
     super.initState();
     _motion = createTicker(_syncMotion);
+    _responseFocus.addListener(_syncSecureKeyboardFocus);
+  }
+
+  void _syncSecureKeyboardFocus() {
+    if (!mounted || !widget.authenticationEnabled) return;
+    if (ref.read(shellProfileProvider) != ShellProfile.mobile) return;
+    final auth = ref.read(authenticationProvider);
+    if (_responseFocus.hasFocus &&
+        auth.locked &&
+        auth.busy &&
+        (auth.prompt?.requiresResponse ?? false)) {
+      // The secure lock's Flutter EditableText is not a Wayland client.
+      // On this profile it cannot rely on the native text-input-v3 panel
+      // visibility callback used for ordinary apps. Explicitly present the
+      // compositor-owned OSK while the PAM prompt owns focus; authentication
+      // still happens exclusively through the original PAM responder.
+      ref.read(shellControllerProvider.notifier).openEdgePanel();
+    }
   }
 
   @override
   void dispose() {
     _responseController.clear();
     _responseController.dispose();
-    _responseFocus.dispose();
+    _responseFocus
+      ..removeListener(_syncSecureKeyboardFocus)
+      ..dispose();
     _motion.dispose();
     super.dispose();
   }
@@ -93,6 +113,9 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && (_authenticationVisible || authentication.busy)) {
             _responseFocus.requestFocus();
+            // Focus can already be retained while PAM replaces its prompt;
+            // synchronize the OSK even when FocusNode emits no new event.
+            _syncSecureKeyboardFocus();
           }
         });
       }
@@ -280,6 +303,9 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
   void _cancelAuthentication() {
     _responseController.clear();
     _responseFocus.unfocus();
+    if (ref.read(shellProfileProvider) == ShellProfile.mobile) {
+      ref.read(shellControllerProvider.notifier).closeEdgePanel();
+    }
     final authentication = ref.read(authenticationProvider);
     if (authentication.busy) {
       ref.read(authenticationProvider.notifier).cancel();
