@@ -109,7 +109,7 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
                     context.shellTheme.panelRadius,
                     start.shortestSide / 2,
                   ),
-                  curve: Motion.md3EmphasizedDecelerate,
+                  curve: Motion.winPhoneEnterCurve,
                   child: WindowSurface(window: window!),
                 );
               }
@@ -120,6 +120,7 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
                 ExcludeSemantics(
                   child: AppIconImage(iconPath: request.iconPath),
                 ),
+                sourceRect: request.sourceRect,
               );
             },
           ),
@@ -132,10 +133,12 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
     BuildContext context,
     BoxConstraints constraints,
     DenialWindow? window,
-    Widget appIcon,
-  ) {
+    Widget appIcon, {
+    Rect? sourceRect,
+  }) {
     final viewRect = Offset.zero & constraints.biggest;
-    final startRect = _startRectFor(context, constraints);
+    final startRect = sourceRect ?? _startRectFor(context, constraints);
+    final startIsGlobal = sourceRect != null;
     final radius = context.shellTheme.panelRadius;
     final iconSize = math
         .min(startRect.width * 0.28, startRect.height * 0.34)
@@ -148,9 +151,10 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
         RetainedWindowMotion(
           progress: _zoomController,
           begin: startRect,
+          beginIsGlobal: startIsGlobal,
           end: viewRect,
-          beginRadius: radius,
-          curve: Motion.md3EmphasizedDecelerate,
+          beginRadius: math.min(radius, startRect.shortestSide / 2),
+          curve: Motion.winPhoneEnterCurve,
           child: ColoredBox(
             color: context.shellColors.launchSurface,
             child: window == null
@@ -166,9 +170,10 @@ class _LaunchTransitionLayerState extends State<LaunchTransitionLayer>
         RetainedWindowMotion(
           progress: _zoomController,
           begin: startRect,
+          beginIsGlobal: startIsGlobal,
           end: viewRect,
-          beginRadius: radius,
-          curve: Motion.md3EmphasizedDecelerate,
+          beginRadius: math.min(radius, startRect.shortestSide / 2),
+          curve: Motion.winPhoneEnterCurve,
           transformChild: false,
           child: FadeTransition(
             opacity: _iconOpacity,

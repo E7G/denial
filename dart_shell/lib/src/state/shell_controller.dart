@@ -434,11 +434,13 @@ class ShellController extends Notifier<ShellState>
     required String appName,
     required String? iconPath,
     required Iterable<String> expectedAppIds,
+    Rect? sourceRect,
   }) {
     return _beginLauncherTransition(
       appName: appName,
       iconPath: iconPath,
       expectedAppIds: expectedAppIds,
+      sourceRect: sourceRect,
     );
   }
 

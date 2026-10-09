@@ -14,24 +14,28 @@ class Motion {
   // Scripted durations -------------------------------------------------------
   static const Duration overviewOpen = Duration(milliseconds: 380);
   static const Duration overviewClose = Duration(milliseconds: 280);
-  static const Duration workspaceSwitch = Duration(milliseconds: 320);
+  static const Duration workspaceSwitch = Duration(milliseconds: 260);
   static const Duration workspaceIndicatorTakeoff = Duration(milliseconds: 72);
   static const Duration workspaceIndicatorTravel = Duration(milliseconds: 168);
   static const Duration workspaceIndicatorSettle = Duration(milliseconds: 80);
-  static const Duration launch = Duration(milliseconds: 430);
-  static const Duration launchReveal = Duration(milliseconds: 160);
+  static const Duration launch = Duration(milliseconds: 260);
+  static const Duration launchReveal = Duration(milliseconds: 110);
+  static const Duration launchHomeRetreat = Duration(milliseconds: 170);
+  static const Duration metroPageEnter = Duration(milliseconds: 180);
+  static const Duration metroPageExit = Duration(milliseconds: 120);
+  static const Duration metroPress = Duration(milliseconds: 76);
   static const Duration focusZoom = Duration(milliseconds: 320);
-  static const Duration shade = Duration(milliseconds: 230);
+  static const Duration shade = Duration(milliseconds: 190);
   static const Duration desktopPanelOpen = Duration(milliseconds: 300);
   static const Duration desktopPanelClose = Duration(milliseconds: 320);
   static const Duration desktopPanelFadeOpen = Duration(milliseconds: 180);
   static const Duration desktopPanelFadeClose = Duration(milliseconds: 150);
-  static const Duration homeFlyAway = Duration(milliseconds: 280);
+  static const Duration homeFlyAway = Duration(milliseconds: 220);
   static const Duration tile = Duration(milliseconds: 160);
   static const Duration layoutTileReflow = Duration(milliseconds: 200);
-  static const Duration inputMethodPopup = Duration(milliseconds: 180);
+  static const Duration inputMethodPopup = Duration(milliseconds: 150);
   static const Duration pill = Duration(milliseconds: 90);
-  static const Duration cardSettle = Duration(milliseconds: 220);
+  static const Duration cardSettle = Duration(milliseconds: 180);
   static const Duration wallpaperSelector = Duration(milliseconds: 360);
   static const Duration wallpaperTilesFade = Duration(milliseconds: 300);
   static const Duration wallpaperReveal = Duration(milliseconds: 720);
@@ -53,18 +57,22 @@ class Motion {
   static const Duration windowSwitcherExpand = Duration(milliseconds: 320);
   static const Duration windowSwitcherCycle = Duration(milliseconds: 240);
   static const Duration windowSwitcherCollapse = Duration(milliseconds: 280);
-  static const Duration systemLevelHud = Duration(milliseconds: 220);
-  static const Duration systemLevelHudValue = Duration(milliseconds: 260);
-  static const Duration notificationBanner = Duration(milliseconds: 260);
-  static const Duration mobileNotificationBanner = Duration(milliseconds: 400);
+  static const Duration systemLevelHud = Duration(milliseconds: 180);
+  static const Duration systemLevelHudValue = Duration(milliseconds: 200);
+  static const Duration notificationBanner = Duration(milliseconds: 210);
+  static const Duration mobileNotificationBanner = Duration(milliseconds: 280);
   static const Duration notificationHistorySlide = Duration(milliseconds: 350);
   static const Duration notificationHistoryStagger = Duration(milliseconds: 16);
   static const int notificationHistoryMaxStagger = 5;
   static const Duration screenshotTake = Duration(milliseconds: 220);
-  static const Duration unlock = Duration(milliseconds: 400);
+  static const Duration unlock = Duration(milliseconds: 300);
 
   // Curves -------------------------------------------------------------------
   static const Curve standard = Curves.easeOutCubic;
+  // Fast, front-loaded navigation curve inspired by WinPhone/WinRT page motion.
+  // Most travel happens early so the shell feels responsive even on slower apps.
+  static const Curve winPhoneEnterCurve = Cubic(0.08, 0.72, 0.16, 1.0);
+  static const Curve winPhoneExitCurve = Cubic(0.42, 0.0, 0.82, 0.36);
   static const Curve wallpaperTilesFadeCurve = Curves.easeInOut;
 
   /// Symmetric session motion with enough travel in the terminal tenth to

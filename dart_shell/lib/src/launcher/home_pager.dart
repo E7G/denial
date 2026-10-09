@@ -21,9 +21,7 @@ class _HomePager extends ConsumerWidget {
     final viewSize = MediaQuery.sizeOf(context);
     final portrait = viewSize.height > viewSize.width;
     final compactPortrait =
-        tabletSettings.enabled &&
-        tabletSettings.portraitCompact &&
-        portrait;
+        tabletSettings.enabled && tabletSettings.portraitCompact && portrait;
 
     final density = compactPortrait
         ? TabletTileDensity.compact
@@ -196,7 +194,6 @@ class _HomePageDots extends ConsumerWidget {
   }
 }
 
-
 class _PhonePageRail extends ConsumerWidget {
   const _PhonePageRail({required this.count});
 
@@ -215,8 +212,8 @@ class _PhonePageRail extends ConsumerWidget {
         children: [
           for (var index = 0; index < count; index += 1)
             AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
+              duration: Motion.metroPageEnter,
+              curve: Motion.winPhoneEnterCurve,
               margin: const EdgeInsets.symmetric(vertical: 3),
               width: index == page ? 4 : 3,
               height: index == page ? 22 : 9,

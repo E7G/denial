@@ -269,6 +269,17 @@ class _SettingsDrawerGrid extends HomeGridController {
 class _StartActionShell extends ShellController {
   @override
   ShellState build() => ShellState.initial(locked: false);
+
+  @override
+  int? beginAppLaunch({
+    required String appName,
+    required String? iconPath,
+    required Iterable<String> expectedAppIds,
+    Rect? sourceRect,
+  }) => 1;
+
+  @override
+  void failAppLaunch(int requestId) {}
 }
 
 class _StartActionSettings extends ShellSettingsController {

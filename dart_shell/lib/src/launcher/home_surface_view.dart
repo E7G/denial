@@ -1573,8 +1573,8 @@ List<String> _metroSortedLetters(Iterable<String> source) {
   return result;
 }
 
-class _MetroPhoneAppRow extends StatelessWidget {
-  _MetroPhoneAppRow({
+class _MetroPhoneAppRow extends StatefulWidget {
+  const _MetroPhoneAppRow({
     required this.item,
     required this.title,
     required this.pinned,
@@ -1585,7 +1585,6 @@ class _MetroPhoneAppRow extends StatelessWidget {
     required this.onLaunch,
   });
 
-  final GlobalKey _rowKey = GlobalKey();
   final HomeGridItem item;
   final String title;
   final bool pinned;
@@ -1595,12 +1594,28 @@ class _MetroPhoneAppRow extends StatelessWidget {
   final VoidCallback onTogglePin;
   final ValueChanged<Rect>? onLaunch;
 
+  @override
+  State<_MetroPhoneAppRow> createState() => _MetroPhoneAppRowState();
+}
+
+class _MetroPhoneAppRowState extends State<_MetroPhoneAppRow> {
+  final GlobalKey _rowKey = GlobalKey();
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!mounted || _pressed == value) {
+      return;
+    }
+    setState(() => _pressed = value);
+  }
+
   void _launch() {
+    _setPressed(false);
     final render = _rowKey.currentContext?.findRenderObject();
     if (render is! RenderBox || !render.hasSize) {
       return;
     }
-    onLaunch?.call(
+    widget.onLaunch?.call(
       MatrixUtils.transformRect(
         render.getTransformTo(null),
         Offset.zero & render.size,
@@ -1610,63 +1625,91 @@ class _MetroPhoneAppRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final localIcon = item.localApp?.icon;
+    final localIcon = widget.item.localApp?.icon;
+    final launchEnabled = !widget.selectionMode && widget.onLaunch != null;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: selectionMode ? onSelect : (onLaunch == null ? null : _launch),
-      onLongPress: selectionMode ? onSelect : onTogglePin,
-      child: Container(
-        key: _rowKey,
-        height: 64,
-        margin: const EdgeInsets.only(bottom: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        color: selected ? const Color(0x330078D7) : Colors.transparent,
-        child: Row(
-          children: [
-            SizedBox.square(
-              dimension: 48,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: metroTileColor(item.id, item.tileColorValue),
+      onTapDown: launchEnabled ? (_) => _setPressed(true) : null,
+      onTapCancel: launchEnabled ? () => _setPressed(false) : null,
+      onTapUp: launchEnabled ? (_) => _setPressed(false) : null,
+      onTap: widget.selectionMode
+          ? widget.onSelect
+          : (widget.onLaunch == null ? null : _launch),
+      onLongPress: widget.selectionMode ? widget.onSelect : widget.onTogglePin,
+      child: AnimatedScale(
+        scale: _pressed ? 0.975 : 1.0,
+        alignment: Alignment.centerLeft,
+        duration: Motion.metroPress,
+        curve: Motion.winPhoneEnterCurve,
+        child: AnimatedSlide(
+          offset: _pressed ? const Offset(0.008, 0) : Offset.zero,
+          duration: Motion.metroPress,
+          curve: Motion.winPhoneEnterCurve,
+          child: Container(
+            key: _rowKey,
+            height: 64,
+            margin: const EdgeInsets.only(bottom: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            color: widget.selected
+                ? const Color(0x330078D7)
+                : Colors.transparent,
+            child: Row(
+              children: [
+                SizedBox.square(
+                  dimension: 48,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: metroTileColor(
+                        widget.item.id,
+                        widget.item.tileColorValue,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(7),
+                      child: localIcon != null
+                          ? Icon(localIcon, color: Colors.white, size: 30)
+                          : AppIconImage(iconPath: widget.item.app?.iconPath),
+                    ),
+                  ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(7),
-                  child: localIcon != null
-                      ? Icon(localIcon, color: Colors.white, size: 30)
-                      : AppIconImage(iconPath: item.app?.iconPath),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
                 ),
-              ),
+                if (widget.selectionMode)
+                  Icon(
+                    widget.selected
+                        ? Icons.check_circle_rounded
+                        : Icons.circle_outlined,
+                    color: Colors.white,
+                    size: 24,
+                  )
+                else
+                  IconButton(
+                    tooltip: widget.pinned
+                        ? 'Unpin from Start'
+                        : 'Pin to Start',
+                    onPressed: widget.onTogglePin,
+                    icon: Icon(
+                      widget.pinned
+                          ? Icons.push_pin_rounded
+                          : Icons.push_pin_outlined,
+                      color: Colors.white.withValues(alpha: 0.78),
+                      size: 20,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-            if (selectionMode)
-              Icon(
-                selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                color: Colors.white,
-                size: 24,
-              )
-            else
-              IconButton(
-                tooltip: pinned ? 'Unpin from Start' : 'Pin to Start',
-                onPressed: onTogglePin,
-                icon: Icon(
-                  pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                  color: Colors.white.withValues(alpha: 0.78),
-                  size: 20,
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -1778,16 +1821,16 @@ class _MetroSlideInState extends State<_MetroSlideIn>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
-      reverseDuration: const Duration(milliseconds: 140),
+      duration: Motion.metroPageEnter,
+      reverseDuration: Motion.metroPageExit,
     );
     final curved = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
+      curve: Motion.winPhoneEnterCurve,
+      reverseCurve: Motion.winPhoneExitCurve,
     );
     _slide = Tween<Offset>(
-      begin: const Offset(0.14, 0),
+      begin: const Offset(0.10, 0),
       end: Offset.zero,
     ).animate(curved);
     _fade = CurvedAnimation(
@@ -1795,7 +1838,7 @@ class _MetroSlideInState extends State<_MetroSlideIn>
       curve: const Interval(0, 0.78, curve: Curves.easeOut),
       reverseCurve: Curves.easeIn,
     );
-    _scale = Tween<double>(begin: 0.985, end: 1).animate(curved);
+    _scale = Tween<double>(begin: 0.992, end: 1).animate(curved);
     if (widget.visible) {
       _controller.forward();
     }

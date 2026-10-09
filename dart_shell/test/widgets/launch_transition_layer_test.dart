@@ -71,6 +71,46 @@ void main() {
     },
   );
 
+  testWidgets(
+    'cold launch grows from the tapped tile when source bounds exist',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      const source = Rect.fromLTWH(36, 148, 112, 92);
+      final request = _request(existing: false, source: source);
+      await tester.pumpWidget(
+        _harness(
+          Stack(
+            children: [
+              LaunchTransitionLayer(
+                request: request,
+                window: _window,
+                onCompleted: (_, __) {},
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final surfaceFinder = find.byType(WindowSurface);
+      final render = tester.renderObject<RenderBox>(surfaceFinder);
+      Rect visualRect() => MatrixUtils.transformRect(
+        render.getTransformTo(null),
+        Offset.zero & render.size,
+      );
+
+      expect(visualRect(), rectMoreOrLessEquals(source));
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(visualRect().width, greaterThan(source.width));
+      expect(visualRect().width, lessThan(400));
+      await tester.pumpAndSettle();
+      expect(
+        visualRect(),
+        rectMoreOrLessEquals(const Offset(0, 0) & Size(400, 800)),
+      );
+    },
+  );
+
   testWidgets('running app grows its retained live surface from the icon', (
     tester,
   ) async {

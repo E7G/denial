@@ -34,6 +34,7 @@ void showSettingsApplication(
   BuildContext context,
   WidgetRef ref, {
   SettingsPageId page = SettingsPageId.appearance,
+  Rect? sourceRect,
 }) {
   ref.read(shellControllerProvider.notifier).closeQuickSettings();
   ref.read(settingsPageOpenRequestProvider.notifier).request(page);
@@ -44,14 +45,48 @@ void showSettingsApplication(
   // geometry. Using MediaQuery also avoids coupling application launch to the
   // asynchronous display-layout service.
   final bounds = Offset.zero & MediaQuery.sizeOf(context);
-  ref
-      .read(localFlutterApplicationLauncherProvider)
-      .launch(
+  final launcher = ref.read(localFlutterApplicationLauncherProvider);
+  final shellState = ref.read(shellControllerProvider);
+  final shellController = ref.read(shellControllerProvider.notifier);
+  final title = denialSettingsLocalApplication.titleFor(context);
+
+  for (final window in shellState.windows) {
+    if (window.isLocalFlutter &&
+        window.appId == denialSettingsLocalApplicationId) {
+      shellController.activateAppFromLauncher(
+        window: window,
+        appName: title,
+        iconPath: null,
+        sourceRect: sourceRect,
+      );
+      launcher.launch(
         denialSettingsLocalApplicationId,
         availableBounds: bounds,
         geometry: bounds,
-        title: 'Settings',
+        title: title,
       );
+      return;
+    }
+  }
+
+  final requestId = shellController.beginAppLaunch(
+    appName: title,
+    iconPath: null,
+    expectedAppIds: const <String>[denialSettingsLocalApplicationId],
+    sourceRect: sourceRect,
+  );
+  if (requestId == null) {
+    return;
+  }
+  final started = launcher.launch(
+    denialSettingsLocalApplicationId,
+    availableBounds: bounds,
+    geometry: bounds,
+    title: title,
+  );
+  if (!started) {
+    shellController.failAppLaunch(requestId);
+  }
 }
 
 class SettingsApplicationSurface extends ConsumerWidget {

@@ -14,6 +14,7 @@ import '../settings/settings_application.dart';
 import '../settings/settings_controller.dart';
 import '../settings/embedded_settings_surface.dart';
 import '../settings/shell_settings.dart';
+import '../theme/motion.dart';
 import '../widgets/retained_translation.dart';
 import '../widgets/app_icon.dart';
 import '../widgets/connectivity/bluetooth_detail_surface.dart';
@@ -515,8 +516,8 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       unawaited(
         _pageController.animateToPage(
           safePage,
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
+          duration: Motion.workspaceSwitch,
+          curve: Motion.winPhoneEnterCurve,
         ),
       );
     }
@@ -735,12 +736,11 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
     if (app == null) {
       return;
     }
-    // On the mobile/tablet shell, Denial Settings is part of the shell scene,
-    // not a normal Wayland client window. Launch every Settings entry point
-    // through the embedded fullscreen surface so app-drawer launches cannot
-    // reintroduce work-area margins or window chrome.
+    // Settings is a shell-owned local application on mobile/tablet. Route the
+    // desktop-file entry into that application so every launcher entry point
+    // shares the same app-stack lifecycle and transition language.
     if (isDenialSettingsApplicationId(app.id)) {
-      showSettingsApplication(context, ref);
+      showSettingsApplication(context, ref, sourceRect: sourceRect);
       return;
     }
     ref
@@ -774,6 +774,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       appName: app.name,
       iconPath: app.iconPath,
       expectedAppIds: expectedAppIds,
+      sourceRect: sourceRect,
     );
     if (requestId == null) {
       return;
@@ -840,6 +841,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       appName: title,
       iconPath: null,
       expectedAppIds: <String>[app.id],
+      sourceRect: sourceRect,
     );
     if (requestId == null) {
       return;
@@ -993,16 +995,16 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
       _lastAutoPageTurn = now;
       unawaited(
         _pageController.nextPage(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
+          duration: Motion.workspaceSwitch,
+          curve: Motion.winPhoneEnterCurve,
         ),
       );
     } else if (backwardEdge && page > 0) {
       _lastAutoPageTurn = now;
       unawaited(
         _pageController.previousPage(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
+          duration: Motion.workspaceSwitch,
+          curve: Motion.winPhoneEnterCurve,
         ),
       );
     }

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../launcher/home_surface.dart';
+import '../../theme/motion.dart';
 import '../../widgets/shade/shade_progress.dart';
 
 /// Visibility and interaction policy for the stock launcher feature.
@@ -25,6 +26,7 @@ class MobileLauncherLayer extends ConsumerWidget {
             state.primaryWindow == null || state.homeTransitionActive;
         return (
           active: active,
+          launching: state.launchTransitionActive,
           interactive:
               active &&
               !state.launchTransitionActive &&
@@ -47,11 +49,32 @@ class MobileLauncherLayer extends ConsumerWidget {
       valueListenable: overviewPresentationActive,
       builder: (context, overviewActive, _) => TickerMode(
         enabled: !overviewActive,
-        child: HomeSurface(
-          active: flags.active,
-          interactive: flags.interactive && !overviewActive,
-          contentOpacity: opacity,
-          useShellLaunchTransition: true,
+        child: AnimatedOpacity(
+          opacity: flags.launching ? 0.58 : 1.0,
+          duration: Motion.launchHomeRetreat,
+          curve: flags.launching
+              ? Motion.winPhoneExitCurve
+              : Motion.winPhoneEnterCurve,
+          child: AnimatedSlide(
+            offset: flags.launching ? const Offset(-0.018, 0) : Offset.zero,
+            duration: Motion.launchHomeRetreat,
+            curve: flags.launching
+                ? Motion.winPhoneExitCurve
+                : Motion.winPhoneEnterCurve,
+            child: AnimatedScale(
+              scale: flags.launching ? 0.975 : 1.0,
+              duration: Motion.launchHomeRetreat,
+              curve: flags.launching
+                  ? Motion.winPhoneExitCurve
+                  : Motion.winPhoneEnterCurve,
+              child: HomeSurface(
+                active: flags.active,
+                interactive: flags.interactive && !overviewActive,
+                contentOpacity: opacity,
+                useShellLaunchTransition: true,
+              ),
+            ),
+          ),
         ),
       ),
     );
