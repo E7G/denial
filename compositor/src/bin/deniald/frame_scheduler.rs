@@ -61,7 +61,8 @@ pub(super) struct OutputFrameRequest {
 #[derive(Debug, Default)]
 struct DirtyOutput {
     serial: u64,
-    texture_ids: BTreeSet<i64>,
+    // Keep the last dirty generation for each app texture while a frame is in flight.
+    texture_ids: BTreeMap<i64, u64>,
 }
 
 #[derive(Debug)]
@@ -221,7 +222,9 @@ impl FrameScheduler {
         let serial = self.allocate_dirty_serial();
         let dirty = self.dirty_outputs.entry(output).or_default();
         dirty.serial = serial;
-        dirty.texture_ids.extend(texture_ids);
+        for texture_id in texture_ids {
+            dirty.texture_ids.insert(texture_id, serial);
+        }
         if let Some(audit) = self.audit.as_mut() {
             audit.dirty_updates = audit.dirty_updates.saturating_add(1);
         }
@@ -240,11 +243,19 @@ impl FrameScheduler {
     }
 
     pub(super) fn complete_render(&mut self, output: OutputId, dirty_serial: u64) {
-        if self
-            .dirty_outputs
-            .get(&output)
-            .is_some_and(|dirty| dirty.serial == dirty_serial)
-        {
+        // A newer buffer may have arrived during this render. Retire only the
+        // old texture generations; otherwise a stale completion can keep an
+        // idle window dirty forever or accidentally discard its next frame.
+        let remove_output = self.dirty_outputs.get_mut(&output).is_some_and(|dirty| {
+            if dirty_serial == 0 || !serial_at_or_before(dirty_serial, dirty.serial) {
+                return false;
+            }
+            dirty.texture_ids.retain(|_, texture_serial| {
+                !serial_at_or_before(*texture_serial, dirty_serial)
+            });
+            dirty.serial == dirty_serial
+        });
+        if remove_output {
             self.dirty_outputs.remove(&output);
         }
     }
@@ -359,7 +370,7 @@ impl FrameScheduler {
                 fingerprint_epoch: 0,
             });
             self.render_texture_ids
-                .extend(dirty.texture_ids.iter().copied());
+                .extend(dirty.texture_ids.keys().copied());
         }
         if let Some(audit) = self.audit.as_mut() {
             audit.record_step(self.outputs.ticks().len(), dirty_ticks, unavailable_ticks);
@@ -405,6 +416,11 @@ impl FrameScheduler {
     pub(super) fn limit_dispatch_timeout(&self, now: Instant, timeout: Duration) -> Duration {
         self.outputs.limit_dispatch_timeout(now, timeout)
     }
+}
+
+// Serial zero is reserved. Half-range comparison remains correct over wrap.
+fn serial_at_or_before(candidate: u64, reference: u64) -> bool {
+    reference.wrapping_sub(candidate) < (1_u64 << 63)
 }
 
 #[derive(Debug)]
@@ -636,6 +652,59 @@ fn refresh_interval(scanout: &Scanout) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn completing_older_render_retires_only_old_texture_updates() {
+        let output = OutputId(7);
+        let mut scheduler = FrameScheduler::new(&[], Instant::now());
+        scheduler.configured_outputs.insert(output);
+        scheduler.mark_app_dirty(output, [4, 10]);
+        let first = scheduler.dirty_outputs[&output].serial;
+        scheduler.mark_app_dirty(output, [10]);
+        let newer = scheduler.dirty_outputs[&output].serial;
+        scheduler.complete_render(output, first);
+        assert_eq!(scheduler.dirty_outputs[&output].serial, newer);
+        assert_eq!(
+            scheduler.dirty_outputs[&output].texture_ids.keys().copied().collect::<Vec<_>>(),
+            [10],
+        );
+        scheduler.complete_render(output, newer);
+        assert!(!scheduler.dirty_outputs.contains_key(&output));
+    }
+
+    #[test]
+    fn completing_older_render_keeps_newer_output_damage() {
+        let output = OutputId(7);
+        let mut scheduler = FrameScheduler::new(&[], Instant::now());
+        scheduler.configured_outputs.insert(output);
+        scheduler.mark_app_dirty(output, [4]);
+        let first = scheduler.dirty_outputs[&output].serial;
+        scheduler.mark_output_dirty(output);
+        let newer = scheduler.dirty_outputs[&output].serial;
+        scheduler.complete_render(output, first);
+        assert_eq!(scheduler.dirty_outputs[&output].serial, newer);
+        assert!(scheduler.dirty_outputs[&output].texture_ids.is_empty());
+        scheduler.complete_render(output, newer);
+        assert!(!scheduler.dirty_outputs.contains_key(&output));
+    }
+
+    #[test]
+    fn texture_retirement_is_safe_across_serial_rollover() {
+        let output = OutputId(7);
+        let mut scheduler = FrameScheduler::new(&[], Instant::now());
+        scheduler.configured_outputs.insert(output);
+        scheduler.next_dirty_serial = u64::MAX - 1;
+        scheduler.mark_app_dirty(output, [4]);
+        scheduler.mark_app_dirty(output, [10]);
+        assert_eq!(scheduler.dirty_outputs[&output].serial, 1);
+        scheduler.complete_render(output, u64::MAX);
+        assert_eq!(
+            scheduler.dirty_outputs[&output].texture_ids.keys().copied().collect::<Vec<_>>(),
+            [10]
+        );
+        scheduler.complete_render(output, 1);
+        assert!(!scheduler.dirty_outputs.contains_key(&output));
+    }
 
     #[test]
     fn phase_correction_does_not_change_cadence_identity() {

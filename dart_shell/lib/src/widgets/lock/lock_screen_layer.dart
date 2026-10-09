@@ -108,10 +108,14 @@ class _LockScreenLayerState extends ConsumerState<LockScreenLayer>
               )
               .where((entry) => !entry.rect.isEmpty)
               .toList(growable: false);
-          final desktop =
-              shellProfile == ShellProfile.desktop ||
-              canvas.width >= 900 ||
-              outputs.length > 1;
+          // Mobile tablets become wider than 900 logical pixels when
+          // rotated to landscape. Width alone must not switch the secure
+          // lock UI into desktop mode: that moves the password prompt away
+          // from the mobile OSK and can make unlocking appear frozen.
+          final desktop = lockUsesDesktopPresentation(
+            shellProfile: shellProfile,
+            outputCount: outputs.length,
+          );
           late final Widget scene;
           if (outputs.length <= 1) {
             scene = Stack(
@@ -181,4 +185,14 @@ class _LockScreenLayerState extends ConsumerState<LockScreenLayer>
       ),
     );
   }
+}
+
+@visibleForTesting
+bool lockUsesDesktopPresentation({
+  required ShellProfile shellProfile,
+  required int outputCount,
+}) {
+  // A 768x1024 logical-pixel tablet becomes 1024x768 in landscape; its
+  // configured mobile profile, not the current width, selects the secure UI.
+  return shellProfile == ShellProfile.desktop || outputCount > 1;
 }

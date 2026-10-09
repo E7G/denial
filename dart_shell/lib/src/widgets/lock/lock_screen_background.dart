@@ -11,6 +11,12 @@ class _LockBackdrop extends ConsumerWidget {
       shellSettingsProvider.select((value) => value.lockScreen),
     );
     final output = this.output;
+    // Phone/tablet lock must remain paintable on the very first KMS resume
+    // frame. Full-output ImageFilter.blur is an expensive extra Impeller pass
+    // at 1536x2048 and can make the lock look frozen while the GPU catches up.
+    // Keep desktop's configurable blur, but draw a retained static wallpaper
+    // directly under a dark tint in the mobile shell.
+    final mobile = ref.watch(shellProfileProvider) == ShellProfile.mobile;
     return RepaintBoundary(
       child: Stack(
         fit: StackFit.expand,
@@ -20,24 +26,25 @@ class _LockBackdrop extends ConsumerWidget {
           ),
           if (settings.useSystemWallpaper)
             ClipRect(
-              child: ImageFiltered(
-                key: ValueKey<String>(
-                  output == null
-                      ? 'lock-wallpaper-blur'
-                      : 'lock-wallpaper-blur-${output.monitorId}',
-                ),
-                imageFilter: ImageFilter.blur(
-                  sigmaX: settings.blurRadius,
-                  sigmaY: settings.blurRadius,
-                  // The lock wallpaper fills the output. Clamping keeps the
-                  // blur kernel from sampling transparent pixels beyond that
-                  // boundary and exposing a bright halo around the display.
-                  tileMode: TileMode.clamp,
-                ),
-                child: output == null
-                    ? const ShellWallpaper()
-                    : ShellOutputWallpaper(output: output),
-              ),
+              child: mobile
+                  ? (output == null
+                        ? const ShellWallpaper()
+                        : ShellOutputWallpaper(output: output))
+                  : ImageFiltered(
+                      key: ValueKey<String>(
+                        output == null
+                            ? 'lock-wallpaper-blur'
+                            : 'lock-wallpaper-blur-${output.monitorId}',
+                      ),
+                      imageFilter: ImageFilter.blur(
+                        sigmaX: settings.blurRadius,
+                        sigmaY: settings.blurRadius,
+                        tileMode: TileMode.clamp,
+                      ),
+                      child: output == null
+                          ? const ShellWallpaper()
+                          : ShellOutputWallpaper(output: output),
+                    ),
             ),
           CustomPaint(
             painter: _LockFillPainter(
