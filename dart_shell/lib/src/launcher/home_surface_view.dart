@@ -32,6 +32,20 @@ class _HomeSurfaceView extends ConsumerWidget {
     final headerTop = topInset + ShellMetrics.statusBarHeight + 10;
     final contentPadding = EdgeInsets.fromLTRB(0, headerTop + 52, 0, 8);
     final allItems = contents.allItems ?? const <HomeGridItem>[];
+    // Index and lay out the lazy application list after the initial Start
+    // frame, rather than on the first user swipe. The closed drawer stays
+    // unpainted and ignores input; only the small first-visible sliver is
+    // prepared in memory.
+    if (allItems.isNotEmpty &&
+        !owner._appDrawerPrepared &&
+        !owner._appDrawerWarmupScheduled) {
+      owner._appDrawerWarmupScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        owner._appDrawerWarmupScheduled = false;
+        if (!owner.mounted || owner._appDrawerPrepared) return;
+        owner.setState(() => owner._appDrawerPrepared = true);
+      });
+    }
     final drawerCatalog = owner._drawerCatalog(
       allItems,
       showSystemTiles: tabletSettings.showSystemTiles,
@@ -1812,34 +1826,45 @@ class _MetroSlideIn extends StatefulWidget {
 class _MetroSlideInState extends State<_MetroSlideIn>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<Offset> _slide;
+  late final Animation<Offset> _translation;
   late final Animation<double> _fade;
-  late final Animation<double> _scale;
+  bool _fullyHidden = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Motion.metroPageEnter,
-      reverseDuration: Motion.metroPageExit,
-    );
+    _controller =
+        AnimationController(
+          vsync: this,
+          duration: Motion.metroDrawerEnter,
+          reverseDuration: Motion.metroDrawerExit,
+        )..addStatusListener((status) {
+          if (status == AnimationStatus.dismissed &&
+              !widget.visible &&
+              !_fullyHidden &&
+              mounted) {
+            setState(() => _fullyHidden = true);
+          }
+        });
     final curved = CurvedAnimation(
       parent: _controller,
-      curve: Motion.winPhoneEnterCurve,
-      reverseCurve: Motion.winPhoneExitCurve,
+      curve: Motion.launchSmoothCurve,
+      reverseCurve: Curves.easeInOutCubic,
     );
-    _slide = Tween<Offset>(
-      begin: const Offset(0.10, 0),
+    // A fixed 72 logical-pixel move avoids a full-screen transform matrix
+    // with fractional scaling. RetainedTranslation changes paint only, so
+    // the sliver rows, search field and tile icons never relayout per tick.
+    _translation = Tween<Offset>(
+      begin: const Offset(72, 0),
       end: Offset.zero,
     ).animate(curved);
     _fade = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0, 0.78, curve: Curves.easeOut),
-      reverseCurve: Curves.easeIn,
+      curve: const Interval(0, 0.86, curve: Curves.easeOut),
+      reverseCurve: Curves.easeInOut,
     );
-    _scale = Tween<double>(begin: 0.992, end: 1).animate(curved);
     if (widget.visible) {
+      _fullyHidden = false;
       _controller.forward();
     }
   }
@@ -1847,10 +1872,9 @@ class _MetroSlideInState extends State<_MetroSlideIn>
   @override
   void didUpdateWidget(covariant _MetroSlideIn oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.visible == widget.visible) {
-      return;
-    }
+    if (oldWidget.visible == widget.visible) return;
     if (widget.visible) {
+      _fullyHidden = false;
       _controller.forward();
     } else {
       _controller.reverse();
@@ -1865,14 +1889,16 @@ class _MetroSlideInState extends State<_MetroSlideIn>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        key: const ValueKey<String>('metro-app-drawer-slide-transition'),
-        position: _slide,
-        child: ScaleTransition(
-          scale: _scale,
-          alignment: Alignment.centerRight,
+    // When dismissed FadeTransition skips painting the cached drawer; during
+    // exit it remains mounted, with no abrupt cut or rebuild of its children.
+    return Offstage(
+      offstage: _fullyHidden && !widget.visible,
+      child: FadeTransition(
+        opacity: _fade,
+        child: RetainedTranslation(
+          key: const ValueKey<String>('metro-app-drawer-slide-transition'),
+          translation: _translation,
+          devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
           child: RepaintBoundary(child: widget.child),
         ),
       ),

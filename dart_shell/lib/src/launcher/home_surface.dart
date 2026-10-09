@@ -84,6 +84,7 @@ class _HomeSurfaceState extends ConsumerState<HomeSurface> {
   bool _appDrawerOpen = false;
   bool _appDrawerFocusSearch = false;
   bool _appDrawerPrepared = false;
+  bool _appDrawerWarmupScheduled = false;
   List<HomeGridItem>? _drawerCatalogSource;
   bool? _drawerCatalogShowSystemTiles;
   Locale? _drawerCatalogLocale;

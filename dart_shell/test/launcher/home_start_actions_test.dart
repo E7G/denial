@@ -8,6 +8,7 @@ import 'package:denial_dart_shell/src/settings/settings_controller.dart';
 import 'package:denial_dart_shell/src/settings/shell_settings.dart';
 import 'package:denial_dart_shell/src/settings/widgets/settings_navigation.dart';
 import 'package:denial_dart_shell/src/widgets/shell_surface_host.dart';
+import 'package:denial_dart_shell/src/widgets/retained_translation.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
 import 'package:denial_dart_shell/src/state/shell_state.dart';
 import 'package:flutter/material.dart';
@@ -51,29 +52,29 @@ void main() {
     await tester.tap(allApps);
     await tester.pump();
 
-    final firstFrameSlide = tester.widget<SlideTransition>(
+    final firstFrameSlide = tester.widget<RetainedTranslation>(
       find.byKey(const ValueKey<String>('metro-app-drawer-slide-transition')),
     );
     expect(
-      firstFrameSlide.position.value.dx,
-      greaterThan(0.08),
+      firstFrameSlide.translation.value.dx,
+      greaterThan(60),
       reason:
           'The first drawer mount must animate instead of appearing at rest.',
     );
     await tester.pump(const Duration(milliseconds: 110));
-    final midFrameSlide = tester.widget<SlideTransition>(
+    final midFrameSlide = tester.widget<RetainedTranslation>(
       find.byKey(const ValueKey<String>('metro-app-drawer-slide-transition')),
     );
-    expect(midFrameSlide.position.value.dx, inExclusiveRange(0.0, 0.08));
+    expect(midFrameSlide.translation.value.dx, inExclusiveRange(0.0, 60.0));
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<SlideTransition>(
+          .widget<RetainedTranslation>(
             find.byKey(
               const ValueKey<String>('metro-app-drawer-slide-transition'),
             ),
           )
-          .position
+          .translation
           .value
           .dx,
       closeTo(0, 0.0001),
@@ -85,6 +86,61 @@ void main() {
     expect(drawerInteraction.ignoring, isFalse);
     expect(find.text('App 000'), findsWidgets);
     expect(find.text('App 119'), findsNothing);
+
+    // A fast close must keep the list mounted until the animation reaches
+    // its end; only then does the retained subtree go Offstage.
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byKey(
+              const ValueKey<String>('metro-app-drawer-interaction'),
+            ),
+            matching: find.byIcon(Icons.arrow_back_rounded),
+          )
+          .first,
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<IgnorePointer>(
+            find.byKey(const ValueKey<String>('metro-app-drawer-interaction')),
+          )
+          .ignoring,
+      isTrue,
+    );
+    await tester.pump(const Duration(milliseconds: 64));
+    expect(
+      find.byKey(const ValueKey<String>('metro-app-drawer-slide-transition')),
+      findsOneWidget,
+      reason: 'No abrupt disappearance in the middle of the slide-out.',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<IgnorePointer>(
+            find.byKey(
+              const ValueKey<String>('metro-app-drawer-interaction'),
+            ),
+          )
+          .ignoring,
+      isTrue,
+      reason: 'The prefetched drawer must not accept input when closed.',
+    );
+    await tester.tap(allApps);
+    await tester.pump();
+    expect(
+      tester
+          .widget<RetainedTranslation>(
+            find.byKey(
+              const ValueKey<String>('metro-app-drawer-slide-transition'),
+            ),
+          )
+          .translation
+          .value
+          .dx,
+      greaterThan(60),
+      reason: 'Reopening should reuse the warm list and restart the slide.',
+    );
   });
 
   testWidgets('Start Settings action routes to the Settings local app', (
@@ -201,8 +257,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const ValueKey<String>('metro-app-drawer-interaction')),
-      findsNothing,
+      tester
+          .widget<IgnorePointer>(
+            find.byKey(
+              const ValueKey<String>('metro-app-drawer-interaction'),
+            ),
+          )
+          .ignoring,
+      isTrue,
+      reason: 'The prefetched drawer must not accept input when closed.',
+    );
+    expect(
+      find.byKey(
+        const ValueKey<String>('metro-app-drawer-slide-transition'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+      reason:
+          'The lazy app drawer should be prepared offstage after Start paints.',
     );
 
     final gesture = await tester.startGesture(const Offset(700, 930));

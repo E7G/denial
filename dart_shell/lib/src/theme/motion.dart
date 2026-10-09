@@ -22,6 +22,8 @@ class Motion {
   static const Duration launchReveal = Duration(milliseconds: 110);
   static const Duration launchHomeRetreat = Duration(milliseconds: 170);
   static const Duration metroPageEnter = Duration(milliseconds: 180);
+  static const Duration metroDrawerEnter = Duration(milliseconds: 210);
+  static const Duration metroDrawerExit = Duration(milliseconds: 165);
   static const Duration metroPageExit = Duration(milliseconds: 120);
   static const Duration metroPress = Duration(milliseconds: 76);
   static const Duration focusZoom = Duration(milliseconds: 320);
