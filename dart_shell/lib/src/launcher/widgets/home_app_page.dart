@@ -110,9 +110,10 @@ class HomeAppPage extends StatelessWidget {
       }
     }
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
+    return BackdropGroup(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
         for (final anchor in anchors)
           _PositionedGridItem(
             key: ValueKey('item:${slots[anchor]!.id}'),
@@ -141,7 +142,8 @@ class HomeAppPage extends StatelessWidget {
             onCycleColor: onCycleColor,
             onCycleSize: onCycleSize,
           ),
-      ],
+        ],
+      ),
     );
   }
 }

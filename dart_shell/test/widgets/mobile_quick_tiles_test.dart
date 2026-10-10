@@ -42,6 +42,7 @@ void main() {
                       onToggleBluetooth: () => toggles++,
                       onOpenBluetooth: () => details++,
                       onToggleRotation: () => toggles++,
+                      onScreenshot: () {},
                       onToggleDnd: () => toggles++,
                       onCycleProfile: () => toggles++,
                     ),

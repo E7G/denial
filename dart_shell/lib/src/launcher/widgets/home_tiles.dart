@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../settings/settings_controller.dart';
 import '../../services/network_backend.dart';
 import '../../state/network_connectivity.dart';
 import '../../theme/shell_theme.dart';
+import '../../theme/glass_configuration.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/app_icon.dart';
 import '../controllers/home_grid_controller.dart';
@@ -72,12 +74,27 @@ class HomeGridItemCard extends ConsumerWidget {
     final network = item.type == HomeGridItemType.network
         ? ref.watch(networkConnectivityProvider).snapshot
         : null;
-    final opacity = tabletSettings.enabled ? tabletSettings.tileOpacity : 0.22;
+    // Match the application's opaque, blur, and glass appearance settings.
+    final appearance = ref.watch(
+      shellSettingsProvider.select((settings) => settings.appearance),
+    );
+    final mode = appearance.transparencyMode;
+    final requestedOpacity =
+        tabletSettings.enabled ? tabletSettings.tileOpacity : 0.22;
+    final opacity = switch (mode) {
+      ShellTransparencyMode.off => requestedOpacity,
+      ShellTransparencyMode.blur =>
+        (0.18 + requestedOpacity * 0.36).clamp(0.2, 0.6).toDouble(),
+      ShellTransparencyMode.glass =>
+        (0.12 + requestedOpacity * 0.24 + appearance.glass.opacity * 0.22)
+            .clamp(0.18, 0.54)
+            .toDouble(),
+    };
     final tileColor = metroTileColor(
       item.id,
       item.tileColorValue,
     ).withValues(alpha: opacity);
-    return switch (item.type) {
+    final tile = switch (item.type) {
       HomeGridItemType.clock => _MetroLiveTileTransition(
         animationKey: 'clock:${clock!.now.hour}:${clock.now.minute}',
         strength: tabletSettings.animationStrength,
@@ -133,6 +150,48 @@ class HomeGridItemCard extends ConsumerWidget {
         onTap: launchEnabled ? (rect) => onLaunch(item, rect) : null,
       ),
     };
+    if (mode == ShellTransparencyMode.off) return tile;
+    // All tiles in a page share one backdrop key (BackdropGroup) to keep
+    // blurring efficient on the tablet's integrated GPU.
+    final sigma = (mode == ShellTransparencyMode.glass
+            ? appearance.glass.blurSigma
+            : 8.0)
+        .clamp(0.0, 10.0)
+        .toDouble();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: BackdropFilter.grouped(
+        filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            tile,
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(
+                        alpha: mode == ShellTransparencyMode.glass ? 0.09 : 0.03,
+                      ),
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.04),
+                    ],
+                    stops: const [0, 0.5, 1],
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
