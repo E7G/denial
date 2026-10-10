@@ -50,10 +50,32 @@ void main() {
     final b = state.usableBounds(size);
     final frame = state.floatingFrame(size);
     final content = state.windowRects(size)[11]!;
-    expect(b.contains(frame.bottomRight), true);
-    expect(frame.contains(content.bottomRight), true);
+    expect(frame.right <= b.right && frame.bottom <= b.bottom, true);
+    expect(
+      content.right <= frame.right && content.bottom <= frame.bottom,
+      true,
+    );
     expect(content.top, frame.top + 32);
     expect(content.width, frame.width);
+  });
+
+  test('floating one app above another retains two independent viewports', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final ctrl = container.read(mobileMultiWindowProvider.notifier);
+    ctrl.startFloating(100, backgroundId: 200);
+    final state = container.read(mobileMultiWindowProvider);
+    const size = Size(1024, 768);
+    final rects = state.windowRects(size);
+    expect(rects.keys.toSet(), {100, 200});
+    expect(rects[200], state.usableBounds(size));
+    expect(rects[100]!.width < rects[200]!.width, true);
+    ctrl.reconcile({100});
+    expect(
+      container.read(mobileMultiWindowProvider).mode,
+      MobileMultiWindowMode.floating,
+    );
+    expect(container.read(mobileMultiWindowProvider).secondaryId, isNull);
   });
 
   test('select second app, resize split, close peer and return to single', () {

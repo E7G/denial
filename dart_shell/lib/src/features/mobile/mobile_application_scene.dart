@@ -86,6 +86,17 @@ class _MobileApplicationSceneState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(
+      shellControllerProvider.select((state) => state.homeTransitionActive),
+      (_, active) {
+        final multi = ref.read(mobileMultiWindowProvider);
+        if (active &&
+            multi.mode == MobileMultiWindowMode.split &&
+            !multi.selectingPartner) {
+          ref.read(mobileMultiWindowProvider.notifier).restore();
+        }
+      },
+    );
     ref.listen<int?>(
       shellControllerProvider.select((state) => state.foregroundObjectId),
       (_, objectId) {

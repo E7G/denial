@@ -167,7 +167,9 @@ class _MobileMultiWindowControlsState
     final current = shell.foregroundWindow;
     if (current == null) return;
     final partner = shell.openAppWindows
-        .where((window) => window.objectId != current.objectId)
+        .where(
+          (window) => window.objectId != current.objectId && !window.minimized,
+        )
         .toList(growable: false);
     ref
         .read(mobileMultiWindowProvider.notifier)
@@ -187,7 +189,7 @@ class _MobileMultiWindowControlsState
     final id = shell.foregroundObjectId;
     if (id == null) return;
     final behind = shell.openAppWindows
-        .where((window) => window.objectId != id)
+        .where((window) => window.objectId != id && !window.minimized)
         .toList(growable: false);
     ref
         .read(mobileMultiWindowProvider.notifier)
