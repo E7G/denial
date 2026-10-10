@@ -54,7 +54,7 @@ void main() {
         ),
       );
       expect(tester.takeException(), isNull);
-      expect(find.byType(QuickTile), findsNWidgets(5));
+      expect(find.byType(QuickTile), findsNWidgets(6));
       for (final element in find.byType(QuickTile).evaluate()) {
         final tile = element.widget as QuickTile;
         final target = find.byWidget(tile);
@@ -64,7 +64,7 @@ void main() {
         await tester.tap(find.byWidget(icon.widget));
       }
     }
-    // Five toggle tiles and two detail affordances are retained at every
+    // Five toggle tiles, screenshot, and two detail actions are retained at every
     // supported phone width.
     expect(toggles, 15);
     expect(details, 6);
