@@ -1122,9 +1122,6 @@ impl Drop for AuthenticationController {
 fn apply_lock(shared: &SharedAuthentication, state: &mut AuthenticationState) {
     state.lock_epoch = state.lock_epoch.wrapping_add(1);
     state.fingerprint_unlock = None;
-    shared
-        .fingerprint_unlock_pending
-        .store(false, Ordering::Release);
     shared.locked.store(true, Ordering::Release);
     shared.security_gate_locked.store(true, Ordering::Release);
     if state.busy {
