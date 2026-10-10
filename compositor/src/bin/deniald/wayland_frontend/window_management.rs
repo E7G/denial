@@ -621,12 +621,13 @@ fn configure_client_window(
         .wayland
         .as_ref()
         .is_some_and(|frontend| frontend.mobile_window_geometry(window).is_some());
-    if mobile_window {
-        state
-            .wayland
-            .as_mut()
-            .expect("missing Wayland frontend")
-            .configure_mobile_window(window);
+    if mobile_window && !exact {
+        // Ordinary mobile apps retain native fullscreen behavior. A mode exit
+        // is a non-exact configure, which drops a previous split/freeform lease.
+        let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
+        frontend.set_mobile_window_override(root_surface, None);
+        frontend.configure_mobile_window(window);
+        state.scene_sync.mark_dirty();
         return;
     }
 
@@ -715,6 +716,9 @@ fn configure_client_window(
 
     managed.prepare_shell_geometry(target);
     let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
+    if mobile_window && exact {
+        frontend.set_mobile_window_override(root_surface, Some(target));
+    }
     frontend.set_window_geometry_target_policy(window, target, exact);
     if transferred_shell_restore {
         frontend.remember_window_placement(window);

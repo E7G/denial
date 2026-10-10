@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../launcher/controllers/home_overlay_navigation.dart';
 import '../../platform/denial_bridge.dart';
 import '../../state/shell_controller.dart';
+import '../../state/mobile_multi_window.dart';
 import '../../widgets/bottom_gesture_handle.dart';
 import '../../widgets/three_button_navigation.dart';
 import '../../widgets/edge_panel_layer.dart';
@@ -14,6 +15,7 @@ import '../../widgets/shade/system_shade_layer.dart';
 import '../../widgets/screenshot_feedback_layer.dart';
 import 'mobile_launcher_layer.dart';
 import 'mobile_window_layers.dart';
+import 'mobile_multi_window_layer.dart';
 
 /// Denial's built-in phone/tablet application scene.
 ///
@@ -84,6 +86,25 @@ class _MobileApplicationSceneState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int?>(
+      shellControllerProvider.select((state) => state.foregroundObjectId),
+      (_, objectId) {
+        if (objectId != null) {
+          ref.read(mobileMultiWindowProvider.notifier).selectPartner(objectId);
+        }
+      },
+    );
+    ref.listen(
+      shellControllerProvider.select((state) => state.windowSnapshotSequence),
+      (_, _) {
+        final ids = ref
+            .read(shellControllerProvider)
+            .openAppWindows
+            .map((window) => window.objectId)
+            .toSet();
+        ref.read(mobileMultiWindowProvider.notifier).reconcile(ids);
+      },
+    );
     return ColoredBox(
       color: context.shellColors.background,
       child: MobileKeyboardViewport(
@@ -100,6 +121,8 @@ class _MobileApplicationSceneState
             MobilePrimaryWindowLayer(
               overviewPresentationActive: _overviewPresentationActive,
             ),
+            const MobileMultiWindowStage(),
+            const MobileMultiWindowControls(),
             const MobileLaunchLayer(),
             MobileOverviewLayer(
               onPresentationChanged: (active) =>

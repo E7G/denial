@@ -16,6 +16,7 @@ import 'notifier_lifecycle.dart';
 import 'shell_input_layout_coordinator.dart';
 import 'shell_profile.dart';
 import 'shell_state.dart';
+import 'mobile_multi_window.dart';
 
 part 'shell_controller_helpers.dart';
 
@@ -1081,6 +1082,7 @@ class ShellController extends Notifier<ShellState>
       state: state,
       viewSize: viewSize,
       interactions: interactions,
+      multiWindow: ref.read(mobileMultiWindowProvider),
       floatingKeyboardRect: floatingKeyboardRect,
     );
   }

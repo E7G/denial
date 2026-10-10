@@ -5,6 +5,7 @@ import '../input/shell_interaction_registry.dart';
 import '../settings/settings_controller.dart';
 import '../settings/shell_settings.dart';
 import '../state/shell_controller.dart';
+import '../state/mobile_multi_window.dart';
 import 'osk/floating_osk_geometry.dart';
 
 class InputLayoutPublisher extends ConsumerStatefulWidget {
@@ -41,6 +42,7 @@ class _InputLayoutPublisherState extends ConsumerState<InputLayoutPublisher> {
       ),
     );
     ref.watch(shellInteractionRegistryProvider);
+    ref.watch(mobileMultiWindowProvider);
     final media = MediaQuery.of(context);
     final tabletKeyboard = ref.watch(
       shellSettingsProvider.select(

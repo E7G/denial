@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../widgets/window_surface_tree.dart';
+import '../../state/mobile_multi_window.dart';
 import 'mobile_primary_window_stage.dart';
 
 /// Each animated layer observes only the state it presents.
@@ -32,6 +32,10 @@ class _MobilePrimaryWindowLayerState
 
   @override
   Widget build(BuildContext context) {
+    final multi = ref.watch(mobileMultiWindowProvider);
+    final multiActive = multi
+        .windowRects(MediaQuery.sizeOf(context))
+        .isNotEmpty;
     ref.listen(
       shellControllerProvider.select((state) => state.gestureDrag.dx),
       (_, next) => _dragX.value = next,
@@ -52,6 +56,7 @@ class _MobilePrimaryWindowLayerState
       ),
     );
     final window = visual.window;
+    if (multiActive) return const SizedBox.shrink();
     if (window == null) {
       return const SizedBox.shrink();
     }
@@ -192,7 +197,12 @@ class _MobileOverviewLayerState extends ConsumerState<MobileOverviewLayer> {
       onProgressChanged: widget.onProgressChanged,
       onDismissOverview: controller.closeOverview,
       onDismissWindow: controller.closeWindow,
-      onFocusWindow: controller.focusWindow,
+      onFocusWindow: (window) {
+        ref
+            .read(mobileMultiWindowProvider.notifier)
+            .selectPartner(window.objectId);
+        controller.focusWindow(window);
+      },
       onHomeSettled: controller.completeHomeTransition,
     );
   }

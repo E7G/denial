@@ -5,6 +5,7 @@ import '../input/shell_interaction_registry.dart';
 import '../models/denial_window.dart';
 import '../platform/denial_bridge.dart';
 import 'shell_state.dart';
+import 'mobile_multi_window.dart';
 
 Rect mobileWindowPresentationFrame({
   required Size viewSize,
@@ -41,6 +42,28 @@ Rect mobileWindowPresentationFrame({
   );
 }
 
+/// Fits a native client to its exact multi-window viewport without the
+/// legacy fullscreen status-bar offset, retaining touch-coordinate scaling.
+Rect mobileWindowFitInRect({
+  required Rect frame,
+  required Rect viewport,
+  required bool contain,
+}) {
+  if (frame.isEmpty || viewport.isEmpty) return Rect.zero;
+  final sx = viewport.width / frame.width;
+  final sy = viewport.height / frame.height;
+  final scale = contain ? (sx < sy ? sx : sy) : (sx > sy ? sx : sy);
+  if (!scale.isFinite || scale <= 0) return Rect.zero;
+  final width = frame.width * scale;
+  final height = frame.height * scale;
+  return Rect.fromLTWH(
+    viewport.left + (viewport.width - width) / 2,
+    viewport.top + (viewport.height - height) / 2,
+    width,
+    height,
+  );
+}
+
 /// Publishes the mobile shell's immutable native input-routing snapshot.
 class ShellInputLayoutCoordinator {
   ShellInputLayoutCoordinator(this._bridge);
@@ -57,6 +80,7 @@ class ShellInputLayoutCoordinator {
     required ShellState state,
     required Size viewSize,
     required ShellInteractionSnapshot interactions,
+    required MobileMultiWindowState multiWindow,
     Rect? floatingKeyboardRect,
   }) {
     if (viewSize.width <= 0 || viewSize.height <= 0) {
@@ -112,7 +136,15 @@ class ShellInputLayoutCoordinator {
     final inputBottom = edgePanelActive && !floatingKeyboardActive
         ? edgePanelRect.top.clamp(0.0, viewSize.height).toDouble()
         : viewSize.height;
-    final inputWindow = state.inputWindow;
+    final multiRects = multiWindow.windowRects(viewSize);
+    final multiActive =
+        multiRects.isNotEmpty &&
+        !state.overviewVisible &&
+        !state.launchTransitionActive &&
+        !state.lockLayerVisible;
+    final inputWindow =
+        state.inputWindow ??
+        (multiActive ? state.windowByObjectId(multiWindow.primaryId) : null);
     final canvas = Offset.zero & viewSize;
     final shellRegions = <Rect>[
       if (inputWindow == null ||
@@ -136,14 +168,34 @@ class ShellInputLayoutCoordinator {
         if (!region.intersect(canvas).isEmpty) region.intersect(canvas),
     ];
 
+    // Paint and native input use the exact same two client rectangles.
+    // Floating windows route above their background, including popup roots.
+    final multiOrderedIds = <int>[
+      if (multiWindow.primaryId case final id? when multiRects.containsKey(id))
+        id,
+      if (multiWindow.secondaryId case final id?
+          when multiRects.containsKey(id))
+        id,
+    ];
     final inputRegions = <InputWindowRegion>[
-      if (inputWindow != null)
-        ..._inputRegionsForWindow(
-          window: inputWindow,
-          viewSize: viewSize,
-          contentOffset: contentOffset,
-          inputBottom: inputBottom,
-        ),
+      if (multiActive)
+        for (var index = 0; index < multiOrderedIds.length; index++)
+          if (state.windowByObjectId(multiOrderedIds[index]) case final w?)
+            ..._inputRegionsForWindow(
+              window: w,
+              viewSize: viewSize,
+              contentOffset: contentOffset,
+              inputBottom: inputBottom,
+              targetViewport: multiRects[multiOrderedIds[index]],
+              zBase: (multiOrderedIds.length - index) * 100,
+            )
+          else if (inputWindow != null)
+            ..._inputRegionsForWindow(
+              window: inputWindow,
+              viewSize: viewSize,
+              contentOffset: contentOffset,
+              inputBottom: inputBottom,
+            ),
       ..._inputMethodPopupRegions(
         windows: state.windows,
         viewSize: viewSize,
@@ -211,6 +263,8 @@ class ShellInputLayoutCoordinator {
     required Size viewSize,
     required double contentOffset,
     required double inputBottom,
+    Rect? targetViewport,
+    int zBase = 0,
   }) {
     final frame = window.presentationCoordinateRect;
     final content = window.contentCoordinateRect;
@@ -229,12 +283,18 @@ class ShellInputLayoutCoordinator {
     // Match the texture's top-centred BoxFit.contain. This keeps fixed-size
     // and legacy clients fully visible instead of cropping them to the mobile
     // viewport, while retaining exact source-coordinate routing for touch.
-    final fullContentRect = mobileWindowPresentationFrame(
-      viewSize: viewSize,
-      frame: sourceFrame,
-      contentOffset: contentOffset,
-      contain: !window.isLocalFlutter,
-    );
+    final fullContentRect = targetViewport == null
+        ? mobileWindowPresentationFrame(
+            viewSize: viewSize,
+            frame: sourceFrame,
+            contentOffset: contentOffset,
+            contain: !window.isLocalFlutter,
+          )
+        : mobileWindowFitInRect(
+            frame: sourceFrame,
+            viewport: targetViewport,
+            contain: !window.isLocalFlutter,
+          );
     if (fullContentRect.isEmpty) {
       return const <InputWindowRegion>[];
     }
@@ -247,7 +307,12 @@ class ShellInputLayoutCoordinator {
       sourceContent.width * scale,
       sourceContent.height * scale,
     );
-    final clip = Rect.fromLTRB(0, 0, viewSize.width, inputBottom);
+    final clip = Rect.fromLTRB(
+      0,
+      0,
+      viewSize.width,
+      inputBottom,
+    ).intersect(targetViewport ?? (Offset.zero & viewSize));
     final rect = clientRect.intersect(clip);
     if (rect.isEmpty) {
       return const <InputWindowRegion>[];
@@ -284,7 +349,7 @@ class ShellInputLayoutCoordinator {
             clipped.width * scaleX,
             clipped.height * scaleY,
           ),
-          z: popup.compositionOrder + 1,
+          z: zBase + popup.compositionOrder + 1,
           geometryLocked: true,
         ),
       );
@@ -297,7 +362,7 @@ class ShellInputLayoutCoordinator {
         surfaceId: window.objectId,
         rect: rect,
         sourceRect: sourceRect,
-        z: 0,
+        z: zBase,
         geometryLocked: true,
       ),
     );

@@ -37,6 +37,10 @@ pub(super) const MOBILE_STATUS_INSET: i32 = 48;
 
 struct SelfManagedInsets;
 
+/// Explicit shell-initiated mobile split/floating placement. Only the native
+/// configure command can write this marker; clients cannot opt into it.
+struct MobileWindowOverride(std::sync::Mutex<Option<Rectangle<i32, Logical>>>);
+
 pub(super) fn self_managed(surface: &WlSurface) -> bool {
     with_states(surface, |states| {
         states.data_map.get::<SelfManagedInsets>().is_some()
@@ -139,7 +143,39 @@ impl WaylandFrontend {
         };
         geometry.loc.y += top;
         geometry.size.h -= top;
+        let requested = with_states(&root, |states| {
+            states.data_map.get::<MobileWindowOverride>().and_then(|value| {
+                *value.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+            })
+        });
+        // Never allow a stale layout to escape its output after rotation.
+        if let Some(requested) = requested {
+            let bounds = self
+                .output_for_geometry(geometry)
+                .map(|output| output.logical_geometry)
+                .or_else(|| self.fallback_output_geometry())?;
+            let width = requested.size.w.clamp(64, bounds.size.w.max(64));
+            let height = requested.size.h.clamp(64, bounds.size.h.max(64));
+            let x = requested.loc.x.clamp(bounds.loc.x, bounds.loc.x + bounds.size.w - width);
+            let y = requested.loc.y.clamp(bounds.loc.y, bounds.loc.y + bounds.size.h - height);
+            return Some(Rectangle::new((x, y).into(), (width, height).into()));
+        }
         Some(geometry)
+    }
+
+    pub(super) fn set_mobile_window_override(
+        &mut self,
+        root: &WlSurface,
+        geometry: Option<Rectangle<i32, Logical>>,
+    ) {
+        with_states(root, |states| {
+            states
+                .data_map
+                .insert_if_missing_threadsafe(|| MobileWindowOverride(std::sync::Mutex::new(None)));
+            if let Some(value) = states.data_map.get::<MobileWindowOverride>() {
+                *value.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = geometry;
+            }
+        });
     }
 
     pub(super) fn configure_mobile_window(&mut self, window: &Window) {

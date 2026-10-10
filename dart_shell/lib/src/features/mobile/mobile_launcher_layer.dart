@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../launcher/home_surface.dart';
+import '../../state/mobile_multi_window.dart';
 import '../../theme/motion.dart';
 import '../../widgets/shade/shade_progress.dart';
 
@@ -20,10 +21,16 @@ class MobileLauncherLayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final multi = ref.watch(mobileMultiWindowProvider);
+    final floatAboveHome =
+        multi.mode == MobileMultiWindowMode.floating &&
+        multi.secondaryId == null;
     final flags = ref.watch(
       shellControllerProvider.select((state) {
         final active =
-            state.primaryWindow == null || state.homeTransitionActive;
+            state.primaryWindow == null ||
+            state.homeTransitionActive ||
+            floatAboveHome;
         return (
           active: active,
           launching: state.launchTransitionActive,
@@ -61,7 +68,8 @@ class MobileLauncherLayer extends ConsumerWidget {
               : Motion.winPhoneEnterCurve,
           child: HomeSurface(
             active: flags.active,
-            interactive: flags.interactive && !overviewActive,
+            interactive:
+                flags.interactive && !overviewActive && !floatAboveHome,
             contentOpacity: opacity,
             useShellLaunchTransition: true,
           ),
