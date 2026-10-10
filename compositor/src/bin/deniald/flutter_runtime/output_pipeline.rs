@@ -207,7 +207,7 @@ impl OutputBufferBroker {
         }
     }
 
-    pub(super) fn expire_authorizations(&mut self, now: Instant) -> usize {
+    pub(super) fn expire_authorizations(&mut self, now: Instant, rasterizing: bool) -> usize {
         let mut expired = 0;
         for pool in &mut self.pools {
             let should_expire = pool.authorized_request.is_some_and(|authorization| {
@@ -222,7 +222,16 @@ impl OutputBufferBroker {
                     .interval
                     .saturating_mul(4)
                     .max(Duration::from_millis(250));
-                now.saturating_duration_since(authorization.authorized_at) >= grace
+                // A real raster task can be delayed by KMS/driver work after
+                // acquiring the shared GL context. Don't retire its grant
+                // halfway through the task, but cap the extension so a hung
+                // GPU cannot hold an output indefinitely.
+                let deadline = if rasterizing {
+                    grace.max(Duration::from_secs(1))
+                } else {
+                    grace
+                };
+                now.saturating_duration_since(authorization.authorized_at) >= deadline
             });
             if should_expire {
                 pool.authorized_request = None;
@@ -540,7 +549,7 @@ mod wake_authorization_tests {
         let view = RenderViewId::for_output(OutputId(7)).unwrap();
         assert_eq!(broker.authorize(request, now), Some(view.get()));
         assert_eq!(
-            broker.expire_authorizations(now + Duration::from_millis(40)),
+            broker.expire_authorizations(now + Duration::from_millis(40), false),
             0
         );
         assert_eq!(broker.acquire(view.get(), PixelSize::new(64, 64)), Ok(12),);
@@ -553,11 +562,40 @@ mod wake_authorization_tests {
         let view = RenderViewId::for_output(OutputId(7)).unwrap();
         assert_eq!(broker.authorize(request, now), Some(view.get()));
         assert_eq!(
-            broker.expire_authorizations(now + Duration::from_millis(249)),
+            broker.expire_authorizations(now + Duration::from_millis(249), false),
             0
         );
         assert_eq!(
-            broker.expire_authorizations(now + Duration::from_millis(250)),
+            broker.expire_authorizations(now + Duration::from_millis(250), false),
+            1
+        );
+        assert!(broker.target_available(OutputId(7)));
+    }
+
+    #[test]
+    fn in_flight_raster_does_not_lose_its_authorization_mid_frame() {
+        let now = Instant::now();
+        let (mut broker, request) = broker_and_request(Duration::from_millis(16), now);
+        let view = RenderViewId::for_output(OutputId(7)).unwrap();
+        assert!(broker.authorize(request, now).is_some());
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(500), true),
+            0
+        );
+        assert_eq!(broker.acquire(view.get(), PixelSize::new(64, 64)), Ok(12));
+    }
+
+    #[test]
+    fn stalled_raster_authorizations_still_expire_with_a_hard_limit() {
+        let now = Instant::now();
+        let (mut broker, request) = broker_and_request(Duration::from_millis(16), now);
+        assert!(broker.authorize(request, now).is_some());
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(999), true),
+            0
+        );
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_secs(1), true),
             1
         );
         assert!(broker.target_available(OutputId(7)));
@@ -569,11 +607,11 @@ mod wake_authorization_tests {
         let (mut broker, request) = broker_and_request(Duration::from_millis(100), now);
         assert!(broker.authorize(request, now).is_some());
         assert_eq!(
-            broker.expire_authorizations(now + Duration::from_millis(399)),
+            broker.expire_authorizations(now + Duration::from_millis(399), false),
             0
         );
         assert_eq!(
-            broker.expire_authorizations(now + Duration::from_millis(400)),
+            broker.expire_authorizations(now + Duration::from_millis(400), false),
             1
         );
     }

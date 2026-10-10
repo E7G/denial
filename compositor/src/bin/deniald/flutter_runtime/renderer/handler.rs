@@ -562,8 +562,9 @@ impl FlutterGlHandler {
         now: Instant,
         action: impl FnOnce(&mut dyn FnMut(OutputId) -> bool) -> T,
     ) -> (T, usize) {
+        let rasterizing = self.producer.is_rasterizing();
         let mut broker = lock(&self.broker);
-        let expired = broker.expire_authorizations(now);
+        let expired = broker.expire_authorizations(now, rasterizing);
         let mut target_available = |output| broker.target_available(output);
         (action(&mut target_available), expired)
     }

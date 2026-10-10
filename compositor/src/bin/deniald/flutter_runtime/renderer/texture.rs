@@ -768,6 +768,11 @@ impl ProducerArbiter {
         }
     }
 
+    pub(in crate::flutter_runtime) fn is_rasterizing(&self) -> bool {
+        FlutterProducerState::from_u8(self.state.load(Ordering::Acquire))
+            == FlutterProducerState::Rasterizing
+    }
+
     pub(in crate::flutter_runtime) fn begin_present(&self) {
         self.state
             .store(FlutterProducerState::Preparing.as_u8(), Ordering::Release);
