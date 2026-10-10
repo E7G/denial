@@ -211,8 +211,18 @@ impl OutputBufferBroker {
         let mut expired = 0;
         for pool in &mut self.pools {
             let should_expire = pool.authorized_request.is_some_and(|authorization| {
-                now.saturating_duration_since(authorization.authorized_at)
-                    >= authorization.request.tick.interval.saturating_mul(2)
+                // On slow GPUs and immediately after DPMS resume Flutter's
+                // raster thread may not request its backing store within two
+                // display intervals. Expiring the authorization too early
+                // causes MissingAuthorization and can leave an old lock frame.
+                // Bound the grace period so a lost callback still recovers.
+                let grace = authorization
+                    .request
+                    .tick
+                    .interval
+                    .saturating_mul(4)
+                    .max(Duration::from_millis(250));
+                now.saturating_duration_since(authorization.authorized_at) >= grace
             });
             if should_expire {
                 pool.authorized_request = None;
@@ -483,6 +493,89 @@ impl OutputBufferBroker {
                 slot.screenshot_request_id = None;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod wake_authorization_tests {
+    use super::*;
+    use crate::frame_scheduler::FrameTick;
+
+    fn broker_and_request(
+        interval: Duration,
+        now: Instant,
+    ) -> (OutputBufferBroker, OutputFrameRequest) {
+        let output = OutputId(7);
+        let view = RenderViewId::for_output(output).unwrap();
+        let size = PixelSize::new(64, 64);
+        let broker = OutputBufferBroker::new([OutputPoolDescriptor {
+            output_id: output,
+            render_view_id: view,
+            configuration_generation: 1,
+            size,
+            initial_scanout: 0,
+            framebuffers: &[11, 12, 13],
+        }])
+        .unwrap();
+        let request = OutputFrameRequest {
+            tick: FrameTick {
+                output,
+                sequence: 1,
+                nominal_interval: interval,
+                interval,
+                render_deadline: now,
+                presentation_target: now + interval,
+            },
+            dirty_serial: 1,
+            lock_frame_token: 0,
+            fingerprint_epoch: 0,
+        };
+        (broker, request)
+    }
+
+    #[test]
+    fn slow_wake_raster_retains_authorization_beyond_two_frames() {
+        let now = Instant::now();
+        let (mut broker, request) = broker_and_request(Duration::from_millis(16), now);
+        let view = RenderViewId::for_output(OutputId(7)).unwrap();
+        assert_eq!(broker.authorize(request, now), Some(view.get()));
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(40)),
+            0
+        );
+        assert_eq!(broker.acquire(view.get(), PixelSize::new(64, 64)), Ok(12),);
+    }
+
+    #[test]
+    fn lost_wake_raster_authorization_still_expires() {
+        let now = Instant::now();
+        let (mut broker, request) = broker_and_request(Duration::from_millis(16), now);
+        let view = RenderViewId::for_output(OutputId(7)).unwrap();
+        assert_eq!(broker.authorize(request, now), Some(view.get()));
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(249)),
+            0
+        );
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(250)),
+            1
+        );
+        assert!(broker.target_available(OutputId(7)));
+    }
+
+    #[test]
+    fn slow_display_interval_scales_authorization_grace() {
+        let now = Instant::now();
+        let (mut broker, request) = broker_and_request(Duration::from_millis(100), now);
+        assert!(broker.authorize(request, now).is_some());
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(399)),
+            0
+        );
+        assert_eq!(
+            broker.expire_authorizations(now + Duration::from_millis(400)),
+            1
+        );
     }
 }
 
