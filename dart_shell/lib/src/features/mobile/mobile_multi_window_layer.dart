@@ -21,7 +21,6 @@ class _MobileMultiWindowStageState
     extends ConsumerState<MobileMultiWindowStage> {
   final Map<int, Rect> _lastGeometry = {};
   final Map<int, DenialWindow> _lastWindows = {};
-  final Set<int> _normalModeResets = {};
   bool _syncQueued = false;
   Size _pendingSize = Size.zero;
   MobileMultiWindowState _pendingLayout = const MobileMultiWindowState();
@@ -42,25 +41,12 @@ class _MobileMultiWindowStageState
       if (!mounted) return;
       final bridge = ref.read(denialBridgeProvider);
       final next = _pendingLayout.windowRects(_pendingSize);
-      _normalModeResets.retainAll(
-        _pendingWindows.values.map((window) => window.windowId).toSet(),
-      );
-      for (final window in _pendingWindows.values) {
-        // A restarted Flutter shell must clear orphaned freeform leases left
-        // in the still-running native compositor, even without a prior widget.
-        if (!next.containsKey(window.objectId) &&
-            !_normalModeResets.contains(window.windowId)) {
-          bridge.configureWindow(window, window.contentCoordinateRect);
-          _normalModeResets.add(window.windowId);
-        }
-      }
       for (final id in _lastGeometry.keys.toList()) {
         if (!next.containsKey(id)) {
           final window = _lastWindows[id];
           if (window != null && _pendingWindows[id] != null) {
             // Non-exact configure is the native mobile full-screen reset.
             bridge.configureWindow(window, window.contentCoordinateRect);
-            _normalModeResets.add(window.windowId);
           }
           _lastGeometry.remove(id);
           _lastWindows.remove(id);
@@ -85,6 +71,12 @@ class _MobileMultiWindowStageState
   @override
   Widget build(BuildContext context) {
     final layout = ref.watch(mobileMultiWindowProvider);
+    // Normal single-app mode must not configure any native windows. In the
+    // original implementation this widget sent a resize for every app when it
+    // first appeared, even though multi-window had never been enabled.
+    if (layout.mode == MobileMultiWindowMode.single && _lastGeometry.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final shell = ref.watch(shellControllerProvider);
     final windows = {
       for (final window in shell.openAppWindows) window.objectId: window,

@@ -5,6 +5,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('single-app fullscreen continues to publish client touch routing', () {
+    final targets = mobileInputTargets(
+      multiActive: false,
+      normalWindowId: 42,
+      primaryWindowId: null,
+      secondaryWindowId: null,
+      multiRects: const <int, Rect>{},
+    );
+    expect(targets.length, 1);
+    expect(targets.single.objectId, 42);
+    expect(targets.single.viewport, isNull);
+  });
+
+  test('launcher has no fake client input region in normal mode', () {
+    final targets = mobileInputTargets(
+      multiActive: false,
+      normalWindowId: null,
+      primaryWindowId: null,
+      secondaryWindowId: null,
+      multiRects: const <int, Rect>{},
+    );
+    expect(targets, isEmpty);
+  });
+
+  test('split and floating touch map to both correctly ordered clients', () {
+    const first = Rect.fromLTWH(0, 48, 384, 700);
+    const second = Rect.fromLTWH(392, 48, 376, 700);
+    final targets = mobileInputTargets(
+      multiActive: true,
+      normalWindowId: 2,
+      primaryWindowId: 1,
+      secondaryWindowId: 2,
+      multiRects: const {1: first, 2: second},
+    );
+    expect(targets.map((entry) => entry.objectId).toList(), [1, 2]);
+    expect(targets.first.viewport, first);
+    expect(targets.last.viewport, second);
+  });
+
   test('portrait split has disjoint top/bottom native client rectangles', () {
     const layout = MobileMultiWindowState(
       mode: MobileMultiWindowMode.split,

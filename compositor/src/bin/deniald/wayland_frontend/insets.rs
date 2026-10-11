@@ -182,7 +182,11 @@ impl WaylandFrontend {
         let Some(target) = self.mobile_window_geometry(window) else {
             return;
         };
-        if self.exact_window_geometry(window) == Some(target) {
+        // Compare against the window's *actual configured geometry*, not
+        // exact_window_geometry(): that getter returns mobile_window_geometry()
+        // (the desired target) and would therefore always claim equality.
+        // Without this check, leaving split/freeform cannot restore fullscreen.
+        if self.window_geometry_target(window) == target {
             return;
         }
         if let Some(toplevel) = window.toplevel() {

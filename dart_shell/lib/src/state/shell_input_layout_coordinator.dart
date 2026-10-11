@@ -64,6 +64,34 @@ Rect mobileWindowFitInRect({
   );
 }
 
+/// Returns the application's actual native input targets. Keeping the
+/// single-app path explicit prevents collection-if/else nesting mistakes from
+/// silently dropping touch routing when multi-window is switched off.
+@visibleForTesting
+List<({int objectId, Rect? viewport})> mobileInputTargets({
+  required bool multiActive,
+  required int? normalWindowId,
+  required int? primaryWindowId,
+  required int? secondaryWindowId,
+  required Map<int, Rect> multiRects,
+}) {
+  if (!multiActive) {
+    return [
+      if (normalWindowId case final objectId?)
+        (objectId: objectId, viewport: null),
+    ];
+  }
+  return [
+    if (primaryWindowId case final objectId?)
+      if (multiRects[objectId] case final viewport?)
+        (objectId: objectId, viewport: viewport),
+    if (secondaryWindowId case final objectId?)
+      if (objectId != primaryWindowId)
+        if (multiRects[objectId] case final viewport?)
+          (objectId: objectId, viewport: viewport),
+  ];
+}
+
 /// Publishes the mobile shell's immutable native input-routing snapshot.
 class ShellInputLayoutCoordinator {
   ShellInputLayoutCoordinator(this._bridge);
@@ -168,34 +196,27 @@ class ShellInputLayoutCoordinator {
         if (!region.intersect(canvas).isEmpty) region.intersect(canvas),
     ];
 
-    // Paint and native input use the exact same two client rectangles.
-    // Floating windows route above their background, including popup roots.
-    final multiOrderedIds = <int>[
-      if (multiWindow.primaryId case final id? when multiRects.containsKey(id))
-        id,
-      if (multiWindow.secondaryId case final id?
-          when multiRects.containsKey(id))
-        id,
-    ];
+    // Multi-window and normal mode share the same routing construction.
+    // In normal mode the viewport is null, retaining the original fullscreen
+    // BoxFit.contain mapping and preserving all application touch events.
+    final inputTargets = mobileInputTargets(
+      multiActive: multiActive,
+      normalWindowId: inputWindow?.objectId,
+      primaryWindowId: multiWindow.primaryId,
+      secondaryWindowId: multiWindow.secondaryId,
+      multiRects: multiRects,
+    );
     final inputRegions = <InputWindowRegion>[
-      if (multiActive)
-        for (var index = 0; index < multiOrderedIds.length; index++)
-          if (state.windowByObjectId(multiOrderedIds[index]) case final w?)
-            ..._inputRegionsForWindow(
-              window: w,
-              viewSize: viewSize,
-              contentOffset: contentOffset,
-              inputBottom: inputBottom,
-              targetViewport: multiRects[multiOrderedIds[index]],
-              zBase: (multiOrderedIds.length - index) * 100,
-            )
-          else if (inputWindow != null)
-            ..._inputRegionsForWindow(
-              window: inputWindow,
-              viewSize: viewSize,
-              contentOffset: contentOffset,
-              inputBottom: inputBottom,
-            ),
+      for (var index = 0; index < inputTargets.length; index++)
+        if (state.windowByObjectId(inputTargets[index].objectId) case final w?)
+          ..._inputRegionsForWindow(
+            window: w,
+            viewSize: viewSize,
+            contentOffset: contentOffset,
+            inputBottom: inputBottom,
+            targetViewport: inputTargets[index].viewport,
+            zBase: multiActive ? (inputTargets.length - index) * 100 : 0,
+          ),
       ..._inputMethodPopupRegions(
         windows: state.windows,
         viewSize: viewSize,
