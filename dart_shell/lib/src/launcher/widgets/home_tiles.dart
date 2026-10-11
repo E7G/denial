@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,8 +78,9 @@ class HomeGridItemCard extends ConsumerWidget {
       shellSettingsProvider.select((settings) => settings.appearance),
     );
     final mode = appearance.transparencyMode;
-    final requestedOpacity =
-        tabletSettings.enabled ? tabletSettings.tileOpacity : 0.22;
+    final requestedOpacity = tabletSettings.enabled
+        ? tabletSettings.tileOpacity
+        : 0.22;
     final opacity = switch (mode) {
       ShellTransparencyMode.off => requestedOpacity,
       ShellTransparencyMode.blur =>
@@ -116,19 +116,13 @@ class HomeGridItemCard extends ConsumerWidget {
         animationKey:
             'battery:${clock!.power.capacity}:${clock.power.state}:${clock.power.chargeProtocol}',
         strength: tabletSettings.animationStrength,
-        child: _HomeBatteryTile(
-          clock: clock,
-          color: tileColor,
-        ),
+        child: _HomeBatteryTile(clock: clock, color: tileColor),
       ),
       HomeGridItemType.network => _MetroLiveTileTransition(
         animationKey:
             'network:${network!.connectedNetwork?.ssid}:${network.wirelessEnabled}:${network.connectedNetwork?.strength}',
         strength: tabletSettings.animationStrength,
-        child: _HomeNetworkTile(
-          snapshot: network,
-          color: tileColor,
-        ),
+        child: _HomeNetworkTile(snapshot: network, color: tileColor),
       ),
       HomeGridItemType.folder => _HomeFolderTile(
         item: item,
@@ -151,45 +145,37 @@ class HomeGridItemCard extends ConsumerWidget {
       ),
     };
     if (mode == ShellTransparencyMode.off) return tile;
-    // All tiles in a page share one backdrop key (BackdropGroup) to keep
-    // blurring efficient on the tablet's integrated GPU.
-    final sigma = (mode == ShellTransparencyMode.glass
-            ? appearance.glass.blurSigma
-            : 8.0)
-        .clamp(0.0, 10.0)
-        .toDouble();
+    // Blur the backdrop once per page, BEFORE painting any tile text.
+    // Nesting 12+ per-card BackdropFilters inside these clipped text cards
+    // retriggers the Impeller GLES glyph-atlas fault on the Mi Pad 2 i915 GPU.
+    // HomeAppPage paints the shared blur layer, clipped to all tile bounds.
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
-      child: BackdropFilter.grouped(
-        filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            tile,
-            IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white.withValues(
-                        alpha: mode == ShellTransparencyMode.glass ? 0.09 : 0.03,
-                      ),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.04),
-                    ],
-                    stops: const [0, 0.5, 1],
-                  ),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.14),
-                  ),
-                  borderRadius: BorderRadius.circular(4),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          tile,
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(
+                      alpha: mode == ShellTransparencyMode.glass ? 0.09 : 0.03,
+                    ),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.04),
+                  ],
+                  stops: const [0, 0.5, 1],
                 ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -217,12 +203,13 @@ class _MetroLiveTileTransition extends StatelessWidget {
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, animation) {
-        final slide = Tween<Offset>(
-          begin: const Offset(0, 0.22),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        );
+        final slide =
+            Tween<Offset>(
+              begin: const Offset(0, 0.22),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            );
         return ClipRect(
           child: FadeTransition(
             opacity: animation,
@@ -230,10 +217,7 @@ class _MetroLiveTileTransition extends StatelessWidget {
           ),
         );
       },
-      child: KeyedSubtree(
-        key: ValueKey<Object>(animationKey),
-        child: child,
-      ),
+      child: KeyedSubtree(key: ValueKey<Object>(animationKey), child: child),
     );
   }
 }

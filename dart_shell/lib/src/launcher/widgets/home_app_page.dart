@@ -1,5 +1,11 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../settings/settings_controller.dart';
+import '../../theme/glass_configuration.dart';
 
 import '../../localization/denial_localizations.dart';
 import '../../theme/shell_theme.dart';
@@ -8,7 +14,7 @@ import '../controllers/home_grid_layout.dart';
 import '../models/home_grid_item.dart';
 import 'home_tiles.dart';
 
-class HomeAppPage extends StatelessWidget {
+class HomeAppPage extends ConsumerWidget {
   const HomeAppPage({
     super.key,
     required this.slots,
@@ -87,7 +93,15 @@ class HomeAppPage extends StatelessWidget {
   final void Function(HomeGridItem item, int index, int pageSize) onCycleSize;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appearance = ref.watch(
+      shellSettingsProvider.select((settings) => settings.appearance),
+    );
+    final mode = appearance.transparencyMode;
+    final sigma =
+        (mode == ShellTransparencyMode.glass ? appearance.glass.blurSigma : 6.0)
+            .clamp(0.0, 6.0)
+            .toDouble();
     final pageEnd = startIndex + pageSize;
     final anchors = <int>[];
 
@@ -110,10 +124,43 @@ class HomeAppPage extends StatelessWidget {
       }
     }
 
-    return BackdropGroup(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
+    // Exactly one backdrop for this nonoverlapping tile page. Its geometry
+    // follows the same grid rects as _PositionedGridItem; text and icons paint
+    // in a separate plane above it. On Cherry Trail, many nested filtered
+    // cards intermittently lost font-atlas references and flashed.
+    final blurRects = [
+      for (final anchor in anchors)
+        if (anchor != draggingSourceIndex)
+          homeTileBlurRect(
+            localIndex: anchor - startIndex,
+            item: slots[anchor]!,
+            columns: columns,
+            tileWidth: tileWidth,
+            tileHeight: tileHeight,
+            gap: gap,
+          ),
+    ];
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        if (mode != ShellTransparencyMode.off &&
+            sigma > 0 &&
+            blurRects.isNotEmpty)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: ClipPath(
+                  clipper: HomeTileBackdropClipper(blurRects),
+                  clipBehavior: Clip.antiAlias,
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                    blendMode: BlendMode.srcOver,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+          ),
         for (final anchor in anchors)
           _PositionedGridItem(
             key: ValueKey('item:${slots[anchor]!.id}'),
@@ -142,9 +189,59 @@ class HomeAppPage extends StatelessWidget {
             onCycleColor: onCycleColor,
             onCycleSize: onCycleSize,
           ),
-        ],
-      ),
+      ],
     );
+  }
+}
+
+@visibleForTesting
+Rect homeTileBlurRect({
+  required int localIndex,
+  required HomeGridItem item,
+  required int columns,
+  required double tileWidth,
+  required double tileHeight,
+  required double gap,
+}) {
+  final row = localIndex ~/ columns;
+  final column = localIndex % columns;
+  return Rect.fromLTWH(
+    column * (tileWidth + gap),
+    row * (tileHeight + gap),
+    item.colSpan * tileWidth + (item.colSpan - 1) * gap,
+    item.rowSpan * tileHeight + (item.rowSpan - 1) * gap,
+  );
+}
+
+/// Clips one blur pass to the union of visible Metro tile rectangles.
+@immutable
+class HomeTileBackdropClipper extends CustomClipper<Path> {
+  const HomeTileBackdropClipper(this.rects);
+
+  final List<Rect> rects;
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final canvas = Offset.zero & size;
+    for (final rect in rects) {
+      final clipped = rect.intersect(canvas);
+      if (!clipped.isEmpty) {
+        path.addRRect(
+          RRect.fromRectAndRadius(clipped, const Radius.circular(4)),
+        );
+      }
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant HomeTileBackdropClipper oldClipper) {
+    if (oldClipper.rects.length != rects.length) return true;
+    for (var i = 0; i < rects.length; i++) {
+      if (rects[i] != oldClipper.rects[i]) return true;
+    }
+    return false;
   }
 }
 
