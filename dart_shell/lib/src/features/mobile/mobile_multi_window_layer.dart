@@ -376,10 +376,13 @@ class _MobileMultiWindowControlsState
                           horizontal: 10,
                           vertical: 10,
                         ),
-                        child: Icon(
-                          Icons.window_rounded,
-                          color: Colors.white,
-                          size: 20,
+                        // Paint the permanent button without a MaterialIcons
+                        // glyph. Older Impeller/Haswell setups can repeatedly
+                        // miss newly introduced glyphs in the font atlas.
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CustomPaint(painter: _FourSquareMenuPainter()),
                         ),
                       ),
                     ),
@@ -392,4 +395,31 @@ class _MobileMultiWindowControlsState
       ),
     );
   }
+}
+
+class _FourSquareMenuPainter extends CustomPainter {
+  const _FourSquareMenuPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white;
+    final length = (size.shortestSide - 4) / 2;
+    for (var row = 0; row < 2; row++) {
+      for (var col = 0; col < 2; col++) {
+        final rect = Rect.fromLTWH(
+          col * (length + 4),
+          row * (length + 4),
+          length,
+          length,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(1.8)),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FourSquareMenuPainter oldDelegate) => false;
 }

@@ -56,13 +56,41 @@ tools/denial-pc bundle
 tools/denial-pc compositor
 ```
 
-On the **Mi Pad 2** deployed 2026-10-11, restore the preceding frosted-glass
-build (without changing user data/settings) using:
+## 2026-10-11 regression investigation
+
+**Deployment status: NOT ACTIVE.** The initial multiwindow build caused
+single-app touch failures. A nested Dart collection-if/else attached the
+fullscreen input route to the wrong branch, yielding **zero ordinary client
+input regions**. The safe branch fixes this and adds a regression test.
+
+Further safeguards: unchanged single-app mode no longer emits native window
+configuration commands; the mobile-window reset compares against the actual
+configured client geometry rather than its own target; and the permanent menu
+icon no longer depends on the font atlas.
+
+The release still needs live testing before re-enabling multiwindow on the
+Mi Pad 2. Both the original and patched builds logged repeated
+`Impeller validation: Could not find font in the atlas` on the tablet.
+This also occurs on the previously working baseline. A brief Skia backend
+experiment showed a black screen and was immediately reverted. Therefore,
+the font-atlas issue must be investigated separately from input routing.
+
+**The tablet currently runs the preceding frosted-glass build.**
+Verify before modifying the device:
+
+```sh
+ssh mipad2 sha256sum /usr/bin/deniald /usr/lib/denial/flutter/lib/libapp.so
+# a1ca757fa6a346e0075fd1f6e2275bc29d520faecf8c83a521523a3a15183b68
+# b0a85345b692b0dc289cb6537b80cf3e64ec3ad2393e8ac87f0ce787befac51c
+```
+
+The idempotent rollback script (run **only if** the active build differs):
 
 ```sh
 ssh mipad2 bash /home/user/denial-rollback-multiwindow-20261011.sh
 ```
 
-The rollback uses a dedicated backup captured immediately before installation.
-It restarts GDM and therefore ends the current graphical session. Back up
-unsaved application documents before executing the rollback.
+Rollback retains a dedicated backup captured before installing multiwindow.
+If a change is necessary, it restarts GDM and ends the graphical session;
+save unsaved documents first. When already on the stable build, it exits
+without restarting anything.
