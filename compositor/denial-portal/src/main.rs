@@ -632,8 +632,19 @@ mod tests {
         )
         .expect("write private portal descriptor");
 
+        // xdg-desktop-portal 1.18 reads descriptors from its compiled datadir,
+        // not XDG_DATA_HOME. Its dedicated test override loads both descriptors
+        // and routing from one private directory on old and new frontends.
+        let portal_directory = data_root.join("xdg-desktop-portal/portals");
+        fs::write(
+            portal_directory.join("denial-portals.conf"),
+            include_str!("../../../packaging/arch/denial-portals.conf"),
+        )
+        .expect("write isolated frontend routing override");
+
         let child = Command::new(frontend_binary)
             .arg("--replace")
+            .env("XDG_DESKTOP_PORTAL_DIR", &portal_directory)
             .env("XDG_CURRENT_DESKTOP", "Denial")
             .env("XDG_CONFIG_HOME", &config_root)
             .env("XDG_CONFIG_DIRS", &config_root)
