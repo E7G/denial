@@ -289,6 +289,9 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
         ref.read(shellControllerProvider.notifier).showLockResponseKeyboard();
       }
     });
+    // Retapping an already-focused editor need not dirty any widget. Ensure
+    // the post-frame request still runs after the OSK was manually dismissed.
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   void _submitResponse() {
