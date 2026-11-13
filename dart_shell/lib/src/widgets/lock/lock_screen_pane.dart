@@ -92,7 +92,7 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
       if (authentication.prompt?.requiresResponse ?? false) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && (_authenticationVisible || authentication.busy)) {
-            _responseFocus.requestFocus();
+            _requestResponseKeyboard();
           }
         });
       }
@@ -171,6 +171,7 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
                             .read(authenticationProvider.notifier)
                             .begin,
                         onCancel: _cancelAuthentication,
+                        onRequestKeyboard: _requestResponseKeyboard,
                       ),
                   ],
                 ),
@@ -264,6 +265,30 @@ class _LockScreenPaneState extends ConsumerState<_LockScreenPane>
         !authentication.rateLimited) {
       ref.read(authenticationProvider.notifier).begin();
     }
+  }
+
+  void _requestResponseKeyboard() {
+    if (!mounted || !widget.authenticationEnabled) return;
+    final authentication = ref.read(authenticationProvider);
+    if (!authentication.locked ||
+        !authentication.available ||
+        !authentication.busy ||
+        !(authentication.prompt?.requiresResponse ?? false)) {
+      return;
+    }
+    _responseFocus.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_responseFocus.hasFocus) return;
+      final current = ref.read(authenticationProvider);
+      if (!current.locked ||
+          !current.busy ||
+          !(current.prompt?.requiresResponse ?? false)) return;
+      // Reopen even when the editor kept focus while the platform hid the IME.
+      unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
+      if (ref.read(shellProfileProvider) == ShellProfile.mobile) {
+        ref.read(shellControllerProvider.notifier).showLockResponseKeyboard();
+      }
+    });
   }
 
   void _submitResponse() {

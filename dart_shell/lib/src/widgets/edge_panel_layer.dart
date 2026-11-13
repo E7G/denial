@@ -33,7 +33,9 @@ class MobileSystemKeyboardLayer extends ConsumerWidget {
     final candidateService = ref.watch(fcitxKimpanelServiceProvider);
     unawaited(candidateService.start().catchError((Object _) {}));
     final enabled = ref.watch(
-      shellControllerProvider.select((state) => !state.launchTransitionActive),
+      shellControllerProvider.select(
+        (state) => state.locked || !state.launchTransitionActive,
+      ),
     );
     return Offstage(
       offstage: !enabled,

@@ -195,6 +195,11 @@ class ShellController extends Notifier<ShellState>
         () {
           _automaticSoftwareKeyboardCloseTimer = null;
           if (isBuildGenerationActive(generation)) {
+            // A delayed app-side hide must not dismiss the secure response
+            // keyboard while the lock screen is awaiting a password.
+            if (state.locked &&
+                (ref.read(authenticationProvider).prompt?.requiresResponse ??
+                    false)) return;
             closeEdgePanel();
           }
         },
@@ -891,6 +896,16 @@ class ShellController extends Notifier<ShellState>
     } else {
       closeQuickSettings();
     }
+  }
+
+  void showLockResponseKeyboard() {
+    if (!state.locked ||
+        !(ref.read(authenticationProvider).prompt?.requiresResponse ?? false)) {
+      return;
+    }
+    _automaticSoftwareKeyboardCloseTimer?.cancel();
+    _automaticSoftwareKeyboardCloseTimer = null;
+    openEdgePanel();
   }
 
   void openEdgePanel() {

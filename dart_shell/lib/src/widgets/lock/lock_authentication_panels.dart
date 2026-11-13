@@ -9,6 +9,7 @@ class _LockAuthenticationPanel extends StatelessWidget {
     required this.onSubmit,
     required this.onBegin,
     required this.onCancel,
+    required this.onRequestKeyboard,
   });
 
   final bool desktop;
@@ -18,6 +19,7 @@ class _LockAuthenticationPanel extends StatelessWidget {
   final VoidCallback onSubmit;
   final VoidCallback onBegin;
   final VoidCallback onCancel;
+  final VoidCallback onRequestKeyboard;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,7 @@ class _LockAuthenticationPanel extends StatelessWidget {
         onSubmit: onSubmit,
         onBegin: onBegin,
         onCancel: onCancel,
+        onRequestKeyboard: onRequestKeyboard,
       );
     }
 
@@ -198,7 +201,10 @@ class _LockAuthenticationPanel extends StatelessWidget {
                                 horizontal: 14,
                                 vertical: 4,
                               ),
-                              child: EditableText(
+                              child: LockKeyboardRequestRegion(
+ enabled: canRespond,
+ onRequestKeyboard: onRequestKeyboard,
+ child: EditableText(
                                 controller: controller,
                                 focusNode: focusNode,
                                 style: context.shellTheme.text.base.copyWith(
@@ -221,6 +227,7 @@ class _LockAuthenticationPanel extends StatelessWidget {
                                 ],
                                 onSubmitted: (_) => onSubmit(),
                               ),
+),
                             ),
                           ),
                         ),
@@ -273,6 +280,7 @@ class _MobileLockAuthenticationPanel extends ConsumerWidget {
     required this.onSubmit,
     required this.onBegin,
     required this.onCancel,
+    required this.onRequestKeyboard,
   });
 
   final AuthenticationState state;
@@ -281,6 +289,7 @@ class _MobileLockAuthenticationPanel extends ConsumerWidget {
   final VoidCallback onSubmit;
   final VoidCallback onBegin;
   final VoidCallback onCancel;
+  final VoidCallback onRequestKeyboard;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -466,7 +475,10 @@ class _MobileLockAuthenticationPanel extends ConsumerWidget {
                                     child: Row(
                                       children: [
                                         Expanded(
-                                          child: EditableText(
+                                          child: LockKeyboardRequestRegion(
+ enabled: canRespond,
+ onRequestKeyboard: onRequestKeyboard,
+ child: EditableText(
                                             key: const ValueKey<String>(
                                               'lock-authentication-field',
                                             ),
@@ -500,6 +512,7 @@ class _MobileLockAuthenticationPanel extends ConsumerWidget {
                                             ],
                                             onSubmitted: (_) => onSubmit(),
                                           ),
+),
                                         ),
                                         const SizedBox(width: 8),
                                         _MobileLockSubmitButton(
