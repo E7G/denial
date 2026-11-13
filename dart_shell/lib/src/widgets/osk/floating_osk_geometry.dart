@@ -21,7 +21,10 @@ Rect resolveFloatingOskRect({
 
   final availableWidth = math.max(
     0.0,
-    viewSize.width - floatingOskHorizontalMargin * 2,
+    viewSize.width -
+        safePadding.left -
+        safePadding.right -
+        floatingOskHorizontalMargin * 2,
   );
   final availableHeight = math.max(
     0.0,
@@ -40,10 +43,10 @@ Rect resolveFloatingOskRect({
   final width = placement.width.clamp(minWidth, availableWidth).toDouble();
   final height = placement.height.clamp(minHeight, availableHeight).toDouble();
 
-  final minX = floatingOskHorizontalMargin;
+  final minX = safePadding.left + floatingOskHorizontalMargin;
   final maxX = math.max(
     minX,
-    viewSize.width - width - floatingOskHorizontalMargin,
+    viewSize.width - safePadding.right - width - floatingOskHorizontalMargin,
   );
   final minY = safePadding.top + floatingOskTopMargin;
   final maxY = math.max(

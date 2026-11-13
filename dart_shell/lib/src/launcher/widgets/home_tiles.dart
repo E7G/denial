@@ -65,7 +65,12 @@ class HomeGridItemCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final clock = item.isSystemTile ? ref.watch(homeClockProvider) : null;
+    // Network tiles have no clock content. Do not rebuild them for clock ticks
+    // or battery/thermal updates carried by homeClockProvider.
+    final needsClock = item.type == HomeGridItemType.clock ||
+        item.type == HomeGridItemType.date ||
+        item.type == HomeGridItemType.battery;
+    final clock = needsClock ? ref.watch(homeClockProvider) : null;
     final tabletSettings = ref.watch(
       shellSettingsProvider.select((settings) => settings.tablet),
     );
@@ -149,6 +154,15 @@ class _MetroLiveTileTransition extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final keyedChild = KeyedSubtree(
+      key: ValueKey<Object>(animationKey),
+      child: child,
+    );
+    // A zero-duration switcher still constructs transition controllers and
+    // fade/slide/clip layers. Disabled motion needs none of that machinery.
+    if (strength <= 0) {
+      return keyedChild;
+    }
     final duration = Duration(
       milliseconds: (360 * strength.clamp(0.0, 1.5)).round(),
     );
@@ -171,10 +185,7 @@ class _MetroLiveTileTransition extends StatelessWidget {
           ),
         );
       },
-      child: KeyedSubtree(
-        key: ValueKey<Object>(animationKey),
-        child: child,
-      ),
+      child: keyedChild,
     );
   }
 }
