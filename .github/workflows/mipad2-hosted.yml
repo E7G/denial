@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 350
     env:
       DENIAL_FLUTTER_ENGINE_JOBS: '2'
-      DENIAL_PC_BUILD_JOBS: '2'
+      DENIAL_BUILD_JOBS: '2'
       CARGO_BUILD_JOBS: '2'
       DENIAL_BUILD_IDENTITY: mipad2.${{ github.sha }}
     steps:
@@ -41,17 +41,17 @@ jobs:
         run: |
           set -euo pipefail
           tools/denial-pc bootstrap 2>&1 | tee evidence/bootstrap.log
-      - name: Test actual compositor and lock-matched Flutter shell
-        shell: bash
-        run: |
-          set -euo pipefail
-          tools/denial-pc test 2>&1 | tee evidence/tests.log
       - name: Build release candidate
         shell: bash
         run: |
           set -euo pipefail
           tools/denial-pc build 2>&1 | tee evidence/build.log
           git diff --exit-code -- prebuilt/flutter-engine/SOURCE_LOCK.json dart_shell/pubspec.lock compositor/Cargo.lock
+      - name: Test actual compositor and lock-matched Flutter shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/denial-pc test 2>&1 | tee evidence/tests.log
       - name: Stage candidate without deployment
         shell: bash
         run: |
