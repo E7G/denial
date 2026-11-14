@@ -189,6 +189,44 @@ void main() {
     expect(shell.bridge.closed, [2, 1]);
   });
 
+  test(
+    'secure transitions restore committed divider weights after blocking input',
+    () {
+      shell.mergeMobileWorkspace(1, 2);
+      final group = current().mobileWorkspaces.single;
+      shell.synchronizeMobileWorkspaceGeometry(const Size(1024, 768));
+      shell.beginMobileWorkspaceResize(group.id);
+      shell.resizeMobileWorkspace(group.id, 0, 40);
+      shell.seed(current().copyWith(locked: true, lockLayerVisible: true));
+      shell.resetMobileWorkspaceDrag();
+      expect(current().mobileWorkspaces.single.weights, group.weights);
+      shell.seed(current().copyWith(locked: false, lockLayerVisible: false));
+      shell.synchronizeMobileWorkspaceGeometry(const Size(1024, 768));
+      expect(shell.bridge.configured, hasLength(2));
+    },
+  );
+
+  test(
+    'fractional portrait scrolling reuses the integer native size contract',
+    () {
+      shell.mergeMobileWorkspace(1, 2);
+      final id = current().mobileWorkspaces.single.id;
+      shell.setMobileWorkspaceMode(id, MobileWorkspaceMode.scrolling);
+      shell.synchronizeMobileWorkspaceGeometry(const Size(768, 1024));
+      for (var step = 0; step < 1200; step++) {
+        shell.scrollMobileWorkspace(id, .23);
+        shell.synchronizeMobileWorkspaceGeometry(const Size(768, 1024));
+      }
+      expect(shell.bridge.configured, hasLength(2));
+      expect(
+        shell.bridge.configured.every(
+          (entry) => entry.$2!.width % 1 == 0 && entry.$2!.height % 1 == 0,
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test('group scroll and resize retain the cached recents membership', () {
     shell.mergeMobileWorkspace(1, 2);
     final group = current().mobileWorkspaces.single;

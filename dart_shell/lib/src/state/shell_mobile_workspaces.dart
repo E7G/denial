@@ -29,7 +29,18 @@ mixin _MobileWorkspaceController on Notifier<ShellState> {
   void resetMobileWorkspaceDrag() {
     final original = _workspaceResizeOrigin;
     _workspaceResizeOrigin = null;
-    if (original != null) _updateWorkspace(original.id, (_) => original);
+    if (original != null) _restoreWorkspaceResize(original);
+  }
+
+  // Cancellation is internal state restoration, not a user action. A secure
+  // transition must still restore the committed layout after input is blocked.
+  void _restoreWorkspaceResize(MobileWorkspace original) {
+    state = state.copyWith(
+      mobileWorkspaces: [
+        for (final group in state.mobileWorkspaces)
+          if (group.id == original.id) original else group,
+      ],
+    );
   }
 
   void mergeMobileWorkspace(int sourceId, int targetId) {
@@ -166,10 +177,11 @@ mixin _MobileWorkspaceController on Notifier<ShellState> {
     final original = _workspaceResizeOrigin;
     _workspaceResizeOrigin = null;
     if (original == null) return;
-    _updateWorkspace(
-      original.id,
-      (group) => cancel ? original : group.copyWith(),
-    );
+    if (cancel) {
+      _restoreWorkspaceResize(original);
+      return;
+    }
+    _updateWorkspace(original.id, (group) => group.copyWith());
   }
 
   void synchronizeMobileWorkspaceGeometry(Size size) {
@@ -209,11 +221,15 @@ mixin _MobileWorkspaceController on Notifier<ShellState> {
       for (final pane in layout.panes) {
         final window = state.windowByObjectId(pane.objectId);
         if (window == null) continue;
-        final target = pane.clientFrame(window).size;
-        if (target.width < 64 ||
-            target.height < 64 ||
-            _workspaceSizes[pane.objectId] == target)
-          continue;
+        final raw = pane.clientFrame(window).size;
+        if (raw.width < 64 || raw.height < 64) continue;
+        // Match the integer native contract. Fractional Rect subtraction can
+        // vary by an ulp during translation and must not generate IPC churn.
+        final target = Size(
+          raw.width.roundToDouble().clamp(64, 16384).toDouble(),
+          raw.height.roundToDouble().clamp(64, 16384).toDouble(),
+        );
+        if (_workspaceSizes[pane.objectId] == target) continue;
         workspaceBridge.configureMobileWorkspaceWindow(window, target);
         _workspaceSizes[pane.objectId] = target;
       }

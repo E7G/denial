@@ -127,6 +127,12 @@ jobs:
           set -euo pipefail
           CARGO_TARGET_DIR="$HOME/.cache/denial/pc-build/rust" cargo check --locked --manifest-path compositor/Cargo.toml --jobs 2 --no-default-features --features kms --bin deniald 2>&1 | tee evidence/minimal-kms-check.log
           CARGO_TARGET_DIR="$HOME/.cache/denial/pc-build/rust" cargo check --locked --manifest-path compositor/Cargo.toml --jobs 2 --no-default-features --features flutter --bin deniald 2>&1 | tee evidence/flutter-feature-check.log
+      - name: Test recents gestures and workspace contracts before release build
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools/denial-pc flutter-test test/widgets/mobile_recents_interaction_test.dart test/widgets/mobile_workspace_interaction_test.dart test/state/mobile_workspace_controller_test.dart test/state/mobile_workspace_input_test.dart test/state/mobile_workspace_layout_test.dart test/platform/denial_wire_test.dart 2>&1 | tee evidence/workspace-preflight-tests.log
+
       - name: Build release candidate
 
         shell: bash

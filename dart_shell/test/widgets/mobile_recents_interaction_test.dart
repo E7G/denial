@@ -1,3 +1,4 @@
+import 'package:denial_dart_shell/src/core/shell_overlay_host.dart';
 import 'package:denial_dart_shell/src/features/mobile/mobile_window_layers.dart';
 import 'package:denial_dart_shell/src/features/mobile/mobile_launcher_layer.dart';
 import 'package:denial_dart_shell/src/launcher/controllers/home_grid_controller.dart';
@@ -310,19 +311,21 @@ Future<_ShellHarness> _pumpShell(
     UncontrolledProviderScope(
       container: container,
       child: mobileMotionHarness(
-        Stack(
-          children: [
-            if (includeLauncher)
-              MobileLauncherLayer(
-                contentOpacity: opacity,
-                overviewPresentationActive: presented,
+        ShellOverlayHost(
+          child: Stack(
+            children: [
+              if (includeLauncher)
+                MobileLauncherLayer(
+                  contentOpacity: opacity,
+                  overviewPresentationActive: presented,
+                ),
+              MobileOverviewLayer(
+                onPresentationChanged: (value) => presented.value = value,
+                onProgressChanged: (value) => progress.value = value,
               ),
-            MobileOverviewLayer(
-              onPresentationChanged: (value) => presented.value = value,
-              onProgressChanged: (value) => progress.value = value,
-            ),
-            const BottomGestureHandle(),
-          ],
+              const BottomGestureHandle(),
+            ],
+          ),
         ),
         size: size,
       ),
