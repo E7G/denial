@@ -1476,10 +1476,12 @@ fn observe_mipad2_navigation_transition(
 enum MiPad2ClientBackRoute { Shell, Escape, Semantic }
 
 #[cfg(feature = "flutter")]
-fn mipad2_client_back_route(app_id: &str) -> MiPad2ClientBackRoute {
-    if app_id.trim().eq_ignore_ascii_case("dev.denial.settings") {
+fn mipad2_client_back_route(app_id: &str, executable: Option<&str>) -> MiPad2ClientBackRoute {
+    if app_id.trim().eq_ignore_ascii_case("dev.denial.settings")
+        && executable == Some("denial-settings") {
         MiPad2ClientBackRoute::Shell
-    } else if app_id.trim().eq_ignore_ascii_case("org.localsend.localsend_app") {
+    } else if app_id.trim().eq_ignore_ascii_case("org.localsend.localsend_app")
+        && executable == Some("localsend_app") {
         // LocalSend v1.18.2 ShortcutWatcher binds Escape to Navigator.maybePop.
         MiPad2ClientBackRoute::Escape
     } else {
@@ -1490,17 +1492,26 @@ fn mipad2_client_back_route(app_id: &str) -> MiPad2ClientBackRoute {
 
 #[cfg(feature = "flutter")]
 fn mipad2_focused_client_back_route(state: &RuntimeState) -> MiPad2ClientBackRoute {
-    let app_id = state.wayland.as_ref().and_then(|frontend| {
+    let identity = state.wayland.as_ref().and_then(|frontend| {
         let focus = frontend.seat.get_keyboard()?.current_focus()?;
         frontend.space.elements().find_map(|window| {
             if frontend.keyboard_focus_for_window(window).as_ref() == Some(&focus) {
-                frontend.window_identity(window).map(|identity| identity.app_id().to_owned())
+                let app_id = frontend.window_identity(window)?.app_id().to_owned();
+                let root = frontend.window_root_surface(window)?;
+                let client = root.client()?;
+                // Cached SO_PEERCRED identity; do not query backend credentials
+                // under its lock, and never trust an Android package app_id alone.
+                let peer = client.get_data::<super::handlers::DenialClientState>()?;
+                let pid = peer.peer_pid?;
+                let executable = std::fs::read_link(format!("/proc/{pid}/exe")).ok()?;
+                let name = executable.file_name()?.to_str()?.to_owned();
+                Some((app_id, name))
             } else {
                 None
             }
         })
     });
-    app_id.as_deref().map(mipad2_client_back_route)
+    identity.as_ref().map(|(app_id, executable)| mipad2_client_back_route(app_id, Some(executable.as_str())))
         .unwrap_or(MiPad2ClientBackRoute::Semantic)
 }
 
@@ -2869,15 +2880,29 @@ mod client_input_mapping_tests {
 
     #[test]
     fn mipad2_back_compat_is_scoped_to_verified_native_apps() {
-        assert_eq!(mipad2_client_back_route("Org.localsend.localsend_app"), MiPad2ClientBackRoute::Escape);
-        assert_eq!(mipad2_client_back_route("dev.denial.settings"), MiPad2ClientBackRoute::Shell);
-        assert_eq!(mipad2_client_back_route("org.example.Editor"), MiPad2ClientBackRoute::Semantic);
+        assert_eq!(mipad2_client_back_route("Org.localsend.localsend_app", Some("localsend_app")), MiPad2ClientBackRoute::Escape);
+        assert_eq!(mipad2_client_back_route("dev.denial.settings", Some("denial-settings")), MiPad2ClientBackRoute::Shell);
+        assert_eq!(mipad2_client_back_route("org.example.Editor", Some("editor")), MiPad2ClientBackRoute::Semantic);
     }
 
     #[test]
     fn mipad2_android_settings_never_uses_native_settings_back_compat() {
         for app in ["com.android.settings", "droidloom.com.android.settings", "evil-org.localsend.localsend_app-suffix"] {
-            assert_eq!(mipad2_client_back_route(app), MiPad2ClientBackRoute::Semantic);
+            assert_eq!(mipad2_client_back_route(app, Some("droidloom-wayland")), MiPad2ClientBackRoute::Semantic);
+        }
+    }
+
+    #[test]
+    fn mipad2_android_localsend_same_package_id_still_gets_real_back() {
+        for executable in [Some("droidloom-wayland"), None] {
+            assert_eq!(
+                mipad2_client_back_route("org.localsend.localsend_app", executable),
+                MiPad2ClientBackRoute::Semantic,
+            );
+            assert_eq!(
+                mipad2_client_back_route("dev.denial.settings", executable),
+                MiPad2ClientBackRoute::Semantic,
+            );
         }
     }
 
