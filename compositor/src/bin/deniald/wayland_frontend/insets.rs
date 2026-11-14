@@ -146,14 +146,30 @@ impl WaylandFrontend {
         let Some(target) = self.mobile_window_geometry(window) else {
             return;
         };
-        if self.exact_window_geometry(window) == Some(target) {
-            return;
-        }
         let maximize = ManagedWindow::new(window).is_some_and(|managed| {
             let facts = managed.facts();
             self.window_root_surface(window).is_some_and(|root| !self_managed(&root))
                 && mobile_maximize_allowed(facts.minimum_size, facts.maximum_size, target.size)
         });
+        // exact_window_geometry() includes the computed mobile policy even
+        // before we have sent a configure. Only a stored geometry contract is
+        // evidence that this target was actually negotiated with the client.
+        let applied_target = self.window_root_surface(window).and_then(|root| {
+            self.window_record_for_surface(&root.id())
+                .and_then(|record| record.geometry_intent)
+                .filter(|intent| intent.authority == WindowGeometryAuthority::Exact)
+                .map(|intent| intent.target)
+        });
+        let state_matches = window.toplevel().is_none_or(|toplevel| {
+            toplevel.with_pending_state(|pending| {
+                pending.size == Some(target.size)
+                    && !pending.states.contains(xdg_toplevel::State::Fullscreen)
+                    && pending.states.contains(xdg_toplevel::State::Maximized) == maximize
+            })
+        });
+        if !mobile_target_requires_configure(applied_target, target, state_matches) {
+            return;
+        }
         if let Some(toplevel) = window.toplevel() {
             toplevel.with_pending_state(|pending| {
                 pending.size = Some(target.size);
@@ -282,5 +298,39 @@ mod mobile_maximize_tests {
         ] {
             assert!(!mobile_maximize_allowed(Size::from(minimum), Size::from(maximum), target));
         }
+    }
+}
+
+
+fn mobile_target_requires_configure(
+    applied: Option<Rectangle<i32, Logical>>,
+    target: Rectangle<i32, Logical>,
+    state_matches: bool,
+) -> bool {
+    applied != Some(target) || !state_matches
+}
+
+#[cfg(test)]
+mod mobile_configure_contract_tests {
+    use super::*;
+
+    #[test]
+    fn computed_policy_does_not_count_as_an_applied_contract() {
+        let computed_target = Rectangle::from_size(Size::from((1024, 720)));
+        assert!(mobile_target_requires_configure(None, computed_target, true));
+    }
+
+    #[test]
+    fn acknowledged_same_contract_is_idempotent() {
+        let target = Rectangle::from_size(Size::from((1024, 720)));
+        assert!(!mobile_target_requires_configure(Some(target), target, true));
+    }
+
+    #[test]
+    fn rotation_or_changed_client_state_requires_a_new_configure() {
+        let landscape = Rectangle::from_size(Size::from((1024, 720)));
+        let portrait = Rectangle::from_size(Size::from((768, 976)));
+        assert!(mobile_target_requires_configure(Some(landscape), portrait, true));
+        assert!(mobile_target_requires_configure(Some(portrait), portrait, false));
     }
 }

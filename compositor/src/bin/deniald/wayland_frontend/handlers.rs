@@ -1238,7 +1238,7 @@ impl CompositorHandler for RuntimeState {
                 let _ = restored;
                 window.on_commit();
                 #[cfg(feature = "flutter")]
-                if frontend.mobile_shell && frontend.exact_window_geometry(&window).is_none() {
+                if frontend.mobile_shell {
                     frontend.configure_mobile_window(&window);
                 }
                 frontend.reconcile_committed_window_geometry(&window);
