@@ -612,6 +612,7 @@ fn create_window_snapshot<'a>(
                 minimized: description.minimized,
                 fullscreen: description.fullscreen,
                 maximized: description.maximized,
+                self_managed_insets: description.self_managed_insets,
                 pinned: description.pinned,
                 transform: description.transform,
                 scale_120: description.scale_120,

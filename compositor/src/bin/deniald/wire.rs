@@ -590,6 +590,7 @@ pub struct WindowDescription {
     pub minimized: bool,
     pub fullscreen: bool,
     pub maximized: bool,
+    pub self_managed_insets: bool,
     pub pinned: bool,
     pub transform: u32,
     pub scale_120: u32,

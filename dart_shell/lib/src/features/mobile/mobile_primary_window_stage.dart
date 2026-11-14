@@ -79,7 +79,11 @@ class _MobilePrimaryWindowStageState extends State<MobilePrimaryWindowStage> {
       );
     }
     return Padding(
-      padding: const EdgeInsets.only(top: ShellMetrics.appStatusBarHeight),
+      // Inset-aware clients already lay out below the shell bar themselves.
+      // Keep the complete native canvas, matching mobileWindowPresentationFrame.
+      padding: EdgeInsets.only(
+        top: window.selfManagedInsets ? 0 : ShellMetrics.appStatusBarHeight,
+      ),
       child: WindowContentRect(
         key: ValueKey<int>(window.objectId),
         window: window,

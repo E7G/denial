@@ -24,7 +24,12 @@ Widget mobileMotionHarness(Widget child, {Size size = const Size(400, 800)}) =>
       ),
     );
 
-DenialWindow motionWindow(int id, {String appId = 'test'}) => DenialWindow(
+DenialWindow motionWindow(
+  int id, {
+  String appId = 'test',
+  bool selfManagedInsets = false,
+}) => DenialWindow(
+  selfManagedInsets: selfManagedInsets,
   objectId: id,
   objectKind: 'xdg_toplevel',
   surfaceId: id,

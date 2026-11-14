@@ -16,6 +16,57 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/mobile_motion_harness.dart';
 
 void main() {
+  test('inset ownership participates in scene identity', () {
+    final ordinary = motionWindow(8);
+    final selfManaged = motionWindow(8, selfManagedInsets: true);
+    expect(ordinary, isNot(selfManaged));
+    expect(ordinary.hasSameStaticSceneRoleAs(selfManaged), isFalse);
+    expect(ordinary.hasSameSceneDescriptionAs(selfManaged), isFalse);
+    expect(selfManaged, motionWindow(8, selfManagedInsets: true));
+  });
+
+  testWidgets('self-managed canvas and touch geometry share the full stage', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final drag = ValueNotifier(0.0);
+    addTearDown(drag.dispose);
+    final window = motionWindow(8, selfManagedInsets: true);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: mobileMotionHarness(
+          MobilePrimaryWindowStage(
+            currentWindow: window,
+            switchTargetWindow: null,
+            switchDragX: drag,
+            opacity: 1,
+          ),
+        ),
+      ),
+    );
+    final content = find.byType(WindowContentRect);
+    expect(tester.getRect(content), const Rect.fromLTWH(0, 0, 400, 800));
+    final widget = tester.widget<WindowContentRect>(content);
+    expect(widget.fit, BoxFit.contain);
+    expect(widget.cropToContentBounds, isTrue);
+    expect(widget.sourceCropTop, 0);
+    final element = content.evaluate().single;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: mobileMotionHarness(
+          MobilePrimaryWindowStage(
+            currentWindow: window,
+            switchTargetWindow: null,
+            switchDragX: drag,
+            opacity: 1,
+          ),
+        ),
+      ),
+    );
+    expect(content.evaluate().single, same(element));
+  });
+
   testWidgets('hiding a retained keyboard releases a held key', (tester) async {
     final intents = <ShellOskKeyIntent>[];
     Widget keyboard(bool enabled) => ProviderScope(

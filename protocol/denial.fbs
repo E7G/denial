@@ -401,6 +401,10 @@ table Window {
   // Stable object identity of this toplevel's transient parent. Zero means
   // the window is not part of a transient family. Appended for compatibility.
   transient_parent_id:ulong;
+  // Client declared denial-insets-v1 before mapping. The mobile shell must
+  // not reserve a second status-bar inset in presentation or input geometry.
+  // Appended with false default for compatibility with older senders.
+  self_managed_insets:bool;
 }
 
 table WindowSnapshot {

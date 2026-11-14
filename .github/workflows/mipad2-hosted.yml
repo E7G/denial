@@ -75,6 +75,17 @@ jobs:
 
           git rev-parse HEAD > evidence/source-commit.txt
 
+      - name: Verify backward-compatible generated wire
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/flatc-pinned"
+          curl --fail --location --retry 3 https://github.com/google/flatbuffers/releases/download/v25.9.23/Linux.flatc.binary.g%2B%2B-13.zip -o "$RUNNER_TEMP/flatc-pinned.zip"
+          echo "de0c6ad114a5a686ecf64322528c602c7d4512446a93f290f54f00ee5abea487  $RUNNER_TEMP/flatc-pinned.zip" | sha256sum --check
+          unzip "$RUNNER_TEMP/flatc-pinned.zip" -d "$RUNNER_TEMP/flatc-pinned"
+          chmod +x "$RUNNER_TEMP/flatc-pinned/flatc"
+          FLATC="$RUNNER_TEMP/flatc-pinned/flatc" tools/generate-denial-wire --check 2>&1 | tee evidence/wire-generation-check.log
+
       - name: Bootstrap locked toolchains
 
         shell: bash

@@ -11,11 +11,14 @@ Rect mobileWindowPresentationFrame({
   required Rect frame,
   required double contentOffset,
   required bool contain,
+  bool selfManagedInsets = false,
 }) {
   if (viewSize.isEmpty || frame.isEmpty) {
     return Rect.zero;
   }
-  final topInset = contain ? ShellMetrics.appStatusBarHeight : 0.0;
+  final topInset = contain && !selfManagedInsets
+      ? ShellMetrics.appStatusBarHeight
+      : 0.0;
   final targetHeight = (viewSize.height - topInset).clamp(0.0, viewSize.height);
   final target = Rect.fromLTWH(
     0,
@@ -234,6 +237,7 @@ class ShellInputLayoutCoordinator {
       frame: sourceFrame,
       contentOffset: contentOffset,
       contain: !window.isLocalFlutter,
+      selfManagedInsets: window.selfManagedInsets,
     );
     if (fullContentRect.isEmpty) {
       return const <InputWindowRegion>[];

@@ -149,6 +149,7 @@ class DenialWindow {
     this.minimized = false,
     this.fullscreen = false,
     this.maximized = false,
+    this.selfManagedInsets = false,
     required this.transform,
     required this.scale120,
     this.pinned = false,
@@ -193,6 +194,9 @@ class DenialWindow {
   final bool minimized;
   final bool fullscreen;
   final bool maximized;
+
+  /// The client already supplies system insets (denial-insets-v1).
+  final bool selfManagedInsets;
   final int transform;
   final int scale120;
   final bool pinned;
@@ -378,6 +382,7 @@ class DenialWindow {
         other.minimized == minimized &&
         other.fullscreen == fullscreen &&
         other.maximized == maximized &&
+        other.selfManagedInsets == selfManagedInsets &&
         other.pinned == pinned &&
         other.suppressAnimations == suppressAnimations &&
         other.restoredAcrossFlutterRestart == restoredAcrossFlutterRestart &&
@@ -417,6 +422,7 @@ class DenialWindow {
         other.minimized == minimized &&
         other.fullscreen == fullscreen &&
         other.maximized == maximized &&
+        other.selfManagedInsets == selfManagedInsets &&
         other.transform == transform &&
         other.scale120 == scale120 &&
         other.pinned == pinned &&
@@ -469,6 +475,7 @@ class DenialWindow {
     minimized,
     fullscreen,
     maximized,
+    selfManagedInsets,
     transform,
     scale120,
     pinned,

@@ -4073,6 +4073,7 @@ impl<'a> Window<'a> {
   pub const VT_FULLSCREEN: flatbuffers::VOffsetT = 82;
   pub const VT_MAXIMIZED: flatbuffers::VOffsetT = 84;
   pub const VT_TRANSIENT_PARENT_ID: flatbuffers::VOffsetT = 86;
+  pub const VT_SELF_MANAGED_INSETS: flatbuffers::VOffsetT = 88;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -4116,6 +4117,7 @@ impl<'a> Window<'a> {
     builder.add_width(args.width);
     if let Some(x) = args.app_id { builder.add_app_id(x); }
     if let Some(x) = args.title { builder.add_title(x); }
+    builder.add_self_managed_insets(args.self_managed_insets);
     builder.add_maximized(args.maximized);
     builder.add_fullscreen(args.fullscreen);
     builder.add_minimized(args.minimized);
@@ -4424,6 +4426,13 @@ impl<'a> Window<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<u64>(Window::VT_TRANSIENT_PARENT_ID, Some(0)).unwrap()}
   }
+  #[inline]
+  pub fn self_managed_insets(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(Window::VT_SELF_MANAGED_INSETS, Some(false)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for Window<'_> {
@@ -4475,6 +4484,7 @@ impl flatbuffers::Verifiable for Window<'_> {
      .visit_field::<bool>("fullscreen", Self::VT_FULLSCREEN, false)?
      .visit_field::<bool>("maximized", Self::VT_MAXIMIZED, false)?
      .visit_field::<u64>("transient_parent_id", Self::VT_TRANSIENT_PARENT_ID, false)?
+     .visit_field::<bool>("self_managed_insets", Self::VT_SELF_MANAGED_INSETS, false)?
      .finish();
     Ok(())
   }
@@ -4522,6 +4532,7 @@ pub struct WindowArgs<'a> {
     pub fullscreen: bool,
     pub maximized: bool,
     pub transient_parent_id: u64,
+    pub self_managed_insets: bool,
 }
 impl<'a> Default for WindowArgs<'a> {
   #[inline]
@@ -4569,6 +4580,7 @@ impl<'a> Default for WindowArgs<'a> {
       fullscreen: false,
       maximized: false,
       transient_parent_id: 0,
+      self_managed_insets: false,
     }
   }
 }
@@ -4747,6 +4759,10 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> WindowBuilder<'a, 'b, A> {
     self.fbb_.push_slot::<u64>(Window::VT_TRANSIENT_PARENT_ID, transient_parent_id, 0);
   }
   #[inline]
+  pub fn add_self_managed_insets(&mut self, self_managed_insets: bool) {
+    self.fbb_.push_slot::<bool>(Window::VT_SELF_MANAGED_INSETS, self_managed_insets, false);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> WindowBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     WindowBuilder {
@@ -4806,6 +4822,7 @@ impl core::fmt::Debug for Window<'_> {
       ds.field("fullscreen", &self.fullscreen());
       ds.field("maximized", &self.maximized());
       ds.field("transient_parent_id", &self.transient_parent_id());
+      ds.field("self_managed_insets", &self.self_managed_insets());
       ds.finish()
   }
 }

@@ -12,6 +12,30 @@ import 'package:denial_dart_shell/src/platform/denial_wire.dart'
     hide InputWindowRegion;
 
 void main() {
+  for (final inset in [null, false, true]) {
+    test('self-managed inset metadata decodes $inset compatibly', () {
+      final bytes = EnvelopeObjectBuilder(
+        protocolVersion: 1,
+        sequence: 1,
+        payloadType: PayloadTypeId.WindowSnapshot,
+        payload: WindowSnapshotObjectBuilder(
+          windows: <WindowObjectBuilder>[
+            WindowObjectBuilder(
+              objectId: 1, surfaceId: 2, windowId: 3, textureId: 4,
+              width: 1024, height: 768, contentWidth: 1024, contentHeight: 768,
+              selfManagedInsets: inset,
+            ),
+          ],
+        ),
+      ).toBytes('DENW');
+      final codec = DenialWireCodec();
+      final decoded = codec.decodeStructured(ByteData.sublistView(bytes));
+      expect(decoded, isNotNull);
+      final windows = codec.decodeWindows(decoded!.payload as WindowSnapshot)!;
+      expect(windows.single.selfManagedInsets, inset ?? false);
+    });
+  }
+
   test('mouse speed request is bounded and independently encoded', () {
     final codec = DenialWireCodec();
     const capabilities = DenialInputDeviceCapabilities(

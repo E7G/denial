@@ -3,6 +3,41 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final size in [const Size(1024, 768), const Size(768, 1024)]) {
+    test('self-managed client fills $size without a duplicate inset', () {
+      final frame = mobileWindowPresentationFrame(
+        viewSize: size,
+        frame: Offset.zero & size,
+        contentOffset: 0,
+        contain: true,
+        selfManagedInsets: true,
+      );
+      expect(frame, Offset.zero & size);
+    });
+  }
+
+  test('self-managed fixed aspect remains contained, never stretched', () {
+    final frame = mobileWindowPresentationFrame(
+      viewSize: const Size(1024, 768),
+      frame: const Rect.fromLTWH(0, 0, 1920, 1080),
+      contentOffset: 0,
+      contain: true,
+      selfManagedInsets: true,
+    );
+    expect(frame, const Rect.fromLTWH(0, 96, 1024, 576));
+  });
+
+  test('self-managed keyboard translation keeps the same input scale', () {
+    final frame = mobileWindowPresentationFrame(
+      viewSize: const Size(1024, 768),
+      frame: const Rect.fromLTWH(0, 0, 1024, 768),
+      contentOffset: 100,
+      contain: true,
+      selfManagedInsets: true,
+    );
+    expect(frame, const Rect.fromLTWH(0, -100, 1024, 768));
+  });
+
   test('landscape native client maximizes below the real status bar', () {
     final frame = mobileWindowPresentationFrame(
       viewSize: const Size(768, 1024),
