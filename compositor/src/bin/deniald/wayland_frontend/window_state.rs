@@ -1251,14 +1251,19 @@ impl WaylandFrontend {
             match action {
                 WindowGeometryReassertionAction::Send => {
                     if let Some(managed) = ManagedWindow::new(window) {
-                        let facts = managed.facts();
-                        let mobile_maximized = self.mobile_shell
-                            && !insets::self_managed(&root_surface)
-                            && insets::mobile_maximize_allowed(
-                                facts.minimum_size,
-                                facts.maximum_size,
-                                target.size,
-                            );
+                        #[cfg(feature = "flutter")]
+                        let mobile_maximized = {
+                            let facts = managed.facts();
+                            self.mobile_shell
+                                && !insets::self_managed(&root_surface)
+                                && insets::mobile_maximize_allowed(
+                                    facts.minimum_size,
+                                    facts.maximum_size,
+                                    target.size,
+                                )
+                        };
+                        #[cfg(not(feature = "flutter"))]
+                        let mobile_maximized = false;
                         managed.reassert_geometry_target(target, authority.exact(), mobile_maximized);
                     }
                 }
