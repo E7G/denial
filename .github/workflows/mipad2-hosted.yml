@@ -7,6 +7,11 @@ on:
     branches: [codex/mipad2-desktop-perf-20261113]
 
   workflow_dispatch:
+    inputs:
+      native_only:
+        description: Test and rebuild native-only changes; shell must be source-identical to its validated base
+        type: boolean
+        default: false
 
 permissions:
 
@@ -14,13 +19,15 @@ permissions:
 
 concurrency:
 
-  group: mipad2-desktop-${{ github.ref }}
+  group: mipad2-desktop-${{ github.ref }}-${{ inputs.native_only || false }}
 
   cancel-in-progress: false
 
 jobs:
 
   desktop:
+
+    if: ${{ !inputs.native_only }}
 
     runs-on: ubuntu-24.04
 
@@ -189,3 +196,69 @@ jobs:
 
           retention-days: 7
 
+
+  native:
+    if: ${{ inputs.native_only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      CARGO_BUILD_JOBS: '2'
+      DENIAL_BUILD_IDENTITY: mipad2.${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Verify narrow source change and prepare native builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = bd93afd1fd8ae701c9bf4621689f6a92e771b884
+          git diff --name-only HEAD^ HEAD | sort > /tmp/changed
+          printf '%s\n' .github/workflows/mipad2-hosted.yml compositor/src/bin/deniald/flutter_runtime/renderer/texture.rs | sort > /tmp/allowed
+          cmp /tmp/changed /tmp/allowed
+          git diff --exit-code HEAD^ HEAD -- dart_shell protocol settings_app prebuilt compositor/Cargo.lock
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang cmake ninja-build jq curl git pkg-config python3 unzip xz-utils zstd libgtk-3-dev libgbm-dev libdrm-dev libinput-dev libudev-dev libseat-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgles2-mesa-dev libvulkan-dev libssl-dev libsystemd-dev libdbus-1-dev libpam0g-dev libpulse-dev libpipewire-0.3-dev libdisplay-info-dev libasound2-dev libfontconfig-dev libfreetype6-dev libcap-dev libxtst-dev libxrandr-dev libxcursor-dev xdg-desktop-portal
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/source-commit.txt
+          git diff HEAD^ HEAD > evidence/native-only.patch
+          python3 tools/check-settings-schema
+      - name: Check native feature matrix and test compositor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd compositor
+          cargo check --locked --jobs 2 --no-default-features --features kms --bin deniald 2>&1 | tee ../evidence/minimal-kms.log
+          cargo check --locked --jobs 2 --no-default-features --features flutter --bin deniald 2>&1 | tee ../evidence/flutter-feature.log
+          DENIAL_NOTIFICATION_TEST_BUS=1 DENIAL_FPRINT_TEST_BUS=1 dbus-run-session -- cargo test --locked --jobs 2 --lib --bins --tests --features flutter 2>&1 | tee ../evidence/native-tests.log
+          cargo test --locked --jobs 2 -p denial-flutter-engine 2>&1 | tee ../evidence/embedder-tests.log
+          frontend=/usr/libexec/xdg-desktop-portal
+          test -x "$frontend" || frontend=/usr/lib/xdg-desktop-portal
+          DENIAL_PORTAL_TEST_BUS=1 DENIAL_PORTAL_FRONTEND_TEST="$frontend" dbus-run-session -- cargo test --locked --jobs 2 -p denial-portal -- --test-threads=1 2>&1 | tee ../evidence/portal-tests.log
+      - name: Build native release without rebuilding unchanged shell or engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --jobs 2 --manifest-path compositor/Cargo.toml --features flutter --bin deniald --bin denialctl 2>&1 | tee evidence/native-build.log
+          mkdir -p native/bin
+          cp compositor/target/release/denial{d,ctl} native/bin/
+          cp -a evidence native/
+          cp prebuilt/flutter-engine/SOURCE_LOCK.json native/
+          printf '%s\n' bd93afd1fd8ae701c9bf4621689f6a92e771b884 > native/unchanged-shell-source.txt
+          (cd native && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+          tar --zstd -cf denial-mipad2-native.tar.zst native
+          sha256sum denial-mipad2-native.tar.zst > denial-mipad2-native.tar.zst.sha256
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: denial-mipad2-native-${{ github.sha }}
+          path: denial-mipad2-native.tar.zst*
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: denial-native-evidence-${{ github.sha }}
+          path: evidence/
+          retention-days: 7

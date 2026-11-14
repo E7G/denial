@@ -587,6 +587,17 @@ impl ExternalTextureSlot {
                 return true;
             }
         }
+        // A newly mapped surface has no displayed generation to pace against.
+        // Publish its first source with its scene metadata, not one tick later:
+        // an opaque Android child must not hide its parent while still empty.
+        // Adapted from denialwm/denial 99811fe9c81db630eccb40834b59b3bf4425ad68.
+        // Import, acquire-fence waits and producer buffer guards remain unchanged.
+        if self.current.is_none() && self.queued.is_none() {
+            self.current = Some(source);
+            self.presentation = self.desired_presentation;
+            self.current_sampled = false;
+            return true;
+        }
         // Preserve one generation on either side of a tick boundary. The
         // immediate successor is stable; only excess lookahead is latest-only.
         if self.queued.is_none() {
@@ -892,5 +903,78 @@ pub(in crate::flutter_runtime) fn contain_ffi_unwind(callback: impl FnOnce()) ->
             mem::forget(payload);
             false
         }
+    }
+}
+
+
+#[cfg(test)]
+mod first_surface_frame_tests {
+    use super::*;
+
+    fn source(revision: u64) -> ExternalTextureSource {
+        ExternalTextureSource::Shm(
+            ShmTextureFrame::new_owned(1, 1, revision, vec![0, 0, 0, 255]).unwrap(),
+        )
+    }
+
+    fn generations(slot: &ExternalTextureSlot) -> [Option<u64>; 3] {
+        [&slot.current, &slot.queued, &slot.lookahead]
+            .map(|source| source.as_ref().map(ExternalTextureSource::generation))
+    }
+
+    #[test]
+    fn new_surface_first_buffer_is_current_with_its_metadata() {
+        let mut slot = ExternalTextureSlot::default();
+        assert!(slot.queue(source(1), true, None));
+        assert_eq!(generations(&slot), [Some(1), None, None]);
+        assert!(!slot.current_sampled);
+        assert!(!slot.advance());
+    }
+
+    #[test]
+    fn existing_unsampled_generation_is_not_replaced_early() {
+        let mut slot = ExternalTextureSlot::default();
+        slot.queue(source(1), true, None);
+        slot.queue(source(2), true, None);
+        assert_eq!(generations(&slot), [Some(1), Some(2), None]);
+        assert!(!slot.advance());
+        slot.current_sampled = true;
+        assert!(slot.advance());
+        assert_eq!(generations(&slot), [Some(2), None, None]);
+        assert!(!slot.current_sampled);
+    }
+
+    #[test]
+    fn first_frame_fix_preserves_bounded_successor_and_latest_lookahead() {
+        let mut slot = ExternalTextureSlot::default();
+        for generation in 1..=4 {
+            slot.queue(source(generation), true, None);
+        }
+        assert_eq!(generations(&slot), [Some(1), Some(2), Some(4)]);
+        slot.current_sampled = true;
+        assert!(slot.advance());
+        assert_eq!(generations(&slot), [Some(2), Some(4), None]);
+        assert!(!slot.advance());
+        slot.current_sampled = true;
+        assert!(slot.advance());
+        assert_eq!(generations(&slot), [Some(4), None, None]);
+    }
+
+    #[test]
+    fn duplicate_first_buffer_is_not_queued_again() {
+        let mut slot = ExternalTextureSlot::default();
+        let first = source(1);
+        assert!(slot.queue(first.clone(), true, None));
+        assert!(!slot.queue(first, true, None));
+        assert_eq!(generations(&slot), [Some(1), None, None]);
+    }
+
+    #[test]
+    fn hidden_surface_can_still_mailbox_without_waiting_for_a_sample() {
+        let mut slot = ExternalTextureSlot::default();
+        slot.queue(source(1), false, None);
+        slot.queue(source(2), false, None);
+        assert!(slot.advance());
+        assert_eq!(generations(&slot), [Some(2), None, None]);
     }
 }
