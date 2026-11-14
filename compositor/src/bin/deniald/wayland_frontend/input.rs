@@ -1472,6 +1472,39 @@ fn observe_mipad2_navigation_transition(
 }
 
 #[cfg(feature = "flutter")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MiPad2ClientBackRoute { Shell, Escape, Semantic }
+
+#[cfg(feature = "flutter")]
+fn mipad2_client_back_route(app_id: &str) -> MiPad2ClientBackRoute {
+    if app_id.trim().eq_ignore_ascii_case("dev.denial.settings") {
+        MiPad2ClientBackRoute::Shell
+    } else if app_id.trim().eq_ignore_ascii_case("org.localsend.localsend_app") {
+        // LocalSend v1.18.2 ShortcutWatcher binds Escape to Navigator.maybePop.
+        MiPad2ClientBackRoute::Escape
+    } else {
+        // Includes Android task surfaces: evdev158 is Android BACK, not Escape.
+        MiPad2ClientBackRoute::Semantic
+    }
+}
+
+#[cfg(feature = "flutter")]
+fn mipad2_focused_client_back_route(state: &RuntimeState) -> MiPad2ClientBackRoute {
+    let app_id = state.wayland.as_ref().and_then(|frontend| {
+        let focus = frontend.seat.get_keyboard()?.current_focus()?;
+        frontend.space.elements().find_map(|window| {
+            if frontend.keyboard_focus_for_window(window).as_ref() == Some(&focus) {
+                frontend.window_identity(window).map(|identity| identity.app_id().to_owned())
+            } else {
+                None
+            }
+        })
+    });
+    app_id.as_deref().map(mipad2_client_back_route)
+        .unwrap_or(MiPad2ClientBackRoute::Semantic)
+}
+
+#[cfg(feature = "flutter")]
 fn process_mipad2_navigation_key(
     state: &mut RuntimeState,
     device: &LibinputDevice,
@@ -1510,7 +1543,8 @@ fn process_mipad2_navigation_key(
             Some(false)
         }
         MiPad2NavigationDecision::Back => {
-            if shell_owns_keyboard {
+            let route = mipad2_focused_client_back_route(state);
+            if shell_owns_keyboard || route == MiPad2ClientBackRoute::Shell {
                 state.queue_shell_action(super::super::wire::ShellAction::FocusLeft, None);
                 Some(false)
             } else {
@@ -1524,7 +1558,10 @@ fn process_mipad2_navigation_key(
                 Some(inject_shell_key_stroke(
                     state,
                     &keyboard,
-                    ShellKeyStroke { evdev_keycode: MIPAD2_CLIENT_BACK_KEY, shift: false },
+                    ShellKeyStroke {
+                        evdev_keycode: if route == MiPad2ClientBackRoute::Escape { 1 } else { MIPAD2_CLIENT_BACK_KEY },
+                        shift: false,
+                    },
                     false,
                     time,
                 ))
@@ -2828,6 +2865,20 @@ mod client_input_mapping_tests {
         keys = MiPad2NavigationKeyState::default();
         assert_eq!(observe_mipad2_navigation_transition(&mut keys, 1, false), MiPad2NavigationDecision::Consume);
         assert_eq!(observe_mipad2_navigation_transition(&mut keys, 1, true), MiPad2NavigationDecision::Home);
+    }
+
+    #[test]
+    fn mipad2_back_compat_is_scoped_to_verified_native_apps() {
+        assert_eq!(mipad2_client_back_route("Org.localsend.localsend_app"), MiPad2ClientBackRoute::Escape);
+        assert_eq!(mipad2_client_back_route("dev.denial.settings"), MiPad2ClientBackRoute::Shell);
+        assert_eq!(mipad2_client_back_route("org.example.Editor"), MiPad2ClientBackRoute::Semantic);
+    }
+
+    #[test]
+    fn mipad2_android_settings_never_uses_native_settings_back_compat() {
+        for app in ["com.android.settings", "droidloom.com.android.settings", "evil-org.localsend.localsend_app-suffix"] {
+            assert_eq!(mipad2_client_back_route(app), MiPad2ClientBackRoute::Semantic);
+        }
     }
 
     #[test]
