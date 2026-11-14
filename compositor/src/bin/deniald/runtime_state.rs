@@ -5,10 +5,9 @@ use super::*;
 #[cfg(feature = "flutter")]
 #[derive(Debug, Default)]
 pub(super) struct MiPad2NavigationKeyState {
-    pub(super) meta_down: bool,
-    pub(super) menu_chord: bool,
-    pub(super) back_shell_capture: bool,
-    pub(super) back_triggered: bool,
+    pub(super) home_down: bool,
+    pub(super) overview_down: bool,
+    pub(super) back_down: bool,
 }
 
 #[derive(Default)]

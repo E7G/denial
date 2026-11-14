@@ -4,7 +4,7 @@ import 'package:denial_dart_shell/denial.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../launcher/controllers/home_overlay_navigation.dart';
+import '../../state/tablet_navigation.dart';
 import '../../platform/denial_bridge.dart';
 import '../../state/shell_controller.dart';
 import '../../widgets/bottom_gesture_handle.dart';
@@ -46,28 +46,14 @@ class _MobileApplicationSceneState
   }
 
   void _handleShellAction(DenialShellActionEvent event) {
-    final controller = ref.read(shellControllerProvider.notifier);
+    final navigation = ref.read(tabletNavigationProvider);
     switch (event.action) {
       case DenialShellAction.applications:
-        final state = ref.read(shellControllerProvider);
-        if (state.overviewVisible) {
-          controller.closeOverview();
-        } else if (state.foregroundWindow != null ||
-            state.launchRequest != null) {
-          controller.goHome();
-        }
+        navigation.home();
       case DenialShellAction.overview:
-        if (ref.read(shellControllerProvider).overviewVisible) {
-          controller.closeOverview();
-        } else {
-          controller.openOverview();
-        }
+        navigation.overview();
       case DenialShellAction.focusLeft:
-        if (ref.read(homeOverlayNavigationProvider).modalOpen) {
-          ref.read(homeOverlayNavigationProvider.notifier).requestBack();
-        } else {
-          controller.navigateBack();
-        }
+        navigation.back();
       default:
         break;
     }

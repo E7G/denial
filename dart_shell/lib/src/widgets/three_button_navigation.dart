@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../input/input_layout.dart';
-import '../launcher/controllers/home_overlay_navigation.dart';
+import '../state/tablet_navigation.dart';
 import '../state/shell_controller.dart';
 
 class ThreeButtonNavigation extends ConsumerWidget {
@@ -19,36 +19,7 @@ class ThreeButtonNavigation extends ConsumerWidget {
         ),
       ),
     );
-    final controller = ref.read(shellControllerProvider.notifier);
-    final launcherModalOpen = ref.watch(
-      homeOverlayNavigationProvider.select((state) => state.modalOpen),
-    );
-
-    void goBack() {
-      if (launcherModalOpen) {
-        ref.read(homeOverlayNavigationProvider.notifier).requestBack();
-        return;
-      }
-      controller.navigateBack();
-    }
-
-    void goHome() {
-      if (state.overviewVisible) {
-        controller.closeOverview();
-        return;
-      }
-      if (state.foregroundWindow != null || state.launchRequest != null) {
-        controller.goHome();
-      }
-    }
-
-    void toggleOverview() {
-      if (state.overviewVisible) {
-        controller.closeOverview();
-      } else {
-        controller.openOverview();
-      }
-    }
+    final navigation = ref.read(tabletNavigationProvider);
 
     return Positioned(
       left: 0,
@@ -70,14 +41,14 @@ class ThreeButtonNavigation extends ConsumerWidget {
                   child: _NavigationButton(
                     semanticLabel: 'Back',
                     icon: Icons.arrow_back_rounded,
-                    onTap: goBack,
+                    onTap: navigation.back,
                   ),
                 ),
                 Expanded(
                   child: _NavigationButton(
                     semanticLabel: 'Home',
                     icon: Icons.circle_outlined,
-                    onTap: goHome,
+                    onTap: navigation.home,
                   ),
                 ),
                 Expanded(
@@ -87,7 +58,7 @@ class ThreeButtonNavigation extends ConsumerWidget {
                         : 'Overview',
                     icon: Icons.crop_square_rounded,
                     active: state.overviewVisible,
-                    onTap: toggleOverview,
+                    onTap: navigation.overview,
                   ),
                 ),
               ],
