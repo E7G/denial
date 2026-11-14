@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""Fail before an expensive build if native and shell settings schemas drift."""
+from pathlib import Path
+import re
+root = Path(__file__).resolve().parents[1]
+native = (root / 'compositor/src/bin/deniald/settings.rs').read_text()
+shell = (root / 'dart_shell/lib/src/settings/shell_settings.dart').read_text()
+rust = re.findall(r'const SETTINGS_SCHEMA_VERSION: u64 = (\d+);', native)
+dart = re.findall(r'static const int schemaVersion = (\d+);', shell)
+if len(rust) != 1 or rust != dart:
+    raise SystemExit(f'Settings schema mismatch: native={rust}, shell={dart}')
+print(f'Settings schema aligned: {rust[0]}')

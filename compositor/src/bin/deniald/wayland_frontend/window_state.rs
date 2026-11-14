@@ -1251,7 +1251,15 @@ impl WaylandFrontend {
             match action {
                 WindowGeometryReassertionAction::Send => {
                     if let Some(managed) = ManagedWindow::new(window) {
-                        managed.reassert_geometry_target(target, authority.exact());
+                        let facts = managed.facts();
+                        let mobile_maximized = self.mobile_shell
+                            && !insets::self_managed(&root_surface)
+                            && insets::mobile_maximize_allowed(
+                                facts.minimum_size,
+                                facts.maximum_size,
+                                target.size,
+                            );
+                        managed.reassert_geometry_target(target, authority.exact(), mobile_maximized);
                     }
                 }
                 WindowGeometryReassertionAction::ReportSuppressed => {

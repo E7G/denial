@@ -149,11 +149,20 @@ impl WaylandFrontend {
         if self.exact_window_geometry(window) == Some(target) {
             return;
         }
+        let maximize = ManagedWindow::new(window).is_some_and(|managed| {
+            let facts = managed.facts();
+            self.window_root_surface(window).is_some_and(|root| !self_managed(&root))
+                && mobile_maximize_allowed(facts.minimum_size, facts.maximum_size, target.size)
+        });
         if let Some(toplevel) = window.toplevel() {
             toplevel.with_pending_state(|pending| {
                 pending.size = Some(target.size);
                 pending.states.unset(xdg_toplevel::State::Fullscreen);
-                pending.states.unset(xdg_toplevel::State::Maximized);
+                if maximize {
+                    pending.states.set(xdg_toplevel::State::Maximized);
+                } else {
+                    pending.states.unset(xdg_toplevel::State::Maximized);
+                }
             });
             toplevel.send_pending_configure();
         }
@@ -231,4 +240,47 @@ fn clip_layer_to_content(
     layer.surface_height = (bottom - top).max(0.0);
     layer.texture_source_width = layer.surface_width * sx;
     layer.texture_source_height = layer.surface_height * sy;
+}
+
+
+/// Negotiate real app layout rather than stretching a texture. Respect clients
+/// with fixed or incompatible limits; their complete image stays letterboxed.
+pub(super) fn mobile_maximize_allowed(
+    minimum: Size<i32, Logical>,
+    maximum: Size<i32, Logical>,
+    target: Size<i32, Logical>,
+) -> bool {
+    target.w > 0
+        && target.h > 0
+        && minimum.w <= target.w
+        && minimum.h <= target.h
+        && (maximum.w <= 0 || maximum.w >= target.w)
+        && (maximum.h <= 0 || maximum.h >= target.h)
+        && !(minimum.w > 0 && minimum.w == maximum.w)
+        && !(minimum.h > 0 && minimum.h == maximum.h)
+}
+
+#[cfg(test)]
+mod mobile_maximize_tests {
+    use super::*;
+
+    #[test]
+    fn resizable_clients_can_fill_portrait_and_landscape_workspaces() {
+        for target in [Size::from((768, 976)), Size::from((1024, 720))] {
+            assert!(mobile_maximize_allowed(Size::from((320, 240)), Size::from((0, 0)), target));
+        }
+    }
+
+    #[test]
+    fn fixed_or_incompatible_windows_are_not_forced_to_fill() {
+        let target = Size::from((768, 976));
+        for (minimum, maximum) in [
+            ((640, 480), (640, 480)),
+            ((320, 480), (0, 480)),
+            ((900, 600), (0, 0)),
+            ((200, 200), (600, 0)),
+        ] {
+            assert!(!mobile_maximize_allowed(Size::from(minimum), Size::from(maximum), target));
+        }
+    }
 }

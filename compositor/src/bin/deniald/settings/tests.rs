@@ -123,7 +123,7 @@ fn migrates_existing_shell_document_without_losing_sections() {
 }
 
 #[test]
-fn schema_29_shell_update_preserves_tablet_settings() {
+fn current_shell_update_preserves_tablet_settings() {
     let temporary = TemporaryDirectory::new("settings-tablet-schema");
     let mut manager = SettingsManager::load_path(temporary.settings_path()).unwrap();
     let update = manager
@@ -139,11 +139,11 @@ fn schema_29_shell_update_preserves_tablet_settings() {
                 }
             })),
         )
-        .expect("schema 29 tablet settings should be accepted");
+        .expect("current tablet settings should be accepted");
     manager.commit(update).unwrap();
 
     let document: Value = serde_json::from_str(&manager.document_json().unwrap()).unwrap();
-    assert_eq!(document["version"], 29);
+    assert_eq!(document["version"], SETTINGS_SCHEMA_VERSION);
     assert_eq!(document["tablet"]["enabled"], true);
     assert_eq!(document["tablet"]["tileDensity"], "comfortable");
     assert_eq!(document["tablet"]["navigationMode"], "threeButton");
@@ -669,4 +669,77 @@ fn gtk_input_method_policy_is_split_by_display_backend() {
         Some(&Some(OsStr::new("@im=fcitx")))
     );
     assert!(!child_environment.contains_key(OsStr::new("GTK_IM_MODULE")));
+}
+
+
+#[test]
+fn tablet_keyboard_layouts_survive_commit_and_fresh_manager() {
+    // The shell has emitted schema 31 since floating placement was added.
+    // Using a literal guards the real shell/native boundary, not just helpers.
+    for mode in ["standard", "split", "traditional", "floating"] {
+        let temporary = TemporaryDirectory::new("settings-osk-roundtrip");
+        let path = temporary.settings_path();
+        let mut manager = SettingsManager::load_path(path.clone()).unwrap();
+        let keyboard = manager.keyboard().clone();
+        let payload = shell_document(serde_json::json!({
+            "appearance": {"colorSchemePreference": "preferDark"},
+            "tablet": {
+                "oskLayoutMode": mode,
+                "oskFloatingLocked": true,
+                "oskFloatingPortrait": {"x": 0.25, "y": 0.5, "width": 0.7}
+            }
+        }));
+        let mut document: Value = serde_json::from_str(&payload).unwrap();
+        document["version"] = Value::from(31);
+        let prepared = manager
+            .prepare_shell_update(manager.revision(), &document.to_string())
+            .expect("actual schema 31 shell payload must be accepted");
+        manager.commit(prepared).unwrap();
+        drop(manager);
+
+        let restored = SettingsManager::load_path(path.clone()).unwrap();
+        let persisted: Value = serde_json::from_str(&restored.document_json().unwrap()).unwrap();
+        assert_eq!(persisted["tablet"]["oskLayoutMode"], mode);
+        assert_eq!(persisted["tablet"]["oskFloatingLocked"], true);
+        assert_eq!(persisted["tablet"]["oskFloatingPortrait"]["x"], 0.25);
+        assert_eq!(restored.keyboard(), &keyboard);
+        assert_eq!(fs::metadata(path).unwrap().permissions().mode() & 0o777, 0o600);
+    }
+}
+
+#[test]
+fn legacy_tablet_schema_migration_keeps_keyboard_choice_and_unknown_fields() {
+    for version in [29, 30, 31] {
+        let temporary = TemporaryDirectory::new("settings-osk-migrate");
+        let path = temporary.settings_path();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let original = serde_json::json!({
+            "version": version,
+            "tablet": {"oskLayoutMode": "traditional", "privateExtension": "keep"}
+        });
+        fs::write(&path, original.to_string()).unwrap();
+        let manager = SettingsManager::load_path(path.clone()).unwrap();
+        let migrated: Value = serde_json::from_str(&manager.document_json().unwrap()).unwrap();
+        assert_eq!(migrated["version"], SETTINGS_SCHEMA_VERSION);
+        assert_eq!(migrated["tablet"], original["tablet"]);
+        drop(manager);
+        let reopened = SettingsManager::load_path(path).unwrap();
+        let document: Value = serde_json::from_str(&reopened.document_json().unwrap()).unwrap();
+        assert_eq!(document["tablet"], original["tablet"]);
+    }
+}
+
+#[test]
+fn future_tablet_schema_is_not_silently_downgraded_or_overwritten() {
+    let temporary = TemporaryDirectory::new("settings-osk-future");
+    let path = temporary.settings_path();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let future = serde_json::json!({
+        "version": SETTINGS_SCHEMA_VERSION + 1,
+        "tablet": {"oskLayoutMode": "traditional"}
+    }).to_string();
+    fs::write(&path, &future).unwrap();
+    let manager = SettingsManager::load_path(path.clone()).unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), future);
+    assert!(manager.prepare_shell_update(manager.revision(), &future).is_err());
 }

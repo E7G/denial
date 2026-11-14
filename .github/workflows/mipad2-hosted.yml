@@ -1,47 +1,91 @@
 name: MiPad2 desktop build and tests
+
 on:
+
   push:
+
     branches: [codex/mipad2-desktop-perf-20261113]
+
   workflow_dispatch:
+
 permissions:
+
   contents: read
+
 concurrency:
+
   group: mipad2-desktop-${{ github.ref }}
+
   cancel-in-progress: false
+
 jobs:
+
   desktop:
+
     runs-on: ubuntu-24.04
+
     timeout-minutes: 350
+
     env:
+
       DENIAL_FLUTTER_ENGINE_JOBS: '2'
+
       DENIAL_BUILD_JOBS: '2'
+
       CARGO_BUILD_JOBS: '2'
+
       DENIAL_BUILD_IDENTITY: mipad2.${{ github.sha }}
+
     steps:
+
       - uses: actions/checkout@v4
+
         with:
+
           persist-credentials: false
+
       - name: Prepare isolated hosted builder
+
         shell: bash
+
         run: |
+
           set -euo pipefail
+
           # Only disposable, preinstalled SDKs on this GitHub-hosted runner.
+
           for path in /usr/local/lib/android /usr/share/dotnet /opt/ghc; do
+
             test ! -e "$path" || sudo rm -rf --one-file-system -- "$path"
+
           done
+
           df -h /
+
           sudo apt-get update
+
           sudo apt-get install -y build-essential clang cmake ninja-build jq curl git pkg-config python3 python3-venv unzip xz-utils rsync zstd patchelf bison flex gperf nasm libgtk-3-dev libgbm-dev libdrm-dev libinput-dev libudev-dev libseat-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev libgles2-mesa-dev libvulkan-dev libssl-dev libsystemd-dev libdbus-1-dev libpam0g-dev libpulse-dev libpipewire-0.3-dev libdisplay-info-dev libasound2-dev libfontconfig-dev libfreetype6-dev libcap-dev libxtst-dev libxrandr-dev libxcursor-dev xdg-desktop-portal
+
           test -x /usr/libexec/xdg-desktop-portal || test -x /usr/lib/xdg-desktop-portal
           rustup toolchain install 1.98.0 --profile minimal --component clippy --component rustfmt
+
           mkdir -p evidence
+
           cp prebuilt/flutter-engine/SOURCE_LOCK.json evidence/SOURCE_LOCK.json
+
           git rev-parse HEAD > evidence/source-commit.txt
+
       - name: Bootstrap locked toolchains
+
         shell: bash
+
         run: |
+
           set -euo pipefail
+
+          python3 tools/check-settings-schema
           tools/denial-pc bootstrap 2>&1 | tee evidence/bootstrap.log
+
       - name: Preflight real portal frontend on private bus
         shell: bash
         run: |
@@ -50,42 +94,82 @@ jobs:
           test -x "$frontend" || frontend=/usr/lib/xdg-desktop-portal
           CARGO_TARGET_DIR="$HOME/.cache/denial/pc-build/rust" DENIAL_PORTAL_TEST_BUS=1 DENIAL_PORTAL_FRONTEND_TEST="$frontend" dbus-run-session -- cargo test --locked --manifest-path compositor/Cargo.toml --jobs 2 -p denial-portal -- --test-threads=1 2>&1 | tee evidence/portal-preflight.log
       - name: Build release candidate
+
         shell: bash
+
         run: |
+
           set -euo pipefail
+
           tools/denial-pc build 2>&1 | tee evidence/build.log
+
           git diff --exit-code -- prebuilt/flutter-engine/SOURCE_LOCK.json dart_shell/pubspec.lock compositor/Cargo.lock
+
       - name: Test actual compositor and lock-matched Flutter shell
+
         shell: bash
+
         run: |
+
           set -euo pipefail
+
           tools/denial-pc test 2>&1 | tee evidence/tests.log
+
       - name: Stage candidate without deployment
+
         shell: bash
+
         run: |
+
           set -euo pipefail
+
           mkdir -p candidate/bin candidate/bundle candidate/settings
+
           for binary in deniald denialctl denial-portal; do
+
             install -m755 "$HOME/.cache/denial/pc-build/rust/release/$binary" "candidate/bin/$binary"
+
           done
+
           cp -a dart_shell/build/linux/x64/release/bundle/. candidate/bundle/
+
           cp -a settings_app/build/linux/x64/release/bundle/. candidate/settings/
+
           cp prebuilt/flutter-engine/SOURCE_LOCK.json candidate/
+
           git rev-parse HEAD > candidate/source-commit.txt
+
           printf '%s\n' 'Build/tests passed. Not deployed. Tablet ABI and runtime validation pending.' > candidate/VALIDATION.txt
+
           (cd candidate && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+
           tar --zstd -cf denial-mipad2-candidate.tar.zst candidate
+
           sha256sum denial-mipad2-candidate.tar.zst > denial-mipad2-candidate.tar.zst.sha256
+
       - uses: actions/upload-artifact@v4
+
         if: success()
+
         with:
+
           name: denial-mipad2-${{ github.sha }}
+
           path: denial-mipad2-candidate.tar.zst*
+
           if-no-files-found: error
+
           retention-days: 14
+
       - uses: actions/upload-artifact@v4
+
         if: always()
+
         with:
+
           name: denial-build-evidence-${{ github.sha }}
+
           path: evidence/
+
           retention-days: 7
+

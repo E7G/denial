@@ -34,6 +34,22 @@ Widget _host(Widget child, {_MemorySettings? settings}) {
 }
 
 void main() {
+  testWidgets('OSK uses row-granularity repaint isolation', (tester) async {
+    await tester.pumpWidget(_host(const ShellOskPanel()));
+    final rows = find.byWidgetPredicate(
+      (widget) => widget is RepaintBoundary &&
+          widget.key.toString().contains('osk-row-repaint-'),
+    );
+    expect(rows, findsNWidgets(4));
+    await tester.tap(find.byKey(const ValueKey('osk-layout-pane')));
+    await tester.pump();
+    await tester.tap(find.text('传统'));
+    await tester.pump();
+    expect(rows, findsNWidgets(5));
+    expect(find.text('Esc'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Windows OSK toggles the external Fcitx input method and shows its mode',
     (tester) async {

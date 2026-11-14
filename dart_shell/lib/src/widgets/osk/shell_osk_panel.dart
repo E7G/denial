@@ -245,18 +245,23 @@ class _ShellOskPanelState extends ConsumerState<ShellOskPanel> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             for (var index = 0; index < rows.length; index++) ...[
-              _OskRow(
-                row: rows[index],
-                keyGap: keyGap,
-                rowHeight: rowHeight,
-                splitGap: splitGap,
-                shiftEnabled: _shiftEnabled,
-                ctrlArmed: _ctrlArmed,
-                chineseInputEnabled: _chineseInputEnabled,
-                onKey: _handleKey,
-                onKeyLongPress: _handleKeyLongPress,
-                onKeyDown: _handleKeyDown,
-                onKeyUp: _handleKeyUp,
+              // Isolate a pressed key's glow to one row, not the complete
+              // keyboard. Row granularity avoids a retained layer per key.
+              RepaintBoundary(
+                key: ValueKey('osk-row-repaint-$index'),
+                child: _OskRow(
+                  row: rows[index],
+                  keyGap: keyGap,
+                  rowHeight: rowHeight,
+                  splitGap: splitGap,
+                  shiftEnabled: _shiftEnabled,
+                  ctrlArmed: _ctrlArmed,
+                  chineseInputEnabled: _chineseInputEnabled,
+                  onKey: _handleKey,
+                  onKeyLongPress: _handleKeyLongPress,
+                  onKeyDown: _handleKeyDown,
+                  onKeyUp: _handleKeyUp,
+                ),
               ),
               if (index != rows.length - 1) SizedBox(height: rowGap),
             ],

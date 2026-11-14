@@ -61,11 +61,16 @@ fn prepare_geometry_reassertion(
     pending: &mut ToplevelState,
     target_size: Size<i32, Logical>,
     exact: bool,
+    mobile_maximized: bool,
 ) {
     if exact {
         pending.states.unset(xdg_toplevel::State::Resizing);
         pending.states.unset(xdg_toplevel::State::Fullscreen);
-        pending.states.unset(xdg_toplevel::State::Maximized);
+        if mobile_maximized {
+            pending.states.set(xdg_toplevel::State::Maximized);
+        } else {
+            pending.states.unset(xdg_toplevel::State::Maximized);
+        }
         pending.fullscreen_output = None;
     }
     pending.size = Some(target_size);
@@ -547,11 +552,16 @@ impl<'a> ManagedWindow<'a> {
     /// Reassert a compositor-owned target after a client committed a
     /// different buffer. This is one normalized operation; only the terminal
     /// protocol handshake differs.
-    pub(super) fn reassert_geometry_target(&self, target: Rectangle<i32, Logical>, exact: bool) {
+    pub(super) fn reassert_geometry_target(
+        &self,
+        target: Rectangle<i32, Logical>,
+        exact: bool,
+        mobile_maximized: bool,
+    ) {
         match self.protocol {
             ManagedWindowProtocol::Xdg(toplevel) => {
                 toplevel.with_pending_state(|pending| {
-                    prepare_geometry_reassertion(pending, target.size, exact);
+                    prepare_geometry_reassertion(pending, target.size, exact, mobile_maximized);
                 });
                 if toplevel.is_initial_configure_sent() {
                     toplevel.send_configure();
@@ -645,7 +655,7 @@ mod tests {
         let mut pending = ToplevelState::default();
         pending.states.set(xdg_toplevel::State::Resizing);
 
-        prepare_geometry_reassertion(&mut pending, Size::from((900, 700)), false);
+        prepare_geometry_reassertion(&mut pending, Size::from((900, 700)), false, false);
 
         assert!(pending.states.contains(xdg_toplevel::State::Resizing));
         assert_eq!(pending.size, Some(Size::from((900, 700))));
@@ -658,11 +668,24 @@ mod tests {
         pending.states.set(xdg_toplevel::State::Fullscreen);
         pending.states.set(xdg_toplevel::State::Maximized);
 
-        prepare_geometry_reassertion(&mut pending, Size::from((1080, 1920)), true);
+        prepare_geometry_reassertion(&mut pending, Size::from((1080, 1920)), true, false);
 
         assert!(!pending.states.contains(xdg_toplevel::State::Resizing));
         assert!(!pending.states.contains(xdg_toplevel::State::Fullscreen));
         assert!(!pending.states.contains(xdg_toplevel::State::Maximized));
         assert_eq!(pending.size, Some(Size::from((1080, 1920))));
     }
+
+    #[test]
+    fn mobile_exact_reassertion_keeps_maximized_without_fullscreen() {
+        let mut pending = ToplevelState::default();
+        pending.states.set(xdg_toplevel::State::Fullscreen);
+        pending.states.set(xdg_toplevel::State::Resizing);
+        prepare_geometry_reassertion(&mut pending, Size::from((768, 976)), true, true);
+        assert!(pending.states.contains(xdg_toplevel::State::Maximized));
+        assert!(!pending.states.contains(xdg_toplevel::State::Fullscreen));
+        assert!(!pending.states.contains(xdg_toplevel::State::Resizing));
+        assert_eq!(pending.size, Some(Size::from((768, 976))));
+    }
+
 }

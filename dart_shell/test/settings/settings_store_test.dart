@@ -6,6 +6,33 @@ import 'package:denial_dart_shell/src/settings/shell_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('all OSK modes survive a fresh native store projection', () async {
+    final transport = _MemorySettingsTransport();
+    for (final mode in TabletOskLayoutMode.values) {
+      final store = NativeSettingsStore(transport);
+      final settings = const ShellSettings().copyWith(
+        tablet: ShellTabletSettings(oskLayoutMode: mode),
+      );
+      await store.write(settings);
+      final reopened = NativeSettingsStore(transport);
+      expect((await reopened.read())!.tablet.oskLayoutMode, mode);
+    }
+  });
+
+  test('rapid mode writes persist the final choice', () async {
+    final transport = _MemorySettingsTransport();
+    final store = NativeSettingsStore(transport);
+    await Future.wait([
+      for (final mode in TabletOskLayoutMode.values)
+        store.write(const ShellSettings().copyWith(
+          tablet: ShellTabletSettings(oskLayoutMode: mode),
+        )),
+    ]);
+    expect((await NativeSettingsStore(transport).read())!.tablet.oskLayoutMode,
+        TabletOskLayoutMode.floating);
+    expect(transport.maximumConcurrentWrites, 1);
+  });
+
   test('serializes writes through the Rust-owned document transport', () async {
     final transport = _MemorySettingsTransport();
     final store = NativeSettingsStore(transport);
