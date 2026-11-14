@@ -42,9 +42,13 @@ class OverviewLayer extends StatefulWidget {
     required this.onHomeSettled,
     this.onPresentationChanged,
     this.onProgressChanged,
+    this.workspaceMembers = const <int, List<DenialWindow>>{},
+    this.onMergeWindows,
   });
 
   final List<DenialWindow> windows;
+  final Map<int, List<DenialWindow>> workspaceMembers;
+  final void Function(int sourceId, int targetId)? onMergeWindows;
   final DenialWindow? foregroundWindow;
   final int? foregroundObjectId;
   final bool visible;
@@ -258,7 +262,12 @@ class _OverviewLayerState extends State<OverviewLayer>
     if (!_shown && !widget.visible && !homeActive) {
       return const SizedBox.shrink();
     }
-    final heroWindow = homeActive || _focusWindow != null
+    final foregroundIsWorkspace = widget.workspaceMembers.containsKey(
+      widget.foregroundObjectId,
+    );
+    if (foregroundIsWorkspace) _lastHeroWindow = null;
+    final heroWindow =
+        foregroundIsWorkspace || homeActive || _focusWindow != null
         ? null
         : _foregroundHeroWindow(_controller.value);
     final overviewContent = _windows.isEmpty
@@ -272,6 +281,8 @@ class _OverviewLayerState extends State<OverviewLayer>
             focusingObjectId: _focusWindow?.objectId,
             onDismissWindow: widget.onDismissWindow,
             onFocusWindow: _startFocusTransition,
+            workspaceMembers: widget.workspaceMembers,
+            onMergeWindows: widget.onMergeWindows,
           )
         : OverviewCarousel(
             windows: _windows,
@@ -283,6 +294,8 @@ class _OverviewLayerState extends State<OverviewLayer>
             focusingObjectId: _focusWindow?.objectId,
             onDismissWindow: widget.onDismissWindow,
             onFocusWindow: _startFocusTransition,
+            workspaceMembers: widget.workspaceMembers,
+            onMergeWindows: widget.onMergeWindows,
           );
 
     final fullRect = Offset.zero & viewSize;
@@ -457,6 +470,11 @@ class _OverviewLayerState extends State<OverviewLayer>
 
   void _startFocusTransition(DenialWindow window, Rect startRect) {
     if (_focusWindow != null || !widget.visible) return;
+    if (widget.workspaceMembers.containsKey(window.objectId)) {
+      _cancelPageDrag();
+      widget.onFocusWindow(window);
+      return;
+    }
     _cancelPageDrag();
     if (_pageController.hasClients) {
       _pageController.jumpTo(_pageController.offset);

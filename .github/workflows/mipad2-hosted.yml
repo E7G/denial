@@ -111,11 +111,22 @@ jobs:
           frontend=/usr/libexec/xdg-desktop-portal
           test -x "$frontend" || frontend=/usr/lib/xdg-desktop-portal
           CARGO_TARGET_DIR="$HOME/.cache/denial/pc-build/rust" DENIAL_PORTAL_TEST_BUS=1 DENIAL_PORTAL_FRONTEND_TEST="$frontend" dbus-run-session -- cargo test --locked --manifest-path compositor/Cargo.toml --jobs 2 -p denial-portal -- --test-threads=1 2>&1 | tee evidence/portal-preflight.log
+      - name: Preflight locked Flutter types before expensive engine build
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter="$HOME/.cache/denial/pc-dependencies/flutter/bin/flutter"
+          test -x "$flutter"
+          cd dart_shell
+          "$flutter" pub get --enforce-lockfile
+          "$flutter" analyze --no-pub --no-fatal-infos --no-fatal-warnings 2>&1 | tee ../evidence/flutter-analysis.log
+          git diff --exit-code -- pubspec.lock
       - name: Check minimal KMS feature path before release build
         shell: bash
         run: |
           set -euo pipefail
           CARGO_TARGET_DIR="$HOME/.cache/denial/pc-build/rust" cargo check --locked --manifest-path compositor/Cargo.toml --jobs 2 --no-default-features --features kms --bin deniald 2>&1 | tee evidence/minimal-kms-check.log
+          CARGO_TARGET_DIR="$HOME/.cache/denial/pc-build/rust" cargo check --locked --manifest-path compositor/Cargo.toml --jobs 2 --no-default-features --features flutter --bin deniald 2>&1 | tee evidence/flutter-feature-check.log
       - name: Build release candidate
 
         shell: bash

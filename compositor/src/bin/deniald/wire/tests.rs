@@ -329,6 +329,29 @@ fn configure_window_distinguishes_layout_drops_from_exact_geometry() {
     ));
 }
 
+#[test]
+fn mobile_workspace_geometry_is_explicit_and_reversible() {
+    let mut bridge = bridge();
+    let geometry = fb::WireRect::new(0.0, 0.0, 506.0, 632.0);
+    for (sequence, flags) in [(1, 4), (2, 8)] {
+        bridge.handle(&window_request_with_flags(
+            fb::WindowRequestKind::ConfigureWindow, 0, 42,
+            (flags == 4).then_some(geometry), sequence, flags,
+        )).unwrap();
+        let command = bridge.drain_window_commands().next().unwrap();
+        assert!(matches!(command, WindowCommand::MobileWorkspace { window_id: 42, .. }));
+        if let WindowCommand::MobileWorkspace { geometry, .. } = command {
+            assert_eq!(geometry.is_some(), flags == 4);
+        }
+    }
+    for flags in [3, 5, 6, 7, 9, 12, 16] {
+        assert!(matches!(bridge.handle(&window_request_with_flags(
+            fb::WindowRequestKind::ConfigureWindow, 0, 42,
+            Some(geometry), u64::from(flags) + 10, flags,
+        )), Err(WireError::Flags)));
+    }
+}
+
 fn input_layout(
     shell_regions: &[fb::WireRect],
     windows: &[fb::InputWindowRegion],

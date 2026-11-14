@@ -4074,6 +4074,8 @@ impl<'a> Window<'a> {
   pub const VT_MAXIMIZED: flatbuffers::VOffsetT = 84;
   pub const VT_TRANSIENT_PARENT_ID: flatbuffers::VOffsetT = 86;
   pub const VT_SELF_MANAGED_INSETS: flatbuffers::VOffsetT = 88;
+  pub const VT_MINIMUM_WIDTH: flatbuffers::VOffsetT = 90;
+  pub const VT_MINIMUM_HEIGHT: flatbuffers::VOffsetT = 92;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -4108,6 +4110,8 @@ impl<'a> Window<'a> {
     builder.add_window_id(args.window_id);
     builder.add_surface_id(args.surface_id);
     builder.add_object_id(args.object_id);
+    builder.add_minimum_height(args.minimum_height);
+    builder.add_minimum_width(args.minimum_width);
     builder.add_opacity(args.opacity);
     if let Some(x) = args.surfaces { builder.add_surfaces(x); }
     builder.add_status_color_argb(args.status_color_argb);
@@ -4433,6 +4437,20 @@ impl<'a> Window<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<bool>(Window::VT_SELF_MANAGED_INSETS, Some(false)).unwrap()}
   }
+  #[inline]
+  pub fn minimum_width(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(Window::VT_MINIMUM_WIDTH, Some(0)).unwrap()}
+  }
+  #[inline]
+  pub fn minimum_height(&self) -> u32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<u32>(Window::VT_MINIMUM_HEIGHT, Some(0)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for Window<'_> {
@@ -4485,6 +4503,8 @@ impl flatbuffers::Verifiable for Window<'_> {
      .visit_field::<bool>("maximized", Self::VT_MAXIMIZED, false)?
      .visit_field::<u64>("transient_parent_id", Self::VT_TRANSIENT_PARENT_ID, false)?
      .visit_field::<bool>("self_managed_insets", Self::VT_SELF_MANAGED_INSETS, false)?
+     .visit_field::<u32>("minimum_width", Self::VT_MINIMUM_WIDTH, false)?
+     .visit_field::<u32>("minimum_height", Self::VT_MINIMUM_HEIGHT, false)?
      .finish();
     Ok(())
   }
@@ -4533,6 +4553,8 @@ pub struct WindowArgs<'a> {
     pub maximized: bool,
     pub transient_parent_id: u64,
     pub self_managed_insets: bool,
+    pub minimum_width: u32,
+    pub minimum_height: u32,
 }
 impl<'a> Default for WindowArgs<'a> {
   #[inline]
@@ -4581,6 +4603,8 @@ impl<'a> Default for WindowArgs<'a> {
       maximized: false,
       transient_parent_id: 0,
       self_managed_insets: false,
+      minimum_width: 0,
+      minimum_height: 0,
     }
   }
 }
@@ -4763,6 +4787,14 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> WindowBuilder<'a, 'b, A> {
     self.fbb_.push_slot::<bool>(Window::VT_SELF_MANAGED_INSETS, self_managed_insets, false);
   }
   #[inline]
+  pub fn add_minimum_width(&mut self, minimum_width: u32) {
+    self.fbb_.push_slot::<u32>(Window::VT_MINIMUM_WIDTH, minimum_width, 0);
+  }
+  #[inline]
+  pub fn add_minimum_height(&mut self, minimum_height: u32) {
+    self.fbb_.push_slot::<u32>(Window::VT_MINIMUM_HEIGHT, minimum_height, 0);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> WindowBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     WindowBuilder {
@@ -4823,6 +4855,8 @@ impl core::fmt::Debug for Window<'_> {
       ds.field("maximized", &self.maximized());
       ds.field("transient_parent_id", &self.transient_parent_id());
       ds.field("self_managed_insets", &self.self_managed_insets());
+      ds.field("minimum_width", &self.minimum_width());
+      ds.field("minimum_height", &self.minimum_height());
       ds.finish()
   }
 }

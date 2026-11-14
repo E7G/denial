@@ -3,11 +3,13 @@ import 'package:flutter/widgets.dart';
 import '../input/input_layout.dart';
 import '../models/app_launch_request.dart';
 import '../models/denial_window.dart';
+import '../models/mobile_workspace.dart';
 
 class ShellState {
   factory ShellState({
     required List<DenialWindow> windows,
     List<DenialWindow> layerSurfaces = const <DenialWindow>[],
+    List<MobileWorkspace> mobileWorkspaces = const <MobileWorkspace>[],
     required int windowSnapshotSequence,
     required bool overviewVisible,
     required Offset gestureDrag,
@@ -30,6 +32,10 @@ class ShellState {
     );
     return ShellState._(
       windows: windows,
+      mobileWorkspaces: reconcileMobileWorkspaces(
+        mobileWorkspaces,
+        openAppWindows,
+      ),
       layerSurfaces: layerSurfaces,
       windowsByObjectId: Map<int, DenialWindow>.unmodifiable(
         <int, DenialWindow>{
@@ -59,6 +65,7 @@ class ShellState {
 
   const ShellState._({
     required this.windows,
+    required this.mobileWorkspaces,
     required this.layerSurfaces,
     required this._windowsByObjectId,
     required this.openAppWindows,
@@ -104,6 +111,7 @@ class ShellState {
   }
 
   final List<DenialWindow> windows;
+  final List<MobileWorkspace> mobileWorkspaces;
   final List<DenialWindow> layerSurfaces;
   final Map<int, DenialWindow> _windowsByObjectId;
   final List<DenialWindow> openAppWindows;
@@ -158,6 +166,7 @@ class ShellState {
 
   ShellState copyWith({
     List<DenialWindow>? windows,
+    List<MobileWorkspace>? mobileWorkspaces,
     List<DenialWindow>? layerSurfaces,
     int? windowSnapshotSequence,
     bool? overviewVisible,
@@ -186,8 +195,27 @@ class ShellState {
         : List<DenialWindow>.unmodifiable(
             nextWindows.where((window) => window.isUserApp),
           );
+    var nextGroups = mobileWorkspaces ?? this.mobileWorkspaces;
+    if (!windowsUnchanged || mobileWorkspaces != null) {
+      nextGroups = reconcileMobileWorkspaces(nextGroups, nextOpenAppWindows);
+    }
+    final nextForeground = clearForegroundObjectId
+        ? null
+        : foregroundObjectId ?? this.foregroundObjectId;
+    final focusIndex = nextGroups.indexWhere(
+      (group) =>
+          group.members.contains(nextForeground) &&
+          group.focusedId != nextForeground,
+    );
+    if (focusIndex >= 0) {
+      nextGroups = List.of(nextGroups);
+      nextGroups[focusIndex] = nextGroups[focusIndex].copyWith(
+        focusedId: nextForeground,
+      );
+    }
     return ShellState._(
       windows: nextWindows,
+      mobileWorkspaces: nextGroups,
       layerSurfaces: layerSurfaces ?? this.layerSurfaces,
       windowsByObjectId: windowsUnchanged
           ? _windowsByObjectId
@@ -254,6 +282,28 @@ class ShellState {
     return primaryWindow;
   }
 
+  MobileWorkspace? workspaceForObject(int? objectId) {
+    if (objectId == null) return null;
+    for (final group in mobileWorkspaces) {
+      if (group.members.contains(objectId)) return group;
+    }
+    return null;
+  }
+
+  MobileWorkspace? get activeMobileWorkspace =>
+      workspaceForObject(foregroundObjectId);
+
+  _MobileRecentsIndex get _mobileRecentsIndex {
+    final cached = _mobileRecentsCache[openAppWindows];
+    if (cached != null && cached.matches(mobileWorkspaces)) return cached;
+    final result = _MobileRecentsIndex(openAppWindows, mobileWorkspaces);
+    _mobileRecentsCache[openAppWindows] = result;
+    return result;
+  }
+
+  List<DenialWindow> get mobileRecentsWindows =>
+      mobileWorkspaces.isEmpty ? openAppWindows : _mobileRecentsIndex.windows;
+
   int get openAppWindowCount => openAppWindows.length;
 
   DenialWindow? get appSwitchTargetWindow {
@@ -279,6 +329,13 @@ class ShellState {
 
     // This lookup runs in provider selectors on every gesture update. Index
     // only when the window snapshot changes; dragging must not scan all apps.
+    if (mobileWorkspaces.isNotEmpty) {
+      final entries = mobileRecentsWindows;
+      final index =
+          _mobileRecentsIndex.indices[foregroundObjectId] ?? entries.length - 1;
+      final target = index + direction.sign;
+      return target >= 0 && target < entries.length ? entries[target] : null;
+    }
     final currentIndex =
         _openAppWindowIndices[foregroundObjectId] ?? openAppWindows.length - 1;
     final targetIndex = currentIndex + direction.sign;
@@ -310,3 +367,46 @@ Map<int, int> _indexOpenAppWindows(List<DenialWindow> windows) =>
       for (var index = 0; index < windows.length; index++)
         windows[index].objectId: index,
     });
+
+final _mobileRecentsCache = Expando<_MobileRecentsIndex>(
+  'mobile_workspace_recents',
+);
+
+/// Weak snapshot-keyed membership cache. Resizing, focus and scroll changes
+/// keep member-list identity, so gestures never rescan every open application.
+class _MobileRecentsIndex {
+  _MobileRecentsIndex(List<DenialWindow> apps, List<MobileWorkspace> groups)
+    : ids = [for (final group in groups) group.id],
+      members = [for (final group in groups) group.members] {
+    final representatives = {
+      for (final group in groups) group.members.first: group,
+    };
+    final grouped = {for (final group in groups) ...group.members};
+    windows = List.unmodifiable(
+      apps.where(
+        (window) =>
+            !grouped.contains(window.objectId) ||
+            representatives.containsKey(window.objectId),
+      ),
+    );
+    indices = Map.unmodifiable({
+      for (var i = 0; i < windows.length; i++)
+        for (final id
+            in representatives[windows[i].objectId]?.members ??
+                [windows[i].objectId])
+          id: i,
+    });
+  }
+  final List<int> ids;
+  final List<List<int>> members;
+  late final List<DenialWindow> windows;
+  late final Map<int, int> indices;
+  bool matches(List<MobileWorkspace> groups) {
+    if (groups.length != ids.length) return false;
+    for (var i = 0; i < groups.length; i++) {
+      if (groups[i].id != ids[i] || !identical(groups[i].members, members[i]))
+        return false;
+    }
+    return true;
+  }
+}

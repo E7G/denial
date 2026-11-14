@@ -462,6 +462,24 @@ fn apply_local_window_command(state: &mut RuntimeState, window_id: u64, command:
         WindowCommand::Focus { .. } => {
             activate_local_flutter_window(state, window_id);
         }
+        WindowCommand::MobileWorkspace { geometry, .. } => {
+            let frontend = state.wayland.as_mut().expect("missing Wayland frontend");
+            if !frontend.mobile_shell { return; }
+            frontend.window_registry.ensure(super::window_registry::WindowId::new(window_id))
+                .mobile_workspace_geometry = geometry.map(|rect| Rectangle::from_size(
+                    ((rect.width.round() as i32).clamp(64, 16384),
+                     (rect.height.round() as i32).clamp(64, 16384)).into(),
+                ));
+            let geometry = geometry.or_else(|| frontend.fallback_output_geometry().map(|rect| {
+                WindowGeometry { x: 0.0, y: 0.0,
+                    width: f64::from(rect.size.w), height: f64::from(rect.size.h) }
+            }));
+            if let Some(geometry) = geometry {
+                if frontend.configure_local_flutter_window(window_id, geometry) {
+                    state.scene_sync.mark_dirty();
+                }
+            }
+        }
         WindowCommand::Configure { geometry, .. } => {
             let changed = state
                 .wayland
@@ -492,6 +510,13 @@ fn apply_client_window_command(
         }
         WindowCommand::Focus { .. } => {
             activate_window(state, window, SERIAL_COUNTER.next_serial());
+        }
+        WindowCommand::MobileWorkspace { geometry, .. } => {
+            if state.wayland.as_mut().expect("missing Wayland frontend")
+                .configure_mobile_workspace_window(window, geometry)
+            {
+                state.scene_sync.mark_dirty();
+            }
         }
         WindowCommand::Configure {
             geometry,

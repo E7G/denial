@@ -26,6 +26,8 @@ impl WindowId {
 #[derive(Default)]
 pub(super) struct WindowRecord {
     pub(super) geometry_intent: Option<WindowGeometryIntent>,
+    #[cfg(feature = "flutter")]
+    pub(super) mobile_workspace_geometry: Option<Rectangle<i32, Logical>>,
     pub(super) layout_preview_size: Option<Size<i32, Logical>>,
     pub(super) restore_geometry: Option<Rectangle<i32, Logical>>,
     pub(super) layout_restore_geometry: Option<Rectangle<i32, Logical>>,

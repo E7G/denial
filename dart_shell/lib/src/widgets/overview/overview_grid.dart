@@ -23,9 +23,13 @@ class OverviewGrid extends StatelessWidget {
     this.focusingObjectId,
     required this.onDismissWindow,
     required this.onFocusWindow,
+    this.workspaceMembers = const <int, List<DenialWindow>>{},
+    this.onMergeWindows,
   });
 
   final List<DenialWindow> windows;
+  final Map<int, List<DenialWindow>> workspaceMembers;
+  final void Function(int sourceId, int targetId)? onMergeWindows;
   final Animation<double> progress;
   final int? foregroundObjectId;
   final bool foregroundInHero;
@@ -111,6 +115,8 @@ class OverviewGrid extends StatelessWidget {
           focusing: focusingObjectId == window.objectId,
           onDismiss: onDismissWindow,
           onFocus: onFocusWindow,
+          workspaceMembers: workspaceMembers[window.objectId] ?? const [],
+          onMerge: onMergeWindows,
         ),
       ),
     );

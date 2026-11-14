@@ -21,9 +21,13 @@ class OverviewCarousel extends StatefulWidget {
     this.focusingObjectId,
     required this.onDismissWindow,
     required this.onFocusWindow,
+    this.workspaceMembers = const <int, List<DenialWindow>>{},
+    this.onMergeWindows,
   });
 
   final List<DenialWindow> windows;
+  final Map<int, List<DenialWindow>> workspaceMembers;
+  final void Function(int sourceId, int targetId)? onMergeWindows;
   final Animation<double> progress;
   final Animation<double> focusProgress;
   final PageController pageController;
@@ -300,6 +304,10 @@ class _OverviewCarouselState extends State<OverviewCarousel>
                                   _removing.contains(window.objectId),
                               onDismiss: _dismissWindow,
                               onFocus: widget.onFocusWindow,
+                              workspaceMembers:
+                                  widget.workspaceMembers[window.objectId] ??
+                                  const [],
+                              onMerge: widget.onMergeWindows,
                             ),
                           ),
                         );

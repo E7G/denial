@@ -21,8 +21,14 @@ void main() {
         payload: WindowSnapshotObjectBuilder(
           windows: <WindowObjectBuilder>[
             WindowObjectBuilder(
-              objectId: 1, surfaceId: 2, windowId: 3, textureId: 4,
-              width: 1024, height: 768, contentWidth: 1024, contentHeight: 768,
+              objectId: 1,
+              surfaceId: 2,
+              windowId: 3,
+              textureId: 4,
+              width: 1024,
+              height: 768,
+              contentWidth: 1024,
+              contentHeight: 768,
               selfManagedInsets: inset,
             ),
           ],
@@ -33,6 +39,8 @@ void main() {
       expect(decoded, isNotNull);
       final windows = codec.decodeWindows(decoded!.payload as WindowSnapshot)!;
       expect(windows.single.selfManagedInsets, inset ?? false);
+      expect(windows.single.minimumWidth, 0);
+      expect(windows.single.minimumHeight, 0);
     });
   }
 
@@ -193,6 +201,28 @@ void main() {
     expect(request.windowId, 42);
     expect(request.flags, 2);
   });
+
+  test(
+    'workspace size admission and release have independent configure flags',
+    () {
+      for (final flag in [4, 8]) {
+        final bytes = DenialWireCodec().encodeWindowRequest(
+          WindowRequestKind.ConfigureWindow,
+          windowId: 42,
+          geometry: flag == 4 ? const Rect.fromLTWH(0, 0, 506, 632) : null,
+          flags: flag,
+        );
+        final request = Envelope(bytes).payload as WindowRequest;
+        expect(request.flags, flag);
+        expect(request.windowId, 42);
+        expect(request.kind, WindowRequestKind.ConfigureWindow);
+        if (flag == 4) {
+          expect(request.geometry!.width, 506);
+          expect(request.geometry!.height, 632);
+        }
+      }
+    },
+  );
 
   test('workspace requests preserve monitor and workspace targets', () {
     final bytes = DenialWireCodec().encodeWindowRequest(
@@ -604,6 +634,8 @@ void main() {
             opacity: 0.75,
             opacityClass: WindowOpacityClass.BorderAlphaOnly,
             transientParentId: 99,
+            minimumWidth: 640,
+            minimumHeight: 480,
           ),
         ],
       ),
@@ -616,6 +648,8 @@ void main() {
     expect(windows, hasLength(1));
     expect(windows!.single.suppressAnimations, isTrue);
     expect(windows.single.transientParentObjectId, 99);
+    expect(windows.single.minimumWidth, 640);
+    expect(windows.single.minimumHeight, 480);
     expect(windows.single.serverSideDecorated, isFalse);
     expect(windows.single.opacity, closeTo(0.75, 0.0001));
     expect(windows.single.surfaceLayers.single.opacity, closeTo(0.5, 0.0001));

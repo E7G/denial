@@ -1870,10 +1870,12 @@ class Window {
   bool get maximized => const fb.BoolReader().vTableGet(_bc, _bcOffset, 84, false);
   int get transientParentId => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 86, 0);
   bool get selfManagedInsets => const fb.BoolReader().vTableGet(_bc, _bcOffset, 88, false);
+  int get minimumWidth => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 90, 0);
+  int get minimumHeight => const fb.Uint32Reader().vTableGet(_bc, _bcOffset, 92, 0);
 
   @override
   String toString() {
-    return 'Window{objectId: ${objectId}, objectKind: ${objectKind}, surfaceId: ${surfaceId}, windowId: ${windowId}, textureId: ${textureId}, title: ${title}, appId: ${appId}, width: ${width}, height: ${height}, surfaceX: ${surfaceX}, surfaceY: ${surfaceY}, surfaceWidth: ${surfaceWidth}, surfaceHeight: ${surfaceHeight}, textureSourceX: ${textureSourceX}, textureSourceY: ${textureSourceY}, textureSourceWidth: ${textureSourceWidth}, textureSourceHeight: ${textureSourceHeight}, geometryX: ${geometryX}, geometryY: ${geometryY}, geometryWidth: ${geometryWidth}, geometryHeight: ${geometryHeight}, monitorId: ${monitorId}, transform: ${transform}, scale120: ${scale120}, statusColorArgb: ${statusColorArgb}, hasStatusColor: ${hasStatusColor}, contentX: ${contentX}, contentY: ${contentY}, contentWidth: ${contentWidth}, contentHeight: ${contentHeight}, surfaces: ${surfaces}, pinned: ${pinned}, suppressAnimations: ${suppressAnimations}, serverSideDecorated: ${serverSideDecorated}, opacity: ${opacity}, contentKind: ${contentKind}, opacityClass: ${opacityClass}, workspaceId: ${workspaceId}, minimized: ${minimized}, fullscreen: ${fullscreen}, maximized: ${maximized}, transientParentId: ${transientParentId}, selfManagedInsets: ${selfManagedInsets}}';
+    return 'Window{objectId: ${objectId}, objectKind: ${objectKind}, surfaceId: ${surfaceId}, windowId: ${windowId}, textureId: ${textureId}, title: ${title}, appId: ${appId}, width: ${width}, height: ${height}, surfaceX: ${surfaceX}, surfaceY: ${surfaceY}, surfaceWidth: ${surfaceWidth}, surfaceHeight: ${surfaceHeight}, textureSourceX: ${textureSourceX}, textureSourceY: ${textureSourceY}, textureSourceWidth: ${textureSourceWidth}, textureSourceHeight: ${textureSourceHeight}, geometryX: ${geometryX}, geometryY: ${geometryY}, geometryWidth: ${geometryWidth}, geometryHeight: ${geometryHeight}, monitorId: ${monitorId}, transform: ${transform}, scale120: ${scale120}, statusColorArgb: ${statusColorArgb}, hasStatusColor: ${hasStatusColor}, contentX: ${contentX}, contentY: ${contentY}, contentWidth: ${contentWidth}, contentHeight: ${contentHeight}, surfaces: ${surfaces}, pinned: ${pinned}, suppressAnimations: ${suppressAnimations}, serverSideDecorated: ${serverSideDecorated}, opacity: ${opacity}, contentKind: ${contentKind}, opacityClass: ${opacityClass}, workspaceId: ${workspaceId}, minimized: ${minimized}, fullscreen: ${fullscreen}, maximized: ${maximized}, transientParentId: ${transientParentId}, selfManagedInsets: ${selfManagedInsets}, minimumWidth: ${minimumWidth}, minimumHeight: ${minimumHeight}}';
   }
 }
 
@@ -1891,7 +1893,7 @@ class WindowBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(43);
+    fbBuilder.startTable(45);
   }
 
   int addObjectId(int? objectId) {
@@ -2066,6 +2068,14 @@ class WindowBuilder {
     fbBuilder.addBool(42, selfManagedInsets);
     return fbBuilder.offset;
   }
+  int addMinimumWidth(int? minimumWidth) {
+    fbBuilder.addUint32(43, minimumWidth);
+    return fbBuilder.offset;
+  }
+  int addMinimumHeight(int? minimumHeight) {
+    fbBuilder.addUint32(44, minimumHeight);
+    return fbBuilder.offset;
+  }
 
   int finish() {
     return fbBuilder.endTable();
@@ -2116,6 +2126,8 @@ class WindowObjectBuilder extends fb.ObjectBuilder {
   final bool? _maximized;
   final int? _transientParentId;
   final bool? _selfManagedInsets;
+  final int? _minimumWidth;
+  final int? _minimumHeight;
 
   WindowObjectBuilder({
     int? objectId,
@@ -2161,6 +2173,8 @@ class WindowObjectBuilder extends fb.ObjectBuilder {
     bool? maximized,
     int? transientParentId,
     bool? selfManagedInsets,
+    int? minimumWidth,
+    int? minimumHeight,
   })
       : _objectId = objectId,
         _objectKind = objectKind,
@@ -2204,7 +2218,9 @@ class WindowObjectBuilder extends fb.ObjectBuilder {
         _fullscreen = fullscreen,
         _maximized = maximized,
         _transientParentId = transientParentId,
-        _selfManagedInsets = selfManagedInsets;
+        _selfManagedInsets = selfManagedInsets,
+        _minimumWidth = minimumWidth,
+        _minimumHeight = minimumHeight;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2215,7 +2231,7 @@ class WindowObjectBuilder extends fb.ObjectBuilder {
         : fbBuilder.writeString(_appId!);
     final int? surfacesOffset = _surfaces == null ? null
         : fbBuilder.writeList(_surfaces!.map((b) => b.getOrCreateOffset(fbBuilder)).toList());
-    fbBuilder.startTable(43);
+    fbBuilder.startTable(45);
     fbBuilder.addUint64(0, _objectId);
     fbBuilder.addUint8(1, _objectKind?.value);
     fbBuilder.addUint64(2, _surfaceId);
@@ -2259,6 +2275,8 @@ class WindowObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addBool(40, _maximized);
     fbBuilder.addUint64(41, _transientParentId);
     fbBuilder.addBool(42, _selfManagedInsets);
+    fbBuilder.addUint32(43, _minimumWidth);
+    fbBuilder.addUint32(44, _minimumHeight);
     return fbBuilder.endTable();
   }
 

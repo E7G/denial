@@ -150,6 +150,8 @@ class DenialWindow {
     this.fullscreen = false,
     this.maximized = false,
     this.selfManagedInsets = false,
+    this.minimumWidth = 0,
+    this.minimumHeight = 0,
     required this.transform,
     required this.scale120,
     this.pinned = false,
@@ -197,6 +199,8 @@ class DenialWindow {
 
   /// The client already supplies system insets (denial-insets-v1).
   final bool selfManagedInsets;
+  final int minimumWidth;
+  final int minimumHeight;
   final int transform;
   final int scale120;
   final bool pinned;
@@ -402,6 +406,8 @@ class DenialWindow {
         other.windowId == windowId &&
         other.textureId == textureId &&
         other.appId == appId &&
+        other.minimumWidth == minimumWidth &&
+        other.minimumHeight == minimumHeight &&
         other.width == width &&
         other.height == height &&
         other.surfaceX == surfaceX &&
@@ -476,6 +482,8 @@ class DenialWindow {
     fullscreen,
     maximized,
     selfManagedInsets,
+    minimumWidth,
+    minimumHeight,
     transform,
     scale120,
     pinned,

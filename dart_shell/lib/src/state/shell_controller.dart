@@ -8,6 +8,7 @@ import '../input/input_layout.dart';
 import '../input/shell_interaction_registry.dart';
 import '../models/app_launch_request.dart';
 import '../models/denial_window.dart';
+import '../models/mobile_workspace.dart';
 import '../models/denial_window_snapshot.dart';
 import '../platform/denial_bridge.dart';
 import '../services/lock_state_repository.dart';
@@ -18,6 +19,7 @@ import 'shell_profile.dart';
 import 'shell_state.dart';
 
 part 'shell_controller_helpers.dart';
+part 'shell_mobile_workspaces.dart';
 
 final denialBridgeProvider = Provider<DenialBridge>((ref) {
   final bridge = DenialBridge();
@@ -38,7 +40,7 @@ final shellControllerProvider = NotifierProvider<ShellController, ShellState>(
 );
 
 class ShellController extends Notifier<ShellState>
-    with NotifierLifecycle<ShellState> {
+    with NotifierLifecycle<ShellState>, _MobileWorkspaceController {
   @override
   ShellState build() {
     _bridge = ref.watch(denialBridgeProvider);
@@ -116,6 +118,9 @@ class ShellController extends Notifier<ShellState>
     milliseconds: 24,
   );
 
+  @override
+  DenialBridge get workspaceBridge => _bridge;
+
   late DenialBridge _bridge;
   late LockStateRepository _lockRepository;
   late AuthenticationController _authentication;
@@ -143,6 +148,7 @@ class ShellController extends Notifier<ShellState>
   StreamSubscription<DenialTextInputState>? _textInputStateSubscription;
 
   void _resetBuildFields() {
+    resetMobileWorkspaceRuntime();
     _lastTextInput = null;
     _edgePanelDismissalSerial = null;
     _automaticSoftwareKeyboardCloseTimer?.cancel();
@@ -199,7 +205,8 @@ class ShellController extends Notifier<ShellState>
             // keyboard while the lock screen is awaiting a password.
             if (state.locked &&
                 (ref.read(authenticationProvider).prompt?.requiresResponse ??
-                    false)) return;
+                    false))
+              return;
             closeEdgePanel();
           }
         },
@@ -264,6 +271,7 @@ class ShellController extends Notifier<ShellState>
     if (state.locked == locked) {
       return;
     }
+    resetMobileWorkspaceDrag();
 
     _rawGestureDrag = Offset.zero;
     _gestureLockOrigin = Offset.zero;
@@ -721,7 +729,13 @@ class ShellController extends Notifier<ShellState>
   }
 
   void completeAdjacentWindowSwitch(int direction) {
-    final target = state.adjacentOpenAppWindow(direction);
+    final entry = state.adjacentOpenAppWindow(direction);
+    final target = entry == null
+        ? null
+        : state.windowByObjectId(
+                state.workspaceForObject(entry.objectId)?.focusedId,
+              ) ??
+              entry;
     if (target == null) {
       resetGestureDrag();
       return;
@@ -1090,6 +1104,7 @@ class ShellController extends Notifier<ShellState>
     ShellInteractionSnapshot interactions, {
     Rect? floatingKeyboardRect,
   }) {
+    synchronizeMobileWorkspaceGeometry(viewSize);
     _inputLayoutCoordinator.publish(
       state: state,
       viewSize: viewSize,

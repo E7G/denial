@@ -136,6 +136,11 @@ pub enum WindowCommand {
         exact: bool,
         layout_drop: bool,
     },
+    /// Explicit mobile workspace ownership, separate from desktop configure.
+    MobileWorkspace {
+        window_id: u64,
+        geometry: Option<WindowGeometry>,
+    },
     SwitchWorkspace {
         monitor_id: i64,
         workspace_id: u8,
@@ -237,6 +242,7 @@ impl WindowCommand {
             Self::Close { window_id }
             | Self::Focus { window_id }
             | Self::Configure { window_id, .. }
+            | Self::MobileWorkspace { window_id, .. }
             | Self::MoveToWorkspace { window_id, .. } => Some(*window_id),
         }
     }
@@ -591,6 +597,8 @@ pub struct WindowDescription {
     pub fullscreen: bool,
     pub maximized: bool,
     pub self_managed_insets: bool,
+    pub minimum_width: u32,
+    pub minimum_height: u32,
     pub pinned: bool,
     pub transform: u32,
     pub scale_120: u32,

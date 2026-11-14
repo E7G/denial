@@ -128,18 +128,41 @@ impl WaylandFrontend {
         if system_ui {
             return None;
         }
-        let mut geometry = self
+        let workspace = self.window_record_for_surface(&root.id())
+            .and_then(|record| record.mobile_workspace_geometry)
+        ;
+        let output = self
             .output_for_geometry(self.window_geometry_target(window))
             .map(|output| output.logical_geometry)
             .or_else(|| self.fallback_output_geometry())?;
-        let top = if self_managed(&root) {
-            0
-        } else {
-            MOBILE_STATUS_INSET.min((geometry.size.h - 1).max(0))
+        Some(mobile_content_geometry(output, self_managed(&root), workspace))
+    }
+
+    /// Only the trusted shell's explicit workspace command changes this
+    /// contract. Ordinary client configure requests still obey mobile policy.
+    pub(super) fn configure_mobile_workspace_window(
+        &mut self,
+        window: &Window,
+        geometry: Option<WindowGeometry>,
+    ) -> bool {
+        if !self.mobile_shell || (geometry.is_some() && self.mobile_window_geometry(window).is_none()) {
+            return false;
+        }
+        let Some(root) = self.window_root_surface(window) else { return false; };
+        let origin = self.atlas_origin;
+        let target = geometry.map(|geometry| Rectangle::new(
+            ((geometry.x + origin.x).round() as i32,
+             (geometry.y + origin.y).round() as i32).into(),
+            ((geometry.width.round() as i32).clamp(64, 16384),
+             (geometry.height.round() as i32).clamp(64, 16384)).into(),
+        ));
+        let Some(record) = self.ensure_window_record_for_surface(&root.id()) else {
+            return false;
         };
-        geometry.loc.y += top;
-        geometry.size.h -= top;
-        Some(geometry)
+        if record.mobile_workspace_geometry == target { return false; }
+        record.mobile_workspace_geometry = target;
+        self.configure_mobile_window(window);
+        true
     }
 
     pub(super) fn configure_mobile_window(&mut self, window: &Window) {
@@ -217,6 +240,48 @@ impl WaylandFrontend {
             {
                 texture.expects_sample = false;
             }
+        }
+    }
+}
+
+fn mobile_content_geometry(
+    output: Rectangle<i32, Logical>,
+    self_managed: bool,
+    workspace: Option<Rectangle<i32, Logical>>,
+) -> Rectangle<i32, Logical> {
+    if let Some(workspace) = workspace {
+        return workspace;
+    }
+    let mut geometry = output;
+    let top = if self_managed { 0 } else {
+        MOBILE_STATUS_INSET.min((geometry.size.h - 1).max(0))
+    };
+    geometry.loc.y += top;
+    geometry.size.h -= top;
+    geometry
+}
+
+#[cfg(test)]
+mod mobile_workspace_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn workspace_contract_does_not_apply_a_second_status_inset() {
+        let output = Rectangle::from_size(Size::from((1024, 768)));
+        let pane = Rectangle::from_size(Size::from((506, 632)));
+        for self_managed in [false, true] {
+            assert_eq!(mobile_content_geometry(output, self_managed, Some(pane)), pane);
+        }
+    }
+
+    #[test]
+    fn release_restores_native_and_android_full_output_contracts() {
+        for output in [Rectangle::from_size(Size::from((1024, 768))),
+            Rectangle::new((1024, 0).into(), (768, 1024).into())] {
+            let native = mobile_content_geometry(output, false, None);
+            assert_eq!(native.loc.y, output.loc.y + MOBILE_STATUS_INSET);
+            assert_eq!(native.size, (output.size.w, output.size.h - MOBILE_STATUS_INSET).into());
+            assert_eq!(mobile_content_geometry(output, true, None), output);
         }
     }
 }

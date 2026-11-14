@@ -73,6 +73,7 @@ class WindowContentRect extends ConsumerWidget {
           size: layoutSize,
           child: MediaQuery(
             data: media.copyWith(
+              size: layoutSize,
               padding: media.padding.copyWith(top: top),
               viewPadding: media.viewPadding.copyWith(top: top),
             ),

@@ -102,6 +102,28 @@ impl WaylandFrontend {
         // later release/up cannot be delivered to the new engine without its
         // matching press/down. Client captures and routes remain untouched.
         self.input_layout = None;
+        // Workspace membership belongs to the retired shell generation.
+        // A new shell must not inherit orphaned half-sized clients.
+        if self.mobile_shell {
+            let locals = self.local_windows.iter().filter(|window| {
+                self.window_record(window.id).is_some_and(|record|
+                    record.mobile_workspace_geometry.is_some())
+            }).map(|window| window.id).collect::<Vec<_>>();
+            let output = self.fallback_output_geometry();
+            for record in self.window_registry.values_mut() {
+                record.mobile_workspace_geometry = None;
+            }
+            let windows = self.space.elements().cloned().collect::<Vec<_>>();
+            for window in windows { self.configure_mobile_window(&window); }
+            if let Some(output) = output {
+                for id in locals {
+                    self.configure_local_flutter_window(id, WindowGeometry {
+                        x: 0.0, y: 0.0,
+                        width: f64::from(output.size.w), height: f64::from(output.size.h),
+                    });
+                }
+            }
+        }
         let released_shell_focus = self.text_input.shell_captures_keyboard();
         self.text_input.set_shell_capture(false);
         self.text_input.retire_flutter_generation();

@@ -1485,6 +1485,30 @@ class DenialBridge {
     );
   }
 
+  /// Mobile workspace sizes are explicit, reversible geometry contracts.
+  /// Scrolling uses presentation transforms and does not call this repeatedly.
+  void configureMobileWorkspaceWindow(DenialWindow window, Size? size) {
+    if (window.windowId <= 0 ||
+        (size != null &&
+            (!size.width.isFinite || !size.height.isFinite || size.isEmpty)))
+      return;
+    _sendWire(
+      _wireCodec.encodeWindowRequest(
+        wire.WindowRequestKind.ConfigureWindow,
+        windowId: window.windowId,
+        geometry: size == null
+            ? null
+            : Rect.fromLTWH(
+                0,
+                0,
+                size.width.round().clamp(64, 16384).toDouble(),
+                size.height.round().clamp(64, 16384).toDouble(),
+              ),
+        flags: size == null ? 8 : 4,
+      ),
+    );
+  }
+
   void sendKeyboardText(String text) {
     if (text.isEmpty) {
       return;

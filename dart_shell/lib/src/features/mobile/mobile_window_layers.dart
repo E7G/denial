@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../widgets/window_surface_tree.dart';
 import 'mobile_primary_window_stage.dart';
+import 'mobile_workspace_stage.dart';
 
 /// Each animated layer observes only the state it presents.
 class MobilePrimaryWindowLayer extends ConsumerStatefulWidget {
@@ -41,6 +42,9 @@ class _MobilePrimaryWindowLayerState
       shellControllerProvider.select(
         (state) => (
           window: state.primaryWindow,
+          workspace: state.activeMobileWorkspace,
+          secure: state.locked || state.lockLayerVisible,
+          windows: state.windows,
           target: state.appSwitchTargetWindow,
           switching: state.gestureDrag.dx.abs() >= 0.5,
           heroOwnsForeground:
@@ -63,6 +67,41 @@ class _MobilePrimaryWindowLayerState
         final heroOwnsForeground = visual.heroOwnsForeground || overviewActive;
         if (window.isLocalFlutter && heroOwnsForeground) {
           return const SizedBox.shrink();
+        }
+        final workspace = visual.workspace;
+        if (workspace != null) {
+          final controller = ref.read(shellControllerProvider.notifier);
+          return Positioned.fill(
+            child: Opacity(
+              opacity: heroOwnsForeground ? 0 : 1,
+              child: MobileWorkspaceStage(
+                key: ValueKey(workspace.id),
+                workspace: workspace,
+                windows: {for (final w in visual.windows) w.objectId: w},
+                focusedObjectId: window.objectId,
+                presented: !heroOwnsForeground && !visual.secure,
+                onFocus: controller.focusWindow,
+                onClose: controller.closeWindow,
+                onUngroup: () =>
+                    controller.ungroupMobileWorkspace(workspace.id),
+                onMode: (mode) =>
+                    controller.setMobileWorkspaceMode(workspace.id, mode),
+                onScroll: (delta) =>
+                    controller.scrollMobileWorkspace(workspace.id, delta),
+                onScrollEnd: () =>
+                    controller.settleMobileWorkspaceScroll(workspace.id),
+                onResizeStart: () =>
+                    controller.beginMobileWorkspaceResize(workspace.id),
+                onResize: (index, delta) => controller.resizeMobileWorkspace(
+                  workspace.id,
+                  index,
+                  delta,
+                ),
+                onResizeEnd: (cancel) =>
+                    controller.finishMobileWorkspaceResize(cancel: cancel),
+              ),
+            ),
+          );
         }
         return Positioned.fill(
           child: MobilePrimaryWindowStage(
@@ -173,8 +212,17 @@ class _MobileOverviewLayerState extends ConsumerState<MobileOverviewLayer> {
     final overview = ref.watch(
       shellControllerProvider.select(
         (state) => (
-          window: state.foregroundWindow,
-          objectId: state.foregroundObjectId,
+          window: state.activeMobileWorkspace == null
+              ? state.foregroundWindow
+              : state.windowByObjectId(
+                  state.activeMobileWorkspace!.members.first,
+                ),
+          objectId:
+              state.activeMobileWorkspace?.members.first ??
+              state.foregroundObjectId,
+          workspaces: state.mobileWorkspaces,
+          windows: state.mobileRecentsWindows,
+          allWindows: state.windows,
           visible: state.overviewVisible,
           homeActive: state.homeTransitionActive,
         ),
@@ -182,7 +230,16 @@ class _MobileOverviewLayerState extends ConsumerState<MobileOverviewLayer> {
     );
     final controller = ref.read(shellControllerProvider.notifier);
     return OverviewLayer(
-      windows: ref.watch(userAppWindowsProvider),
+      windows: overview.windows,
+      workspaceMembers: {
+        for (final group in overview.workspaces)
+          group.members.first: [
+            for (final id in group.members)
+              for (final window in overview.allWindows)
+                if (window.objectId == id) window,
+          ],
+      },
+      onMergeWindows: controller.mergeMobileWorkspace,
       foregroundWindow: overview.window,
       foregroundObjectId: overview.objectId,
       visible: overview.visible,
@@ -191,8 +248,8 @@ class _MobileOverviewLayerState extends ConsumerState<MobileOverviewLayer> {
       onPresentationChanged: widget.onPresentationChanged,
       onProgressChanged: widget.onProgressChanged,
       onDismissOverview: controller.closeOverview,
-      onDismissWindow: controller.closeWindow,
-      onFocusWindow: controller.focusWindow,
+      onDismissWindow: controller.closeMobileRecentsEntry,
+      onFocusWindow: controller.focusMobileRecentsEntry,
       onHomeSettled: controller.completeHomeTransition,
     );
   }

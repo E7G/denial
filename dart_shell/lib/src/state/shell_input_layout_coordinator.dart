@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../input/input_layout.dart';
 import '../input/shell_interaction_registry.dart';
 import '../models/denial_window.dart';
+import '../models/mobile_workspace.dart';
 import '../platform/denial_bridge.dart';
 import 'shell_state.dart';
 
@@ -139,8 +140,11 @@ class ShellInputLayoutCoordinator {
         if (!region.intersect(canvas).isEmpty) region.intersect(canvas),
     ];
 
+    final workspace = inputWindow == null ? null : state.activeMobileWorkspace;
     final inputRegions = <InputWindowRegion>[
-      if (inputWindow != null)
+      if (workspace != null)
+        ..._inputRegionsForWorkspace(state, workspace, viewSize, inputBottom)
+      else if (inputWindow != null)
         ..._inputRegionsForWindow(
           window: inputWindow,
           viewSize: viewSize,
@@ -209,11 +213,41 @@ class ShellInputLayoutCoordinator {
     return regions;
   }
 
+  List<InputWindowRegion> _inputRegionsForWorkspace(
+    ShellState state,
+    MobileWorkspace workspace,
+    Size viewSize,
+    double inputBottom,
+  ) {
+    final layout = MobileWorkspaceLayout.resolve(
+      viewSize,
+      workspace,
+      windows: workspace.members
+          .map(state.windowByObjectId)
+          .whereType<DenialWindow>(),
+    );
+    return [
+      for (final pane in layout.panes)
+        if (!pane.frame.intersect(layout.viewport).isEmpty)
+          if (state.windowByObjectId(pane.objectId) case final window?)
+            ..._inputRegionsForWindow(
+              window: window,
+              viewSize: viewSize,
+              contentOffset: 0,
+              inputBottom: inputBottom,
+              workspaceClientFrame: pane.clientFrame(window),
+              paneClip: pane.frame.intersect(layout.viewport),
+            ),
+    ];
+  }
+
   List<InputWindowRegion> _inputRegionsForWindow({
     required DenialWindow window,
     required Size viewSize,
     required double contentOffset,
     required double inputBottom,
+    Rect? workspaceClientFrame,
+    Rect? paneClip,
   }) {
     final frame = window.presentationCoordinateRect;
     final content = window.contentCoordinateRect;
@@ -232,13 +266,21 @@ class ShellInputLayoutCoordinator {
     // Match the texture's top-centred BoxFit.contain. This keeps fixed-size
     // and legacy clients fully visible instead of cropping them to the mobile
     // viewport, while retaining exact source-coordinate routing for touch.
-    final fullContentRect = mobileWindowPresentationFrame(
-      viewSize: viewSize,
-      frame: sourceFrame,
-      contentOffset: contentOffset,
-      contain: !window.isLocalFlutter,
-      selfManagedInsets: window.selfManagedInsets,
-    );
+    final fullContentRect = workspaceClientFrame == null
+        ? mobileWindowPresentationFrame(
+            viewSize: viewSize,
+            frame: sourceFrame,
+            contentOffset: contentOffset,
+            contain: !window.isLocalFlutter,
+            selfManagedInsets: window.selfManagedInsets,
+          )
+        : mobileWindowPresentationFrame(
+            viewSize: workspaceClientFrame.size,
+            frame: sourceFrame,
+            contentOffset: 0,
+            contain: true,
+            selfManagedInsets: true,
+          ).shift(workspaceClientFrame.topLeft);
     if (fullContentRect.isEmpty) {
       return const <InputWindowRegion>[];
     }
@@ -251,7 +293,12 @@ class ShellInputLayoutCoordinator {
       sourceContent.width * scale,
       sourceContent.height * scale,
     );
-    final clip = Rect.fromLTRB(0, 0, viewSize.width, inputBottom);
+    final clip = Rect.fromLTRB(
+      0,
+      0,
+      viewSize.width,
+      inputBottom,
+    ).intersect(paneClip ?? Offset.zero & viewSize);
     final rect = clientRect.intersect(clip);
     if (rect.isEmpty) {
       return const <InputWindowRegion>[];

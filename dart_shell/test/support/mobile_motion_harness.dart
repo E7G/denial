@@ -28,8 +28,14 @@ DenialWindow motionWindow(
   int id, {
   String appId = 'test',
   bool selfManagedInsets = false,
+  int minimumWidth = 0,
+  int minimumHeight = 0,
+  DenialWindowContentKind contentKind = DenialWindowContentKind.surfaceTree,
 }) => DenialWindow(
+  contentKind: contentKind,
   selfManagedInsets: selfManagedInsets,
+  minimumWidth: minimumWidth,
+  minimumHeight: minimumHeight,
   objectId: id,
   objectKind: 'xdg_toplevel',
   surfaceId: id,

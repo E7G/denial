@@ -29,6 +29,7 @@ class _InputLayoutPublisherState extends ConsumerState<InputLayoutPublisher> {
         (state) => (
           overviewVisible: state.overviewVisible,
           inputWindow: state.inputWindow,
+          workspaces: state.mobileWorkspaces,
           launchRequestId: state.launchRequest?.requestId,
           launchingObjectId: state.launchingObjectId,
           quickSettingsVisible: state.quickSettingsVisible,

@@ -284,20 +284,29 @@ impl WireBridge {
                     fb::WindowRequestKind::CloseWindow => WindowCommand::Close { window_id },
                     fb::WindowRequestKind::FocusWindow => WindowCommand::Focus { window_id },
                     fb::WindowRequestKind::ConfigureWindow => {
-                        const EXACT: u32 = 1 << 0;
-                        const LAYOUT_DROP: u32 = 1 << 1;
-                        const FLAGS_MASK: u32 = EXACT | LAYOUT_DROP;
-                        let flags = request.flags();
-                        if flags & !FLAGS_MASK != 0 || flags & FLAGS_MASK == FLAGS_MASK {
-                            return Err(WireError::Flags);
-                        }
-                        let geometry =
-                            decode_window_geometry(request.geometry().ok_or(WireError::Geometry)?)?;
-                        WindowCommand::Configure {
-                            window_id,
-                            geometry,
-                            exact: flags & EXACT != 0,
-                            layout_drop: flags & LAYOUT_DROP != 0,
+                        // 0/1/2 retain their desktop semantics. Workspace
+                        // admission/release are distinct commands, never a
+                        // silent weakening of the mobile fullscreen policy.
+                        match request.flags() {
+                            4 => WindowCommand::MobileWorkspace {
+                                window_id,
+                                geometry: Some(decode_window_geometry(
+                                    request.geometry().ok_or(WireError::Geometry)?,
+                                )?),
+                            },
+                            8 => WindowCommand::MobileWorkspace {
+                                window_id,
+                                geometry: None,
+                            },
+                            flags @ (0 | 1 | 2) => WindowCommand::Configure {
+                                window_id,
+                                geometry: decode_window_geometry(
+                                    request.geometry().ok_or(WireError::Geometry)?,
+                                )?,
+                                exact: flags == 1,
+                                layout_drop: flags == 2,
+                            },
+                            _ => return Err(WireError::Flags),
                         }
                     }
                     _ => unreachable!(),

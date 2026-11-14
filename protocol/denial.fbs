@@ -405,6 +405,10 @@ table Window {
   // not reserve a second status-bar inset in presentation or input geometry.
   // Appended with false default for compatibility with older senders.
   self_managed_insets:bool;
+  // Logical client minimums, zero when unspecified. Mobile workspace layout
+  // can scroll instead of forcing an application below its real constraints.
+  minimum_width:uint;
+  minimum_height:uint;
 }
 
 table WindowSnapshot {

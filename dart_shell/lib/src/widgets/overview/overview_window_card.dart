@@ -7,6 +7,9 @@ import '../../models/denial_window.dart';
 import '../../theme/motion.dart';
 import '../retained_translation.dart';
 import 'overview_window_preview.dart';
+import 'overview_workspace_preview.dart';
+import 'overview_workspace_drag_feedback.dart';
+import '../../theme/shell_theme.dart';
 
 /// A fixed-size preview with paint-only drag and settle motion.
 class OverviewWindowCard extends StatefulWidget {
@@ -18,12 +21,16 @@ class OverviewWindowCard extends StatefulWidget {
     this.focusing = false,
     required this.onDismiss,
     required this.onFocus,
+    this.workspaceMembers = const <DenialWindow>[],
+    this.onMerge,
   });
 
   final DenialWindow window;
   final Size cardSize;
   final bool foreground;
   final bool focusing;
+  final List<DenialWindow> workspaceMembers;
+  final void Function(int sourceId, int targetId)? onMerge;
   final ValueChanged<DenialWindow> onDismiss;
   final void Function(DenialWindow window, Rect startRect) onFocus;
 
@@ -124,16 +131,50 @@ class _OverviewWindowCardState extends State<OverviewWindowCard>
             onVerticalDragUpdate: _handleVerticalDragUpdate,
             onVerticalDragEnd: _handleVerticalDragEnd,
             onVerticalDragCancel: _settleBack,
-            child: OverviewWindowPreview(
-              previewKey: _previewKey,
-              window: widget.window,
-              size: widget.cardSize,
-            ),
+            child: widget.workspaceMembers.length >= 2
+                ? OverviewWorkspacePreview(
+                    previewKey: _previewKey,
+                    windows: widget.workspaceMembers,
+                    size: widget.cardSize,
+                  )
+                : OverviewWindowPreview(
+                    previewKey: _previewKey,
+                    window: widget.window,
+                    size: widget.cardSize,
+                  ),
           ),
         ),
       ),
     );
-    return card;
+    final merge = widget.onMerge;
+    if (merge == null) return card;
+    return DragTarget<int>(
+      onWillAcceptWithDetails: (details) =>
+          details.data != widget.window.objectId,
+      onAcceptWithDetails: (details) =>
+          merge(details.data, widget.window.objectId),
+      builder: (context, candidates, rejected) => DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            width: candidates.isEmpty ? 0 : 3,
+            color: candidates.isEmpty
+                ? const Color(0x00000000)
+                : context.shellTheme.accentSeed,
+          ),
+        ),
+        child: LongPressDraggable<int>(
+          data: widget.window.objectId,
+          maxSimultaneousDrags: 1,
+          feedback: OverviewWorkspaceDragFeedback(
+            title: widget.window.displayTitle,
+            width: widget.cardSize.width * 0.85,
+          ),
+          childWhenDragging: Opacity(opacity: 0.35, child: card),
+          child: Opacity(opacity: 1, child: card),
+        ),
+      ),
+    );
   }
 
   void _handleTap() {
