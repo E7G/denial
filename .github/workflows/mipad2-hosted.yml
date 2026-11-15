@@ -131,7 +131,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tools/denial-pc flutter-test test/widgets/mobile_recents_interaction_test.dart test/widgets/mobile_workspace_interaction_test.dart test/state/mobile_workspace_controller_test.dart test/state/mobile_workspace_input_test.dart test/state/mobile_workspace_layout_test.dart test/platform/denial_wire_test.dart 2>&1 | tee evidence/workspace-preflight-tests.log
+          tools/denial-pc flutter-test test/widgets/shell_overlay_host_test.dart test/widgets/mobile_recents_interaction_test.dart test/widgets/mobile_workspace_interaction_test.dart test/state/mobile_workspace_controller_test.dart test/state/mobile_workspace_input_test.dart test/state/mobile_workspace_layout_test.dart test/platform/denial_wire_test.dart 2>&1 | tee evidence/workspace-preflight-tests.log
 
       - name: Build release candidate
 

@@ -31,9 +31,10 @@ class _ShellOverlayHostState extends State<ShellOverlayHost> {
 
   @override
   void dispose() {
-    if (_sceneEntry.mounted) {
-      _sceneEntry.remove();
-    }
+    // mounted describes the entry's widget, not its Overlay ownership. Its
+    // child can already be unmounted while the entry still belongs to the
+    // retiring OverlayState; remove that ownership before disposing it.
+    _sceneEntry.remove();
     _sceneEntry.dispose();
     super.dispose();
   }
