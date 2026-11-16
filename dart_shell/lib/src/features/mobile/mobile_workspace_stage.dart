@@ -1,7 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../input/shell_interaction_registry.dart';
-import '../../localization/denial_localizations.dart';
 import '../../models/denial_window.dart';
 import '../../models/mobile_workspace.dart';
 import '../../theme/shell_theme.dart';
@@ -45,13 +47,101 @@ class MobileWorkspaceStage extends StatefulWidget {
 }
 
 class _MobileWorkspaceStageState extends State<MobileWorkspaceStage> {
-  // Scrolling changes only Stack offsets. Reuse identical pane subtrees so
-  // neither app layout nor texture widgets rebuild at every pointer sample.
+  // Translate retained clients while scrolling; never rebuild their canvas
+  // or renegotiate a native size just to show/hide the transient controls.
   final _panes =
       <
         int,
         ({DenialWindow window, bool focused, bool presented, Widget child})
       >{};
+  static const _gestureEdge = 8.0;
+  Timer? _hideTimer;
+  bool _controlsVisible = false;
+  bool _holding = false;
+  bool _holdHorizontal = false;
+  double _lastHoldPosition = 0;
+  double _holdTravel = 0;
+
+  @override
+  void didUpdateWidget(covariant MobileWorkspaceStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.presented || oldWidget.workspace.id != widget.workspace.id) {
+      _hideTimer?.cancel();
+      _controlsVisible = false;
+      _holding = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _hideControls() {
+    _hideTimer?.cancel();
+    if (mounted && _controlsVisible) setState(() => _controlsVisible = false);
+  }
+
+  void _showControls() {
+    if (!widget.presented) return;
+    _hideTimer?.cancel();
+    if (!_controlsVisible) setState(() => _controlsVisible = true);
+    _hideTimer = Timer(const Duration(seconds: 6), _hideControls);
+  }
+
+  void _beginHold(MobileWorkspaceLayout layout) {
+    if (!widget.presented) return;
+    _holding = true;
+    _holdHorizontal = layout.horizontal;
+    _lastHoldPosition = 0;
+    _holdTravel = 0;
+    // Decide after release whether this is an action request or a scroll.
+    // Scrolling must not briefly steal keyboard focus or flash a menu.
+  }
+
+  void _moveHold(
+    MobileWorkspaceLayout layout,
+    LongPressMoveUpdateDetails event,
+  ) {
+    if (!_holding || !widget.presented) return;
+    if (layout.horizontal != _holdHorizontal) {
+      _holding = false;
+      _hideControls();
+      return;
+    }
+    final position = _holdHorizontal
+        ? event.offsetFromOrigin.dx
+        : event.offsetFromOrigin.dy;
+    final delta = position - _lastHoldPosition;
+    _lastHoldPosition = position;
+    _holdTravel += delta.abs();
+    if (layout.scrolling && _holdTravel > 8) {
+      _hideControls();
+      widget.onScroll(-delta);
+    }
+  }
+
+  void _endHold(MobileWorkspaceLayout layout) {
+    if (!_holding) return;
+    _holding = false;
+    if (!widget.presented) {
+      _hideControls();
+      return;
+    }
+    if (layout.scrolling && _holdTravel > 8) {
+      _hideControls();
+      widget.onScrollEnd();
+    } else {
+      _showControls();
+    }
+  }
+
+  void _action(VoidCallback callback) {
+    if (!widget.presented) return;
+    _hideControls();
+    callback();
+  }
 
   Widget _pane(DenialWindow window) {
     final focused = window.objectId == widget.focusedObjectId;
@@ -61,14 +151,19 @@ class _MobileWorkspaceStageState extends State<MobileWorkspaceStage> {
         cached.focused == focused &&
         cached.presented == widget.presented)
       return cached.child;
-    final child = _WorkspacePane(
-      key: ValueKey(window.objectId),
-      window: window,
-      focused: focused,
-      presented: widget.presented,
-      onFocus: () => widget.onFocus(window),
-      onClose: () => widget.onClose(window),
-    );
+    final child = window.isLocalFlutter && !widget.presented
+        ? const SizedBox.expand()
+        : RepaintBoundary(
+            child: WindowContentRect(
+              key: ValueKey('workspace-content-${window.objectId}'),
+              window: window,
+              active: focused && widget.presented,
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+              includeLocalStatusInset: false,
+              cropToContentBounds: true,
+            ),
+          );
     _panes[window.objectId] = (
       window: window,
       focused: focused,
@@ -78,10 +173,169 @@ class _MobileWorkspaceStageState extends State<MobileWorkspaceStage> {
     return child;
   }
 
+  Widget _gesture(MobileWorkspaceLayout layout, {int? divider}) {
+    final strings = MobileWorkspaceStrings(context);
+    final resize = divider != null;
+    return ShellInputRegion(
+      active: widget.presented,
+      debugLabel: resize
+          ? 'mobile_workspace_divider_$divider'
+          : 'mobile_workspace_gesture_edge',
+      child: Semantics(
+        label: resize ? strings.resize : strings.controls,
+        onLongPress: _showControls,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onLongPressStart: (_) => _beginHold(layout),
+          onLongPressMoveUpdate: (event) => _moveHold(layout, event),
+          onLongPressEnd: (_) => _endHold(layout),
+          onLongPressCancel: () => _holding = false,
+          onPanStart: resize
+              ? (_) {
+                  if (widget.presented) widget.onResizeStart();
+                }
+              : null,
+          onPanUpdate: resize
+              ? (event) {
+                  if (widget.presented)
+                    widget.onResize(
+                      divider!,
+                      layout.horizontal ? event.delta.dx : event.delta.dy,
+                    );
+                }
+              : null,
+          onPanEnd: resize ? (_) => widget.onResizeEnd(false) : null,
+          onPanCancel: resize ? () => widget.onResizeEnd(true) : null,
+          child: resize
+              ? Center(
+                  child: Container(
+                    width: layout.horizontal ? 4 : 36,
+                    height: layout.horizontal ? 36 : 4,
+                    decoration: BoxDecoration(
+                      color: context.shellColors.textTertiary,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                )
+              : const SizedBox.expand(),
+        ),
+      ),
+    );
+  }
+
+  Widget _controls(MobileWorkspaceLayout layout) {
+    final strings = MobileWorkspaceStrings(context);
+    final focused = widget.windows[widget.focusedObjectId];
+    return Positioned.fill(
+      key: const ValueKey('workspace-actions'),
+      child: ShellInputRegion(
+        active: widget.presented,
+        debugLabel: 'mobile_workspace_actions',
+        pointerPolicy: ShellPointerPolicy.fullScene,
+        keyboardPolicy: ShellKeyboardPolicy.capture,
+        child: Focus(
+          autofocus: true,
+          onKeyEvent: (_, event) {
+            if (event.logicalKey == LogicalKeyboardKey.escape) {
+              _hideControls();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _hideControls,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 40),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: context.shellColors.surfaceContainer,
+                        border: Border.all(color: context.shellColors.hairline),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              strings.title,
+                              style: TextStyle(
+                                color: context.shellColors.textPrimary,
+                                fontSize: 14,
+                              ),
+                            ),
+                            if (layout.scrolling)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  strings.scroll,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: context.shellColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              children: [
+                                _WorkspaceButton(
+                                  label: strings.mode(widget.workspace.mode),
+                                  onTap: () => _action(
+                                    () => widget.onMode(
+                                      MobileWorkspaceMode.values[(widget
+                                                  .workspace
+                                                  .mode
+                                                  .index +
+                                              1) %
+                                          MobileWorkspaceMode.values.length],
+                                    ),
+                                  ),
+                                ),
+                                _WorkspaceButton(
+                                  label: strings.ungroup,
+                                  onTap: () => _action(widget.onUngroup),
+                                ),
+                                if (focused != null)
+                                  _WorkspaceButton(
+                                    label: strings.close,
+                                    onTap: () =>
+                                        _action(() => widget.onClose(focused)),
+                                  ),
+                                _WorkspaceButton(
+                                  label: strings.done,
+                                  onTap: _hideControls,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _panes.removeWhere((id, _) => !widget.workspace.members.contains(id));
-    final strings = MobileWorkspaceStrings(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final layout = MobileWorkspaceLayout.resolve(
@@ -115,99 +369,25 @@ class _MobileWorkspaceStageState extends State<MobileWorkspaceStage> {
                           rect: layout
                               .dividerAfter(i)
                               .shift(-layout.viewport.topLeft),
-                          child: ShellInputRegion(
-                            active: widget.presented,
-                            debugLabel: 'mobile_workspace_divider_$i',
-                            child: Semantics(
-                              label: strings.resize,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onPanStart: (_) => widget.onResizeStart(),
-                                onPanUpdate: (event) => widget.onResize(
-                                  i,
-                                  layout.horizontal
-                                      ? event.delta.dx
-                                      : event.delta.dy,
-                                ),
-                                onPanEnd: (_) => widget.onResizeEnd(false),
-                                onPanCancel: () => widget.onResizeEnd(true),
-                                child: Center(
-                                  child: Container(
-                                    width: layout.horizontal ? 4 : 36,
-                                    height: layout.horizontal ? 36 : 4,
-                                    decoration: BoxDecoration(
-                                      color: context.shellColors.textTertiary,
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
+                          child: _gesture(layout, divider: i),
                         ),
                     ],
                   ),
                 ),
               ),
+              // A transparent hit edge consumes no layout space. It remains
+              // reachable even when an unusually wide client hides every divider.
               Positioned(
                 left: 0,
                 right: 0,
-                top: MobileWorkspaceLayout.status,
-                height: MobileWorkspaceLayout.toolbar,
-                child: ShellInputRegion(
-                  active: widget.presented,
-                  debugLabel: 'mobile_workspace_toolbar',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onPanUpdate: layout.scrolling
-                        ? (event) => widget.onScroll(
-                            -(layout.horizontal
-                                ? event.delta.dx
-                                : event.delta.dy),
-                          )
-                        : null,
-                    onPanEnd: layout.scrolling
-                        ? (_) => widget.onScrollEnd()
-                        : null,
-                    child: ColoredBox(
-                      color: context.shellColors.surfaceContainer,
-                      child: Row(
-                        children: [
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Semantics(
-                              label: layout.scrolling
-                                  ? strings.scroll
-                                  : strings.title,
-                              child: Text(
-                                '${strings.title} · ${widget.workspace.members.length}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: context.shellColors.textPrimary,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                          _WorkspaceButton(
-                            label: strings.mode(widget.workspace.mode),
-                            onTap: () => widget.onMode(
-                              MobileWorkspaceMode
-                                  .values[(widget.workspace.mode.index + 1) %
-                                  MobileWorkspaceMode.values.length],
-                            ),
-                          ),
-                          _WorkspaceButton(
-                            label: strings.ungroup,
-                            onTap: widget.onUngroup,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                top: layout.viewport.top,
+                height: _gestureEdge,
+                child: KeyedSubtree(
+                  key: const ValueKey('workspace-gesture-edge'),
+                  child: _gesture(layout),
                 ),
               ),
+              if (_controlsVisible && widget.presented) _controls(layout),
             ],
           ),
         );
@@ -216,122 +396,25 @@ class _MobileWorkspaceStageState extends State<MobileWorkspaceStage> {
   }
 }
 
-class _WorkspacePane extends StatelessWidget {
-  const _WorkspacePane({
-    super.key,
-    required this.window,
-    required this.focused,
-    required this.presented,
-    required this.onFocus,
-    required this.onClose,
-  });
-  final DenialWindow window;
-  final bool focused;
-  final bool presented;
-  final VoidCallback onFocus;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final managesInsets = window.selfManagedInsets || window.isLocalFlutter;
-    return ColoredBox(
-      color: context.shellColors.background,
-      child: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.hardEdge,
-        children: [
-          Positioned.fill(
-            top: managesInsets ? 0 : MobileWorkspaceLayout.header,
-            child: window.isLocalFlutter && !presented
-                ? const SizedBox.expand()
-                : RepaintBoundary(
-                    child: WindowContentRect(
-                      key: ValueKey('workspace-content-${window.objectId}'),
-                      window: window,
-                      active: focused && presented,
-                      fit: BoxFit.contain,
-                      alignment: Alignment.center,
-                      cropToContentBounds: true,
-                    ),
-                  ),
-          ),
-          Positioned(
-            left: 0,
-            top: 0,
-            right: 0,
-            height: MobileWorkspaceLayout.header,
-            child: ShellInputRegion(
-              active: presented,
-              debugLabel: 'mobile_workspace_header_${window.objectId}',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onFocus,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: context.shellColors.surfaceContainerLow,
-                    border: Border(
-                      bottom: BorderSide(
-                        width: focused ? 2 : 1,
-                        color: focused
-                            ? context.shellTheme.accentSeed
-                            : context.shellColors.hairline,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          localizedWindowTitle(context, window),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.shellColors.textPrimary,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                      _WorkspaceButton(
-                        label: '×',
-                        semanticLabel: MobileWorkspaceStrings(context).close,
-                        onTap: onClose,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _WorkspaceButton extends StatelessWidget {
-  const _WorkspaceButton({
-    required this.label,
-    required this.onTap,
-    this.semanticLabel,
-  });
+  const _WorkspaceButton({required this.label, required this.onTap});
   final String label;
-  final String? semanticLabel;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: semanticLabel ?? label,
+    label: label,
     onTap: onTap,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 48, minHeight: 40),
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Center(
+            widthFactor: 1,
+            heightFactor: 1,
             child: Text(
               label,
               style: TextStyle(

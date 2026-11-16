@@ -227,6 +227,16 @@ void main() {
     },
   );
 
+  test('removing workspace chrome negotiates the reclaimed client space', () {
+    shell.mergeMobileWorkspace(1, 2);
+    shell.synchronizeMobileWorkspaceGeometry(const Size(1024, 768));
+    expect(shell.bridge.configured, hasLength(2));
+    expect(
+      shell.bridge.configured.map((item) => item.$2),
+      everyElement(const Size(506, 720)),
+    );
+  });
+
   test('group scroll and resize retain the cached recents membership', () {
     shell.mergeMobileWorkspace(1, 2);
     final group = current().mobileWorkspaces.single;

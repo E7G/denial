@@ -20,8 +20,8 @@ void main() {
     );
     expect(layout.horizontal, isTrue);
     expect(layout.scrolling, isFalse);
-    expect(layout.panes.first.frame, const Rect.fromLTWH(0, 88, 506, 680));
-    expect(layout.panes.last.frame, const Rect.fromLTWH(518, 88, 506, 680));
+    expect(layout.panes.first.frame, const Rect.fromLTWH(0, 48, 506, 720));
+    expect(layout.panes.last.frame, const Rect.fromLTWH(518, 48, 506, 720));
   });
 
   test(
@@ -33,7 +33,7 @@ void main() {
       );
       expect(layout.horizontal, isFalse);
       expect(layout.scrolling, isFalse);
-      expect(layout.panes.first.frame.height, 462);
+      expect(layout.panes.first.frame.height, 482);
       expect(layout.panes.last.frame.bottom, 1024);
     },
   );
@@ -130,7 +130,7 @@ void main() {
   });
 
   test(
-    'portrait minimums account for native header but not client-owned inset',
+    'portrait clients get complete panes without a synthetic workspace header',
     () {
       final native = motionWindow(1, minimumHeight: 450);
       final android = motionWindow(
@@ -143,11 +143,11 @@ void main() {
         group(2),
         windows: [native, android],
       );
-      expect(layout.minimumExtents, [498, 450]);
-      expect(layout.scrolling, isTrue);
+      expect(layout.minimumExtents, [450, 450]);
+      expect(layout.scrolling, isFalse);
       expect(
         layout.panes[0].clientFrame(native).top,
-        layout.panes[0].frame.top + 48,
+        layout.panes[0].frame.top,
       );
       expect(layout.panes[1].clientFrame(android), layout.panes[1].frame);
     },

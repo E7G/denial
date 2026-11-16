@@ -26,6 +26,7 @@ class WindowContentRect extends ConsumerWidget {
     this.allowPopupOverflow = false,
     this.cropToContentBounds = false,
     this.sourceCropTop = 0.0,
+    this.includeLocalStatusInset = true,
   });
 
   final DenialWindow window;
@@ -37,6 +38,7 @@ class WindowContentRect extends ConsumerWidget {
   final bool allowPopupOverflow;
   final bool cropToContentBounds;
   final double sourceCropTop;
+  final bool includeLocalStatusInset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,7 +64,9 @@ class WindowContentRect extends ConsumerWidget {
     // In-bundle apps receive safe-area information like any inset-aware
     // client; they do not need a separately painted shell header.
     final media = MediaQuery.of(context);
-    final top = media.padding.top + ShellMetrics.appStatusBarHeight;
+    final top = includeLocalStatusInset
+        ? media.padding.top + ShellMetrics.appStatusBarHeight
+        : 0.0;
     return ShellBackdropBlur(
       blur: applyBackdrop && (application?.translucent ?? false),
       borderRadius: borderRadius,

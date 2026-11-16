@@ -111,15 +111,9 @@ class MobileWorkspacePane {
   final int objectId;
   final Rect frame;
 
-  Rect clientFrame(DenialWindow window) =>
-      window.selfManagedInsets || window.isLocalFlutter
-      ? frame
-      : Rect.fromLTRB(
-          frame.left,
-          frame.top + MobileWorkspaceLayout.header,
-          frame.right,
-          frame.bottom,
-        );
+  // Workspace controls float over the scene only when requested. Native,
+  // self-managed and local clients all receive the complete pane canvas.
+  Rect clientFrame(DenialWindow _) => frame;
 }
 
 /// One geometry source for rendering, resize negotiation and native hit testing.
@@ -137,8 +131,8 @@ class MobileWorkspaceLayout {
   });
 
   static const status = 48.0;
-  static const toolbar = 40.0;
-  static const header = 48.0;
+  static const toolbar = 0.0;
+  static const header = 0.0;
   static const divider = 12.0;
   static const minimumExtent = 320.0;
 
@@ -171,13 +165,7 @@ class MobileWorkspaceLayout {
       final window = byId[workspace.members[i]];
       if (window == null) continue;
       final hint = horizontal ? window.minimumWidth : window.minimumHeight;
-      final externalHeader =
-          !horizontal && !window.selfManagedInsets && !window.isLocalFlutter
-          ? header
-          : 0.0;
-      minimums[i] = math
-          .max(minimumExtent, hint.clamp(0, 16384) + externalHeader)
-          .toDouble();
+      minimums[i] = math.max(minimumExtent, hint.clamp(0, 16384)).toDouble();
     }
     final minimumTotal = minimums.fold(0.0, (sum, value) => sum + value);
     final scrolling =

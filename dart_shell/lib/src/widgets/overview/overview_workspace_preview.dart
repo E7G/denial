@@ -45,6 +45,7 @@ class OverviewWorkspacePreview extends StatelessWidget {
                           fit: BoxFit.contain,
                           alignment: Alignment.center,
                           cropToContentBounds: true,
+                          includeLocalStatusInset: false,
                         ),
                       ),
                     ),

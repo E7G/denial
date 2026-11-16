@@ -40,8 +40,8 @@ void main() {
       final regions = bridge.snapshot!.windows;
       expect(regions, hasLength(2));
       expect(regions.every((region) => region.geometryLocked), isTrue);
-      expect(regions[0].rect.top, 136);
-      expect(regions[1].rect.top, 88);
+      expect(regions[0].rect.top, 48);
+      expect(regions[1].rect.top, 48);
       expect(regions[0].rect.right, lessThanOrEqualTo(506));
       expect(regions[1].rect.left, greaterThanOrEqualTo(518));
       for (final region in regions) {

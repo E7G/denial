@@ -14,7 +14,11 @@ class MobileWorkspaceStrings {
   String get ungroup => chinese ? '拆开' : 'Ungroup';
   String get close => chinese ? '关闭窗口' : 'Close window';
   String get resize => chinese ? '拖动调整窗口比例' : 'Drag to resize panes';
-  String get scroll => chinese ? '拖动标题栏滚动窗口' : 'Drag the title bar to scroll';
+  String get scroll => chinese
+      ? '按住上边缘或中缝滑动，可滚动窗口'
+      : 'Hold and drag the top edge or divider to scroll';
+  String get controls => chinese ? '长按显示工作区操作' : 'Hold for workspace actions';
+  String get done => chinese ? '收起' : 'Done';
   String mode(MobileWorkspaceMode mode) => switch (mode) {
     MobileWorkspaceMode.automatic => chinese ? '自动' : 'Auto',
     MobileWorkspaceMode.split => chinese ? '分屏' : 'Split',
