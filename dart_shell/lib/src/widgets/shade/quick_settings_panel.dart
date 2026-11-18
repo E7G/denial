@@ -15,6 +15,7 @@ import '../../state/bluetooth.dart';
 import '../../state/desktop_notifications.dart';
 import '../../state/network_connectivity.dart';
 import '../../state/quick_settings.dart';
+import '../../state/screenshot_feedback.dart';
 import '../../state/shell_controller.dart';
 import '../../state/system_status.dart';
 import '../../theme/motion.dart';
@@ -576,8 +577,14 @@ class _QuickSettingsTilesSection extends ConsumerWidget {
         bluetooth.serviceAvailable &&
         bluetooth.available &&
         !bluetooth.powerChanging;
+    final screenshotBusy = ref.watch(
+      screenshotFeedbackProvider.select((value) => value.busy),
+    );
     return QuickSettingsTiles(
       expansionProgress: progress,
+      screenshotBusy: screenshotBusy,
+      onTakeScreenshot: () =>
+          unawaited(ref.read(screenshotFeedbackProvider.notifier).capture()),
       brightnessControl: const _BrightnessRangeBar(),
       volumeControl: const _VolumeRangeBar(),
       wifi:
@@ -682,9 +689,6 @@ class _ShadeQuickEntrance extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider).value ?? DateTime.now();
-    final screenshotRunning = ref.watch(
-      quickSettingsProvider.select((state) => state.screenshotRunning),
-    );
     final l10n = context.l10n;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -704,17 +708,6 @@ class _ShadeQuickEntrance extends ConsumerWidget {
             ),
           ),
           ShadeActions(
-            screenshotBusy: screenshotRunning,
-            onTakeScreenshot: screenshotRunning
-                ? null
-                : () {
-                    ref
-                        .read(shellControllerProvider.notifier)
-                        .closeQuickSettings();
-                    unawaited(
-                      ref.read(quickSettingsProvider.notifier).takeScreenshot(),
-                    );
-                  },
             onOpenEdit: () =>
                 _openSettings(ref, page: SettingsPageId.tabletMetro),
             onOpenSettings: () => _openSettings(ref),

@@ -48,6 +48,8 @@ class QuickSettingsTiles extends StatelessWidget {
     required this.onToggleRotation,
     required this.onToggleDnd,
     required this.onCycleProfile,
+    this.onTakeScreenshot,
+    this.screenshotBusy = false,
   });
 
   final Widget? brightnessControl;
@@ -72,6 +74,8 @@ class QuickSettingsTiles extends StatelessWidget {
   final VoidCallback onToggleRotation;
   final VoidCallback onToggleDnd;
   final VoidCallback onCycleProfile;
+  final VoidCallback? onTakeScreenshot;
+  final bool screenshotBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +236,7 @@ class QuickSettingsTiles extends StatelessWidget {
               Positioned(
                 left: pitch * 2,
                 top: row * 2,
-                width: wide,
+                width: onTakeScreenshot == null ? wide : column,
                 height: row,
                 child: reveal(
                   6,
@@ -253,6 +257,26 @@ class QuickSettingsTiles extends StatelessWidget {
                   collapseTranslation: thirdRowExit,
                 ),
               ),
+              if (onTakeScreenshot case final capture?)
+                Positioned(
+                  left: pitch * 3,
+                  top: row * 2,
+                  width: column,
+                  height: row,
+                  child: reveal(
+                    7,
+                    QuickTile(
+                      key: const ValueKey<String>('shade-screenshot-action'),
+                      icon: Icons.screenshot_rounded,
+                      title: l10n.quickSettingsScreenshot,
+                      active: false,
+                      enabled: !screenshotBusy,
+                      busy: screenshotBusy,
+                      onTap: capture,
+                    ),
+                    collapseTranslation: thirdRowExit,
+                  ),
+                ),
             ],
           ),
         );
@@ -678,15 +702,11 @@ class _TileDetailsButtonState extends State<_TileDetailsButton> {
 class ShadeActions extends StatelessWidget {
   const ShadeActions({
     super.key,
-    required this.screenshotBusy,
-    required this.onTakeScreenshot,
     required this.onOpenEdit,
     required this.onOpenSettings,
     required this.onOpenPower,
   });
 
-  final bool screenshotBusy;
-  final VoidCallback? onTakeScreenshot;
   final VoidCallback onOpenEdit;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenPower;
@@ -697,15 +717,6 @@ class ShadeActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        _RoundButton(
-          key: const ValueKey<String>('shade-screenshot-action'),
-          label: context.l10n.quickSettingsScreenshot,
-          icon: screenshotBusy
-              ? Icons.hourglass_top_rounded
-              : Icons.screenshot_rounded,
-          onPressed: onTakeScreenshot,
-        ),
-        const SizedBox(width: 12),
         _RoundButton(
           label: context.l10n.settingsTabletMetroTitle,
           icon: Icons.edit_rounded,

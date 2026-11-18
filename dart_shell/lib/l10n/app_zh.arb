@@ -1,4 +1,7 @@
 {
+  "screenshotOpen": "打开截屏",
+  "screenshotDismiss": "关闭截屏预览",
+  "screenshotFailed": "截屏不可用",
   "@@locale": "zh",
   "homeResizeWidget": "调整小组件大小",
   "actionCancel": "取消",

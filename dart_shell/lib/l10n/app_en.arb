@@ -1,4 +1,7 @@
 {
+  "screenshotOpen": "Open screenshot",
+  "screenshotDismiss": "Dismiss screenshot",
+  "screenshotFailed": "Screenshot unavailable",
   "@@locale": "en",
   "homeResizeWidget": "Resize widget",
   "@homeResizeWidget": {

@@ -2,8 +2,9 @@ use std::error::Error;
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufWriter, Write};
+use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{self, SyncSender, TrySendError};
+use std::sync::mpsc::{self, Sender, SyncSender, TrySendError};
 use std::thread::{self, JoinHandle};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -24,7 +25,13 @@ use super::wayland_frontend::OutputCompositeSource;
 const MAX_PENDING_SCREENSHOT_WRITES: usize = 2;
 const BYTES_PER_PIXEL: usize = 4;
 
+pub(super) struct ScreenshotResult {
+    pub(super) id: NonZeroU64,
+    pub(super) path: Option<PathBuf>,
+}
+
 struct ScreenshotJob {
+    feedback_id: Option<NonZeroU64>,
     pixels: Vec<u8>,
     width: u32,
     height: u32,
@@ -47,16 +54,23 @@ pub(super) struct ScreenshotManager {
 }
 
 impl ScreenshotManager {
-    pub(super) fn new(clipboard: ClipboardManager) -> io::Result<Self> {
+    pub(super) fn new(
+        clipboard: ClipboardManager,
+        results: Sender<ScreenshotResult>,
+        wake: smithay::reexports::calloop::ping::Ping,
+    ) -> io::Result<Self> {
         let (sender, receiver) = mpsc::sync_channel(MAX_PENDING_SCREENSHOT_WRITES);
         let worker = thread::Builder::new()
             .name("denial-screenshot-writer".into())
             .spawn(move || {
                 crate::cpu_scheduling::normalize_current_worker("screenshot-writer");
                 while let Ok(job) = receiver.recv() {
+                    let feedback_id = job.feedback_id;
+                    let mut path = None;
                     match write_png(job) {
                         Ok(output) => {
                             info!(path = %output.path.display(), "saved screenshot");
+                            path = Some(output.path);
                             match clipboard.set_image_png(output.png) {
                                 Ok(item_id) => {
                                     info!(item_id, "published screenshot to the clipboard")
@@ -67,6 +81,11 @@ impl ScreenshotManager {
                             }
                         }
                         Err(error) => warn!(%error, "could not save screenshot"),
+                    }
+                    if let Some(id) = feedback_id
+                        && results.send(ScreenshotResult { id, path }).is_ok()
+                    {
+                        wake.ping();
                     }
                 }
             })?;
@@ -181,6 +200,7 @@ impl ScreenshotManager {
             source,
         )?;
         self.queue_job(ScreenshotJob {
+            feedback_id: request.feedback_id,
             pixels,
             width: u32::try_from(source.size.w)?,
             height: u32::try_from(source.size.h)?,
@@ -218,6 +238,7 @@ impl ScreenshotManager {
                 source,
             )?;
             self.queue_job(ScreenshotJob {
+                feedback_id: None,
                 pixels,
                 width: u32::try_from(source.size.w)?,
                 height: u32::try_from(source.size.h)?,
@@ -272,11 +293,14 @@ impl ScreenshotManager {
         };
         match sender.try_send(job) {
             Ok(()) => Ok(()),
-            Err(TrySendError::Full(_)) => {
+            Err(TrySendError::Full(job)) => {
                 warn!(
                     limit = MAX_PENDING_SCREENSHOT_WRITES,
                     "dropped screenshot because the writer queue is full"
                 );
+                if job.feedback_id.is_some() {
+                    return Err(io::Error::other("screenshot writer queue is full").into());
+                }
                 Ok(())
             }
             Err(TrySendError::Disconnected(_)) => {
@@ -401,15 +425,23 @@ fn write_png(mut job: ScreenshotJob) -> Result<WrittenScreenshot, Box<dyn Error 
         file: BufWriter::new(file),
         clipboard: Vec::new(),
     };
-    {
+    let written = (|| -> Result<(), Box<dyn Error + Send + Sync>> {
         let mut encoder = png::Encoder::new(&mut sink, job.width, job.height);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header()?;
         writer.write_image_data(&job.pixels)?;
         writer.finish()?;
+        sink.flush()?;
+        Ok(())
+    })();
+    if let Err(error) = written {
+        drop(sink);
+        if let Err(cleanup) = fs::remove_file(&path) {
+            warn!(%cleanup, "could not remove incomplete screenshot");
+        }
+        return Err(error);
     }
-    sink.flush()?;
     Ok(WrittenScreenshot {
         path,
         png: sink.clipboard,

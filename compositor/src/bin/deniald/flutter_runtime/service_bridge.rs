@@ -256,6 +256,23 @@ impl FlutterRuntime {
         Ok(())
     }
 
+    pub fn send_screenshot_result(
+        &self,
+        id: std::num::NonZeroU64,
+        path: Option<&std::path::Path>,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut packet = id.get().to_le_bytes().to_vec();
+        if let Some(path) = path.and_then(std::path::Path::to_str) {
+            packet.extend_from_slice(path.as_bytes());
+        }
+        self.host
+            .as_ref()
+            .expect("Flutter runtime is shutting down")
+            .engine()
+            .send_platform_message("denial/screenshot_result", &packet)?;
+        Ok(())
+    }
+
     pub fn send_screenshot_action(
         &mut self,
         action: wire::ShellAction,

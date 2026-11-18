@@ -37,6 +37,7 @@ const TAKE_SCREENSHOT: u8 = 2;
 const LOGOUT: u8 = 3;
 const SCREENSHOT_PREPARED: u8 = 4;
 const CANCEL_SCREENSHOT: u8 = 5;
+const TAKE_SCREENSHOT_WITH_RESULT: u8 = 6;
 
 // Never pass connection selectors inherited from a parent/nested compositor
 // to applications. WAYLAND_DISPLAY is installed explicitly below; all other
@@ -90,6 +91,7 @@ pub struct ScreenshotRegion {
 pub struct ScreenshotRequest {
     pub request_id: Option<NonZeroU64>,
     pub region: Option<ScreenshotRegion>,
+    pub feedback_id: Option<NonZeroU64>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -582,6 +584,19 @@ fn decode(packet: &[u8]) -> Result<Request, DecodeError> {
             Ok(Request::Screenshot(ScreenshotRequest {
                 request_id,
                 region,
+                feedback_id: None,
+            }))
+        }
+        TAKE_SCREENSHOT_WITH_RESULT => {
+            if !arguments.is_empty() {
+                return Err(DecodeError::ScreenshotArgumentCount(arguments.len()));
+            }
+            let feedback_id =
+                NonZeroU64::new(request_id).ok_or(DecodeError::InvalidScreenshotRequestId)?;
+            Ok(Request::Screenshot(ScreenshotRequest {
+                request_id: None,
+                region: None,
+                feedback_id: Some(feedback_id),
             }))
         }
         LOGOUT => {
@@ -603,6 +618,44 @@ fn decode(packet: &[u8]) -> Result<Request, DecodeError> {
             })
         }
         command => Err(DecodeError::UnsupportedCommand(command)),
+    }
+}
+
+#[cfg(test)]
+mod screenshot_tests {
+    use super::*;
+
+    #[test]
+    fn full_screenshot_feedback_requires_a_distinct_nonzero_identity() {
+        let mut packet = [0; HEADER_SIZE];
+        packet[0] = TAKE_SCREENSHOT_WITH_RESULT;
+        assert!(matches!(
+            decode(&packet),
+            Err(DecodeError::InvalidScreenshotRequestId)
+        ));
+        packet[1] = 42;
+        assert!(matches!(
+            decode(&packet),
+            Ok(Request::Screenshot(ScreenshotRequest {
+                request_id: None,
+                region: None,
+                feedback_id: Some(id),
+            })) if id.get() == 42
+        ));
+        packet[0] = TAKE_SCREENSHOT;
+        assert!(matches!(
+            decode(&packet),
+            Err(DecodeError::InvalidScreenshotRequestId)
+        ));
+        packet[1] = 0;
+        assert!(matches!(
+            decode(&packet),
+            Ok(Request::Screenshot(ScreenshotRequest {
+                request_id: None,
+                region: None,
+                feedback_id: None,
+            }))
+        ));
     }
 }
 

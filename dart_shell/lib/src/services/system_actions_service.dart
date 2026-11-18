@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../platform/denial_bridge.dart';
@@ -13,7 +15,17 @@ class SystemActionsService {
 
   final DenialBridge? _bridge;
 
-  Future<bool> takeScreenshot() async {
-    return _bridge?.takeScreenshot() ?? false;
+  Future<String?> takeScreenshot() async {
+    return await _bridge?.takeScreenshotWithResult();
+  }
+
+  Future<bool> openScreenshot(String path) async {
+    try {
+      // No shell interpolation. The native reply supplies an absolute PNG path.
+      final result = await Process.run('xdg-open', [path]);
+      return result.exitCode == 0;
+    } on ProcessException {
+      return false;
+    }
   }
 }

@@ -7,7 +7,6 @@ import '../platform/denial_bridge.dart';
 import '../services/audio_service.dart';
 import '../services/brightness_service.dart';
 import '../services/power_profile_service.dart';
-import '../services/system_actions_service.dart';
 import 'notifier_lifecycle.dart';
 import 'shell_controller.dart';
 import 'system_level_hud.dart';
@@ -20,7 +19,6 @@ class QuickSettingsState {
     required this.volume,
     required this.rotationLock,
     required this.profile,
-    required this.screenshotRunning,
   });
 
   factory QuickSettingsState.initial() => const QuickSettingsState(
@@ -28,28 +26,24 @@ class QuickSettingsState {
     volume: 0.46,
     rotationLock: true,
     profile: PowerProfile.balanced,
-    screenshotRunning: false,
   );
 
   final double brightness;
   final double volume;
   final bool rotationLock;
   final String profile;
-  final bool screenshotRunning;
 
   QuickSettingsState copyWith({
     double? brightness,
     double? volume,
     bool? rotationLock,
     String? profile,
-    bool? screenshotRunning,
   }) {
     return QuickSettingsState(
       brightness: brightness ?? this.brightness,
       volume: volume ?? this.volume,
       rotationLock: rotationLock ?? this.rotationLock,
       profile: profile ?? this.profile,
-      screenshotRunning: screenshotRunning ?? this.screenshotRunning,
     );
   }
 }
@@ -74,7 +68,6 @@ class QuickSettingsController extends Notifier<QuickSettingsState>
     _audio = ref.watch(audioServiceProvider);
     _audioHudSuppression = ref.watch(systemLevelHudAudioSuppressionProvider);
     _power = ref.watch(powerProfileServiceProvider);
-    _actions = ref.watch(systemActionsServiceProvider);
     _brightnessTimer = null;
     _volumeTimer = null;
     _volumeAcknowledgementTimer = null;
@@ -120,13 +113,11 @@ class QuickSettingsController extends Notifier<QuickSettingsState>
   static const Duration _brightnessCommitInterval = Duration(milliseconds: 90);
   static const Duration _volumeCommitInterval = Duration(milliseconds: 90);
   static const Duration _volumeAcknowledgementTimeout = Duration(seconds: 2);
-  static const Duration _screenshotSettleDelay = Duration(milliseconds: 260);
 
   late BrightnessService _brightness;
   late AudioService _audio;
   late SystemLevelHudAudioSuppression _audioHudSuppression;
   late PowerProfileService _power;
-  late SystemActionsService _actions;
   late int _buildGeneration;
 
   Timer? _brightnessTimer;
@@ -461,22 +452,4 @@ class QuickSettingsController extends Notifier<QuickSettingsState>
 
   void openKeyboard() =>
       ref.read(shellControllerProvider.notifier).openEdgePanel();
-
-  /// Captures a screenshot. The caller is expected to dismiss the shade first;
-  /// the settle delay gives that animation time to clear the frame.
-  Future<bool> takeScreenshot() async {
-    if (state.screenshotRunning) {
-      return false;
-    }
-    final generation = _buildGeneration;
-    state = state.copyWith(screenshotRunning: true);
-    try {
-      await Future<void>.delayed(_screenshotSettleDelay);
-      return await _actions.takeScreenshot();
-    } finally {
-      if (isBuildGenerationActive(generation)) {
-        state = state.copyWith(screenshotRunning: false);
-      }
-    }
-  }
 }

@@ -18,6 +18,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get actionDismiss => 'Dismiss';
 
   @override
+  String get screenshotOpen => 'Open screenshot';
+
+  @override
+  String get screenshotDismiss => 'Dismiss screenshot';
+
+  @override
+  String get screenshotFailed => 'Screenshot unavailable';
+
+  @override
   String get screenshotSelectionHint =>
       'Drag to select an area · Esc to cancel';
 

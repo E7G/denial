@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:denial_dart_shell/src/services/mobile_network_service.dart';
 import 'package:denial_dart_shell/src/services/system_actions_service.dart';
 import 'package:denial_dart_shell/src/localization/denial_localizations.dart';
 import 'package:denial_dart_shell/src/state/network_connectivity.dart';
 import 'package:denial_dart_shell/src/state/shell_controller.dart';
+import 'package:denial_dart_shell/src/state/screenshot_feedback.dart';
 import 'package:denial_dart_shell/src/state/system_status.dart';
 import 'package:denial_dart_shell/src/theme/shell_theme.dart';
 import 'package:denial_dart_shell/src/widgets/shade/system_shade_layer.dart';
+import 'package:denial_dart_shell/src/widgets/shade/quick_settings_tiles.dart';
 import 'package:denial_dart_shell/src/widgets/shade/quick_settings_panel.dart';
 import 'package:denial_dart_shell/src/widgets/shade/shade_reference_geometry.dart';
 import 'package:denial_dart_shell/src/widgets/shade/status_bar.dart';
@@ -153,6 +157,7 @@ void main() {
       const ValueKey<String>('shade-screenshot-action'),
     );
     expect(screenshot, findsOneWidget);
+    expect(tester.widget(screenshot), isA<QuickTile>());
 
     await tester.tap(screenshot);
     await tester.pump();
@@ -160,8 +165,32 @@ void main() {
       container.read(shellControllerProvider).quickSettingsVisible,
       isFalse,
     );
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(actions.captures, 0);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
+    final feedback = container.read(screenshotFeedbackProvider.notifier);
     expect(actions.captures, 1);
+    expect(container.read(screenshotFeedbackProvider).busy, isTrue);
+    await feedback.capture();
+    expect(actions.captures, 1); // Repeated taps do not duplicate the request.
+    actions.result.complete('/tmp/synthetic-screenshot.png');
+    await tester.pump();
+    expect(
+      container.read(screenshotFeedbackProvider).path,
+      '/tmp/synthetic-screenshot.png',
+    );
+    await feedback.open();
+    expect(actions.opened, '/tmp/synthetic-screenshot.png');
+    expect(container.read(screenshotFeedbackProvider).path, isNull);
+    actions.result = Completer<String?>();
+    unawaited(feedback.capture());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    actions.result.complete(null);
+    await tester.pump();
+    expect(container.read(screenshotFeedbackProvider).failed, isTrue);
+    await tester.pump(const Duration(seconds: 5));
+    expect(container.read(screenshotFeedbackProvider).failed, isFalse);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -294,10 +323,18 @@ void main() {
 
 class _RecordingSystemActions extends SystemActionsService {
   int captures = 0;
+  String? opened;
+  Completer<String?> result = Completer<String?>();
 
   @override
-  Future<bool> takeScreenshot() async {
+  Future<String?> takeScreenshot() {
     captures += 1;
+    return result.future;
+  }
+
+  @override
+  Future<bool> openScreenshot(String path) async {
+    opened = path;
     return true;
   }
 }

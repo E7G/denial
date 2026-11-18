@@ -21,6 +21,7 @@ import '../widgets/low_battery_notification_binding.dart';
 import '../widgets/mobile_text_input_policy.dart';
 import '../widgets/edge_panel_layer.dart';
 import '../widgets/screenshot_selection_layer.dart';
+import '../widgets/screenshot_feedback_layer.dart';
 import '../widgets/shell_cursor.dart';
 import '../widgets/shell_surface_host.dart';
 import 'shell_overlay_host.dart';
@@ -180,7 +181,11 @@ class _ProfileScene extends StatelessWidget {
               child: ShellSecureStage(
                 scene: Stack(
                   fit: StackFit.expand,
-                  children: [scene.content, ...scene.overlays],
+                  children: [
+                    scene.content,
+                    ...scene.overlays,
+                    const ScreenshotFeedbackLayer(),
+                  ],
                 ),
                 chrome: scene.chrome,
               ),

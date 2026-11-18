@@ -382,30 +382,37 @@ fn handle_screenshot_request(
         return Ok(());
     };
     let Some(manager) = manager.as_mut() else {
+        if let Some(id) = request.feedback_id {
+            runtime.send_screenshot_result(id, None)?;
+        }
         warn!("screenshot request ignored because the writer is unavailable");
         return Ok(());
     };
 
     if request.request_id.is_none() {
-        let snapshot = topology.snapshot();
-        let Some(atlas) = AtlasPlan::for_snapshot(&snapshot) else {
-            warn!("screenshot capture skipped because the atlas is unavailable");
-            return Ok(());
-        };
-        let output_swapchains = swapchain
-            .outputs()
-            .ok_or("live screenshot has no physical output pools")?;
-        let mut sources = screenshot_composite_sources(scheduler, output_swapchains, &atlas)?;
-        let source_output = atlas
-            .outputs
-            .first()
-            .ok_or("live screenshot atlas has no outputs")?
-            .id;
-        let modifier = screenshot_buffer_modifier(scheduler, output_swapchains, source_output)?;
-        if let Err(error) =
+        let capture = (|| -> Result<(), Box<dyn Error>> {
+            if manager.request_id().is_some() {
+                return Err("screenshot selection is already active".into());
+            }
+            let snapshot = topology.snapshot();
+            let atlas = AtlasPlan::for_snapshot(&snapshot).ok_or("live screenshot has no atlas")?;
+            let output_swapchains = swapchain
+                .outputs()
+                .ok_or("live screenshot has no physical output pools")?;
+            let mut sources = screenshot_composite_sources(scheduler, output_swapchains, &atlas)?;
+            let source_output = atlas
+                .outputs
+                .first()
+                .ok_or("live screenshot atlas has no outputs")?
+                .id;
+            let modifier = screenshot_buffer_modifier(scheduler, output_swapchains, source_output)?;
             manager.capture_live(renderer, allocator, &atlas, modifier, &mut sources, request)
-        {
+        })();
+        if let Err(error) = capture {
             warn!(%error, "screenshot capture failed");
+            if let Some(id) = request.feedback_id {
+                runtime.send_screenshot_result(id, None)?;
+            }
         }
         return Ok(());
     }
@@ -2458,8 +2465,16 @@ pub(super) fn run_flutter_event_loop(
         .as_mut()
         .ok_or("Flutter runtime disappeared during initial visibility publication")?
         .set_outputs_visible(scanouts.iter().any(|scanout| scanout.powered))?;
-    let mut screenshot_manager = match screenshot::ScreenshotManager::new(events.clipboard.clone())
-    {
+    let (screenshot_result_sender, screenshot_results) = std::sync::mpsc::channel();
+    let (screenshot_wake, screenshot_wake_source) = smithay::reexports::calloop::ping::make_ping()?;
+    event_loop
+        .handle()
+        .insert_source(screenshot_wake_source, |(), _, _| {})?;
+    let mut screenshot_manager = match screenshot::ScreenshotManager::new(
+        events.clipboard.clone(),
+        screenshot_result_sender,
+        screenshot_wake,
+    ) {
         Ok(manager) => Some(manager),
         Err(error) => {
             warn!(%error, "screenshot writer is unavailable");
@@ -2840,9 +2855,26 @@ pub(super) fn run_flutter_event_loop(
         if dispatch_when_background_slice_expires(background_started, event_loop, &mut events)? {
             continue;
         }
+        let screenshot_locked = events.secure_session_locked();
+        for result in screenshot_results.try_iter() {
+            let path = if screenshot_locked {
+                None
+            } else {
+                result.path.as_deref()
+            };
+            runtime.send_screenshot_result(result.id, path)?;
+        }
         let screenshot_prepared = runtime.take_screenshot_prepared();
         let screenshot_cancelled = runtime.take_screenshot_cancelled();
         let screenshot_request = runtime.take_screenshot_requested();
+        let screenshot_request = if screenshot_locked {
+            if let Some(id) = screenshot_request.and_then(|request| request.feedback_id) {
+                runtime.send_screenshot_result(id, None)?;
+            }
+            None
+        } else {
+            screenshot_request
+        };
         if runtime.take_logout_requested() {
             info!("Flutter requested session logout");
             break;

@@ -18,6 +18,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get actionDismiss => '关闭';
 
   @override
+  String get screenshotOpen => '打开截屏';
+
+  @override
+  String get screenshotDismiss => '关闭截屏预览';
+
+  @override
+  String get screenshotFailed => '截屏不可用';
+
+  @override
   String get screenshotSelectionHint => '拖动以选择区域 · 按 Esc 取消';
 
   @override

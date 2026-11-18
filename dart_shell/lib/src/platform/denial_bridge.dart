@@ -195,6 +195,10 @@ class DenialBridge {
   static const int _logoutCommand = 3;
   static const int _screenshotPreparedCommand = 4;
   static const int _cancelScreenshotCommand = 5;
+  static const int _takeScreenshotWithResultCommand = 6;
+  static const String _screenshotResultChannel = 'denial/screenshot_result';
+  int _lastScreenshotId = 0;
+  Completer<String?>? _screenshotReply;
   static const int _systemCommandHeaderBytes = 1 + 8 + 4;
   static const int _maxSystemCommandBytes = 64 * 1024;
   static const int _maxSystemCommandArguments = 64;
@@ -203,6 +207,10 @@ class DenialBridge {
   static const Duration _outputControlTimeout = Duration(seconds: 20);
 
   DenialBridge({this.useControlSocket = false, this.controlSocketPath}) {
+    ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
+      _screenshotResultChannel,
+      _handleScreenshotResult,
+    );
     ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
       _audioStateChannel,
       _handleAudioStateMessage,
@@ -539,6 +547,14 @@ class DenialBridge {
 
   void dispose() {
     _disposed = true;
+    ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
+      _screenshotResultChannel,
+      null,
+    );
+    final screenshotReply = _screenshotReply;
+    if (screenshotReply != null && !screenshotReply.isCompleted) {
+      screenshotReply.complete(null);
+    }
     _stopSettingsDocumentSubscription();
     ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
       wire.denialWireToFlutterChannel,
@@ -1998,7 +2014,54 @@ class DenialBridge {
     );
   }
 
-  bool takeScreenshot() => _sendSystemCommand(_takeScreenshotCommand);
+  Future<String?> takeScreenshotWithResult() async {
+    if (_disposed || _screenshotReply != null) return null;
+    final id = ++_lastScreenshotId;
+    final reply = _screenshotReply = Completer<String?>();
+    try {
+      if (!_sendSystemCommand(
+        _takeScreenshotWithResultCommand,
+        requestId: id,
+      )) {
+        return null;
+      }
+      return await reply.future.timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => null,
+      );
+    } finally {
+      _screenshotReply = null;
+    }
+  }
+
+  Future<ByteData?> _handleScreenshotResult(ByteData? data) async {
+    final reply = _screenshotReply;
+    if (reply == null ||
+        reply.isCompleted ||
+        data == null ||
+        data.lengthInBytes < 8 ||
+        data.lengthInBytes > 4104 ||
+        data.getUint64(0, Endian.little) != _lastScreenshotId) {
+      return null;
+    }
+    String? path;
+    try {
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes + 8,
+        data.lengthInBytes - 8,
+      );
+      final decoded = utf8.decode(bytes);
+      if (decoded.startsWith('/') &&
+          decoded.endsWith('.png') &&
+          !decoded.contains(String.fromCharCode(0))) {
+        path = decoded;
+      }
+    } on FormatException {
+      // Treat malformed native results as failures, never as a file to open.
+    }
+    reply.complete(path);
+    return null;
+  }
 
   bool screenshotPrepared(int requestId) =>
       _sendSystemCommand(_screenshotPreparedCommand, requestId: requestId);

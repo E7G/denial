@@ -116,6 +116,15 @@ abstract class AppLocalizations {
   /// **'Dismiss'**
   String get actionDismiss;
 
+  /// Open screenshot.
+  String get screenshotOpen;
+
+  /// Dismiss screenshot.
+  String get screenshotDismiss;
+
+  /// Screenshot unavailable.
+  String get screenshotFailed;
+
   /// Instruction shown while selecting a desktop screenshot region.
   ///
   /// In en, this message translates to:
