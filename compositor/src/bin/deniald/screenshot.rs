@@ -59,7 +59,7 @@ impl ScreenshotManager {
         results: Sender<ScreenshotResult>,
         wake: smithay::reexports::calloop::ping::Ping,
     ) -> io::Result<Self> {
-        let (sender, receiver) = mpsc::sync_channel(MAX_PENDING_SCREENSHOT_WRITES);
+        let (sender, receiver) = mpsc::sync_channel::<ScreenshotJob>(MAX_PENDING_SCREENSHOT_WRITES);
         let worker = thread::Builder::new()
             .name("denial-screenshot-writer".into())
             .spawn(move || {

@@ -269,7 +269,7 @@ impl FlutterRuntime {
             .as_ref()
             .expect("Flutter runtime is shutting down")
             .engine()
-            .send_platform_message("denial/screenshot_result", &packet)?;
+            .send_platform_message(c"denial/screenshot_result", &packet)?;
         Ok(())
     }
 
