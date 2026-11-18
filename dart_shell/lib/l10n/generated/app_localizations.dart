@@ -116,13 +116,22 @@ abstract class AppLocalizations {
   /// **'Dismiss'**
   String get actionDismiss;
 
-  /// Open screenshot.
+  /// Accessible label for opening the saved screenshot from its preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Open screenshot'**
   String get screenshotOpen;
 
-  /// Dismiss screenshot.
+  /// Accessible label for dismissing the screenshot preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss screenshot'**
   String get screenshotDismiss;
 
-  /// Screenshot unavailable.
+  /// Feedback when the screenshot cannot be taken or opened.
+  ///
+  /// In en, this message translates to:
+  /// **'Screenshot unavailable'**
   String get screenshotFailed;
 
   /// Instruction shown while selecting a desktop screenshot region.

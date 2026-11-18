@@ -1,7 +1,16 @@
 {
   "screenshotOpen": "Open screenshot",
+  "@screenshotOpen": {
+    "description": "Accessible label for opening the saved screenshot from its preview."
+  },
   "screenshotDismiss": "Dismiss screenshot",
+  "@screenshotDismiss": {
+    "description": "Accessible label for dismissing the screenshot preview."
+  },
   "screenshotFailed": "Screenshot unavailable",
+  "@screenshotFailed": {
+    "description": "Feedback when the screenshot cannot be taken or opened."
+  },
   "@@locale": "en",
   "homeResizeWidget": "Resize widget",
   "@homeResizeWidget": {
